@@ -103,3 +103,59 @@ python -m nuitka `
 ```
 
 First run compiles slowly; subsequent runs are cached.
+
+## Publishing to PyPI (`pip install bidoytu`)
+
+The package is published to PyPI automatically when you push a `v*` tag, via
+the `publish-pypi` job in `.github/workflows/main.yml`. It uses **PyPI Trusted
+Publishing (OIDC)**, so there is **no API token or secret** stored in the repo.
+
+### One-time setup on PyPI
+
+Do this once, before the first tagged release:
+
+1. Create a PyPI account at https://pypi.org and verify the email.
+2. Reserve the project name by adding a **pending trusted publisher** (this lets
+   the first automated upload create the project):
+   - PyPI -> your account -> **Publishing** -> **Add a pending publisher**.
+   - Fill in:
+     - PyPI Project Name: `bidoytu`
+     - Owner: `Bidoytu`
+     - Repository name: `Bidoytu`
+     - Workflow name: `main.yml`
+     - Environment name: `pypi`
+3. In the GitHub repo, create an **Environment** named `pypi`
+   (Settings -> Environments -> New environment). No secrets are needed; this
+   just matches the `environment: pypi` in the workflow and lets you add
+   approval protection later if you want.
+
+After that, every `v*` tag builds the sdist + wheel and publishes to PyPI.
+
+### Releasing a new version to PyPI
+
+Same flow as the desktop release - the tag drives both:
+
+```bash
+# bump version in pyproject.toml AND src/bidoytu/__init__.py to e.g. 1.1.0
+git commit -am "Release v1.1.0"
+git push origin main
+git tag -a v1.1.0 -m "Bidoytu v1.1.0"
+git push origin v1.1.0
+```
+
+The `publish-pypi` job first checks the tag matches the `pyproject.toml`
+version (failing fast if not), then uploads. PyPI **rejects re-uploading an
+existing version**, so always bump the version for each release.
+
+### Build / check the package locally
+
+```bash
+pip install -e ".[dev]"   # includes build + twine
+python -m build           # writes dist/*.whl and dist/*.tar.gz
+python -m twine check dist/*
+```
+
+To try the whole flow without touching the real index, publish to
+**TestPyPI** first (https://test.pypi.org) by adding a matching trusted
+publisher there and pointing the action at it with
+`with: { repository-url: https://test.pypi.org/legacy/ }`.
