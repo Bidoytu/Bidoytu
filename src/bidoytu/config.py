@@ -56,6 +56,11 @@ class AppConfig:
         return self.data_dir / "bodies"
 
     @property
+    def repeater_sessions_path(self) -> Path:
+        """JSON file holding persisted Repeater sessions across restarts."""
+        return self.data_dir / "repeater_sessions.json"
+
+    @property
     def confdir(self) -> Path:
         """Directory where mitmproxy stores its generated CA and certs.
 

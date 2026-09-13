@@ -27,10 +27,19 @@ class ParsedRequest:
 
 def build_request_text(method: str, path: str, http_version: str,
                         headers: str, body: bytes | None) -> str:
-    """Assemble a raw HTTP request string from parts."""
+    """Assemble a raw HTTP request string from parts.
+
+    Produces the request line, the header block, a blank line, and then the
+    body. The blank line is always present so the header/body boundary can be
+    re-parsed by :func:`parse_request_text` even when there is no body.
+    """
     start = f"{method} {path} {http_version}".strip()
-    parts = [start, headers, ""]
-    text = "\r\n".join(p for p in parts if p is not None)
+    head_lines = [start]
+    if headers:
+        head_lines.append(headers)
+    # Join the request line + headers, then terminate the header block with a
+    # blank line (CRLFCRLF) before appending any body.
+    text = "\r\n".join(head_lines) + "\r\n\r\n"
     if body:
         text += body.decode("utf-8", errors="replace")
     return text

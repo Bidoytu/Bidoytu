@@ -58,6 +58,8 @@ class MainWindow(QMainWindow):
 
         self._wire()
         self._load_history()
+        # Restore any Repeater sessions from the previous run.
+        self._repeater_tab.restore_sessions(self._config.repeater_sessions_path)
 
     # -- wiring ---------------------------------------------------------------
 
@@ -199,6 +201,8 @@ class MainWindow(QMainWindow):
     # -- shutdown -------------------------------------------------------------
 
     def closeEvent(self, event) -> None:
+        # Persist open Repeater sessions before tearing anything down.
+        self._repeater_tab.save_sessions(self._config.repeater_sessions_path)
         if self._engine.isRunning():
             self._engine.stop()
         self._sender.stop()
