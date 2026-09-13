@@ -74,24 +74,30 @@ class HistoryView(QWidget):
         self._add_shortcut("Ctrl+I", self._emit_intruder)
 
     def _configure_columns(self) -> None:
-        """Size columns so everything fits without a horizontal scrollbar.
+        """Size columns so Path fills the leftover width initially, while every
+        column divider stays freely draggable.
 
-        Host and Path grow to share the leftover width; the remaining columns
-        get compact fixed widths. Column order (from FlowTableModel.COLUMNS):
+        Column order (from FlowTableModel.COLUMNS):
         0 #, 1 Method, 2 Host, 3 Path, 4 Ext, 5 Status, 6 Type, 7 Length,
         8 Cookies, 9 Time (ms).
+
+        Every column uses Interactive resize mode. We deliberately avoid
+        QHeaderView.Stretch on a middle column: a stretch section has no
+        draggable right edge (so Path's right side can't be dragged), and it
+        greedily reabsorbs space, which makes dragging any divider *after* it
+        feel inverted. With all sections Interactive, Path is simply given the
+        remaining viewport width once at layout time via :meth:`_fit_path_column`.
         """
         header = self._table.horizontalHeader()
-        header.setStretchLastSection(False)
         header.setMinimumSectionSize(36)
 
-        # Path stretches to absorb spare width (it's usually the longest value);
-        # Host gets a generous interactive default. Everything else is compact.
-        # Column indices follow FlowTableModel.COLUMNS.
-        interactive_widths = {
-            0: 44,    # #        (smaller, per request)
+        # Compact defaults for everything except Path (index 3), which is sized
+        # to fill the leftover space in _fit_path_column().
+        self._default_widths = {
+            0: 44,    # #
             1: 66,    # Method
-            2: 220,   # Host     (bigger default, per request)
+            2: 220,   # Host
+            3: 320,   # Path (initial; recomputed to fill leftover width)
             4: 54,    # Ext
             5: 58,    # Status
             6: 130,   # Type (MIME)
@@ -99,16 +105,19 @@ class HistoryView(QWidget):
             8: 160,   # Cookies
             9: 76,    # Time (ms)
         }
-        stretch_col = 3  # Path
 
         for col in range(self._model.columnCount()):
-            if col == stretch_col:
-                header.setSectionResizeMode(col, QHeaderView.Stretch)
-            else:
-                header.setSectionResizeMode(col, QHeaderView.Interactive)
-                header.resizeSection(col, interactive_widths.get(col, 80))
+            header.setSectionResizeMode(col, QHeaderView.Interactive)
+            header.resizeSection(col, self._default_widths.get(col, 80))
 
-        # No horizontal scrollbar; Path reflows to fit whatever room is left.
+        # Pin the last column to the right edge (enabled AFTER per-section modes,
+        # which would otherwise clear this flag). It always fills to the table's
+        # right border, so dragging the divider before it resizes that column
+        # in-bounds instead of pushing its right edge off-screen.
+        header.setStretchLastSection(True)
+
+        # No horizontal scrollbar: Path reflows so the row always fits the
+        # viewport, so the table never scrolls a column out of bounds.
         self._table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         # Rows as tall as the text, no extra padding.
@@ -117,6 +126,40 @@ class HistoryView(QWidget):
         vheader.setSectionResizeMode(QHeaderView.Fixed)
         vheader.setDefaultSectionSize(row_h)
         vheader.setMinimumSectionSize(row_h)
+
+    _PATH_COL = 3
+
+    def _fit_path_column(self) -> None:
+        """Reflow the Path column to absorb the viewport's leftover width.
+
+        Path is the flexible column: it fills whatever space the other columns
+        don't use, so the total always matches the viewport. That keeps the
+        stretch-pinned last column flush against the right edge and prevents any
+        column from spilling out of bounds when the window shrinks. Path keeps a
+        draggable right edge (it's Interactive, not Stretch), so the user can
+        still resize it; it just re-fills on the next view resize.
+        """
+        header = self._table.horizontalHeader()
+        viewport_w = self._table.viewport().width()
+        if viewport_w <= 0:
+            return
+        min_w = max(header.minimumSectionSize(), 120)
+        others = sum(
+            header.sectionSize(c)
+            for c in range(self._model.columnCount())
+            if c != self._PATH_COL
+        )
+        header.resizeSection(self._PATH_COL, max(min_w, viewport_w - others))
+
+    def showEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        super().showEvent(event)
+        self._fit_path_column()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        super().resizeEvent(event)
+        # Path reflows to keep the row width == viewport, so the last column
+        # stays pinned to the right and nothing overflows.
+        self._fit_path_column()
 
     def _add_shortcut(self, seq: str, handler) -> None:
         action = QAction(self)

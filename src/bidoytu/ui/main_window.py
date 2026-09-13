@@ -12,11 +12,19 @@ intercept panel.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Slot
-from PySide6.QtGui import QActionGroup
-from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox, QTabWidget
+from PySide6.QtCore import Qt, Slot
+from PySide6.QtGui import QActionGroup, QIcon
+from PySide6.QtWidgets import (
+    QApplication,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QTabWidget,
+)
 
+from bidoytu import __app_name__
 from bidoytu.config import AppConfig
+from bidoytu.resources import logo_path
 from bidoytu.net.async_sender import AsyncHttpSender
 from bidoytu.proxy.engine import ProxyEngine
 from bidoytu.storage.body_store import BodyStore
@@ -44,7 +52,11 @@ class MainWindow(QMainWindow):
         self._sender = AsyncHttpSender()
         self._sender.start()
 
-        self.setWindowTitle("Bidoytu - Intercepting Proxy")
+        # Name alone in the title bar; the logo is set as the window icon.
+        self.setWindowTitle(__app_name__)
+        self._logo = QIcon(str(logo_path()))
+        if not self._logo.isNull():
+            self.setWindowIcon(self._logo)
         self.resize(1300, 850)
 
         self._model = FlowTableModel(self)
@@ -85,6 +97,8 @@ class MainWindow(QMainWindow):
     # -- menu / theme ---------------------------------------------------------
 
     def _build_menu(self) -> None:
+        self._build_branding()
+
         view_menu = self.menuBar().addMenu("&View")
         theme_menu = view_menu.addMenu("Theme")
 
@@ -101,6 +115,15 @@ class MainWindow(QMainWindow):
         active = current_mode()
         self._light_action.setChecked(active == LIGHT)
         self._dark_action.setChecked(active == DARK)
+
+    def _build_branding(self) -> None:
+        """Pin the logo to the top-left of the menu bar."""
+        menubar = self.menuBar()
+        self._logo_label = QLabel(menubar)
+        if not self._logo.isNull():
+            self._logo_label.setPixmap(self._logo.pixmap(20, 20))
+        self._logo_label.setContentsMargins(6, 0, 6, 0)
+        menubar.setCornerWidget(self._logo_label, Qt.TopLeftCorner)
 
     def _set_theme(self, mode: str) -> None:
         app = QApplication.instance()

@@ -9,7 +9,11 @@ gathers them so the frozen app can start the proxy.
 """
 from PyInstaller.utils.hooks import collect_all
 
-datas = []
+datas = [
+    # Bundle app assets (logo) preserving the bidoytu/assets layout so
+    # bidoytu.resources.asset_path() resolves them under sys._MEIPASS.
+    ("../src/bidoytu/assets", "bidoytu/assets"),
+]
 binaries = []
 hiddenimports = []
 
@@ -40,6 +44,7 @@ exe = EXE(
     exclude_binaries=True,
     name="bidoytu",
     console=False,
+    icon="../src/bidoytu/assets/logo.png",
 )
 coll = COLLECT(
     exe,
