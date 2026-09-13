@@ -54,7 +54,7 @@ timer.setInterval(400)
 timer.timeout.connect(poll_for_ca)
 timer.start()
 
-QTimer.singleShot(300, win._proxy_tab.start_btn.click)
+QTimer.singleShot(300, win._proxy_tab.toggle_btn.click)
 QTimer.singleShot(25000, lambda: (print("  TIMEOUT"), win._engine.stop(), app.quit()))
 app.exec()
 

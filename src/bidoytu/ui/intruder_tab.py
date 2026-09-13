@@ -86,6 +86,7 @@ class IntruderTab(QWidget):
         text = build_request_text(
             record.method, record.path, record.http_version,
             record.request_headers, record.request_body_inline,
+            host=record.host, port=record.port, scheme=record.scheme,
         )
         self._template.setPlainText(text)
         self._target_label.setText(f"{self._scheme}://{self._host}:{self._port}")

@@ -12,7 +12,8 @@ intercept panel.
 from __future__ import annotations
 
 from PySide6.QtCore import Slot
-from PySide6.QtWidgets import QMainWindow, QMessageBox, QTabWidget
+from PySide6.QtGui import QActionGroup
+from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox, QTabWidget
 
 from bidoytu.config import AppConfig
 from bidoytu.net.async_sender import AsyncHttpSender
@@ -22,8 +23,10 @@ from bidoytu.storage.models import FlowRecord
 from bidoytu.storage.repository import FlowRepository
 from bidoytu.ui.flow_table_model import FlowTableModel
 from bidoytu.ui.intruder_tab import IntruderTab
+from bidoytu.ui.message_view import MessageView
 from bidoytu.ui.proxy_tab import ProxyTab
 from bidoytu.ui.repeater_tab import RepeaterTab
+from bidoytu.ui.theme import DARK, LIGHT, apply_theme, current_mode, save_theme
 
 
 class MainWindow(QMainWindow):
@@ -48,7 +51,8 @@ class MainWindow(QMainWindow):
         self._proxy_tab = ProxyTab(self._model)
         # Reflect the configured defaults in the address inputs.
         self._proxy_tab.host_edit.setText(config.proxy.listen_host)
-        self._proxy_tab.port_spin.setValue(config.proxy.listen_port)
+        self._proxy_tab.set_port(config.proxy.listen_port)
+        self._proxy_running = False
         self._repeater_tab = RepeaterTab(self._sender)
         self._intruder_tab = IntruderTab(self._sender)
         self._tabs.addTab(self._proxy_tab, "Proxy")
@@ -56,15 +60,44 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._intruder_tab, "Intruder")
         self.setCentralWidget(self._tabs)
 
+        self._build_menu()
         self._wire()
         self._load_history()
+
+    # -- menu / theme ---------------------------------------------------------
+
+    def _build_menu(self) -> None:
+        view_menu = self.menuBar().addMenu("&View")
+        theme_menu = view_menu.addMenu("Theme")
+
+        group = QActionGroup(self)
+        group.setExclusive(True)
+
+        self._light_action = theme_menu.addAction("Light")
+        self._dark_action = theme_menu.addAction("Dark")
+        for action, mode in ((self._light_action, LIGHT), (self._dark_action, DARK)):
+            action.setCheckable(True)
+            group.addAction(action)
+            action.triggered.connect(lambda _=False, m=mode: self._set_theme(m))
+
+        active = current_mode()
+        self._light_action.setChecked(active == LIGHT)
+        self._dark_action.setChecked(active == DARK)
+
+    def _set_theme(self, mode: str) -> None:
+        app = QApplication.instance()
+        if app is not None:
+            apply_theme(app, mode)
+        save_theme(mode)
+        # Re-color every raw-message highlighter to match the new mode.
+        for view in self.findChildren(MessageView):
+            view.set_theme(mode)
 
     # -- wiring ---------------------------------------------------------------
 
     def _wire(self) -> None:
-        # Proxy controls.
-        self._proxy_tab.start_btn.clicked.connect(self._on_start)
-        self._proxy_tab.stop_btn.clicked.connect(self._on_stop)
+        # Proxy controls. One button toggles start/stop.
+        self._proxy_tab.toggle_btn.clicked.connect(self._on_toggle_proxy)
         self._proxy_tab.clear_btn.clicked.connect(self._on_clear)
         self._proxy_tab.ca_btn.clicked.connect(self._on_show_ca)
 
@@ -91,33 +124,42 @@ class MainWindow(QMainWindow):
     # -- proxy control --------------------------------------------------------
 
     @Slot()
+    def _on_toggle_proxy(self) -> None:
+        if self._proxy_running:
+            self._on_stop()
+        else:
+            self._on_start()
+
     def _on_start(self) -> None:
         # Apply the host/port chosen in the UI before starting. The engine
         # reads these fields when it binds, so updating them here is enough.
         self._config.proxy.listen_host = self._proxy_tab.listen_host()
         self._config.proxy.listen_port = self._proxy_tab.listen_port()
         self._proxy_tab.set_status("Starting proxy...")
-        self._proxy_tab.start_btn.setEnabled(False)
+        # Disable the toggle until we hear back (started/error).
+        self._proxy_tab.toggle_btn.setEnabled(False)
         self._engine.start()
 
-    @Slot()
     def _on_stop(self) -> None:
         self._proxy_tab.set_status("Stopping proxy...")
-        self._proxy_tab.stop_btn.setEnabled(False)
+        self._proxy_tab.toggle_btn.setEnabled(False)
         self._engine.stop()
 
     @Slot(str, int)
     def _on_started(self, host: str, port: int) -> None:
+        self._proxy_running = True
         self._proxy_tab.set_status(f"Proxy listening on {host}:{port}")
         self._proxy_tab.set_running(True)
 
     @Slot()
     def _on_stopped(self) -> None:
+        self._proxy_running = False
         self._proxy_tab.set_status("Proxy stopped")
         self._proxy_tab.set_running(False)
 
     @Slot(str)
     def _on_error(self, message: str) -> None:
+        self._proxy_running = False
         self._proxy_tab.set_status(f"Proxy error: {message}")
         self._proxy_tab.set_running(False)
         QMessageBox.critical(self, "Proxy error", message)

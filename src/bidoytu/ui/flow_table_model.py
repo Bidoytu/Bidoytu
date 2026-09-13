@@ -19,7 +19,10 @@ from bidoytu.storage.models import FlowRecord
 
 
 class FlowTableModel(QAbstractTableModel):
-    COLUMNS = ["#", "Method", "Host", "Path", "Status", "Type", "Length", "Time (ms)"]
+    COLUMNS = [
+        "#", "Method", "Host", "Path", "Ext", "Status",
+        "Type", "Length", "Cookies", "Time (ms)",
+    ]
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -47,7 +50,7 @@ class FlowTableModel(QAbstractTableModel):
         record = self._rows[index.row()]
         if role == Qt.DisplayRole:
             return self._display(record, index.column())
-        if role == Qt.TextAlignmentRole and index.column() in (0, 4, 6, 7):
+        if role == Qt.TextAlignmentRole and index.column() in (0, 5, 7, 9):
             return int(Qt.AlignRight | Qt.AlignVCenter)
         return None
 
@@ -61,12 +64,16 @@ class FlowTableModel(QAbstractTableModel):
         if col == 3:
             return r.path
         if col == 4:
-            return str(r.status_code) if r.status_code is not None else ""
+            return r.extension
         if col == 5:
-            return r.content_type.split(";")[0]
+            return str(r.status_code) if r.status_code is not None else ""
         if col == 6:
-            return str(r.response_body_size)
+            return r.mime_type
         if col == 7:
+            return str(r.response_body_size)
+        if col == 8:
+            return r.cookies
+        if col == 9:
             d = r.duration_ms
             return f"{d:.0f}" if d is not None else ""
         return ""

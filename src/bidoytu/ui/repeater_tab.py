@@ -83,6 +83,7 @@ class RepeaterTab(QWidget):
         text = build_request_text(
             record.method, record.path, record.http_version,
             record.request_headers, record.request_body_inline,
+            host=record.host, port=record.port, scheme=record.scheme,
         )
         self._request_edit.setPlainText(text)
         self._response_view.clear_message()

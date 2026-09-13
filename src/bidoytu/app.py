@@ -12,11 +12,17 @@ from PySide6.QtWidgets import QApplication
 from bidoytu import __app_name__
 from bidoytu.config import AppConfig
 from bidoytu.ui.main_window import MainWindow
+from bidoytu.ui.theme import apply_theme, load_theme
 
 
 def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName(__app_name__)
+    app.setOrganizationName(__app_name__)
+
+    # Apply the persisted theme (defaults to dark) before building widgets so
+    # highlighters pick up matching colors from the start.
+    apply_theme(app, load_theme())
 
     config = AppConfig()
     window = MainWindow(config)

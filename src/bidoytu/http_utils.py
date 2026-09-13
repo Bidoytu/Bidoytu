@@ -25,9 +25,45 @@ class ParsedRequest:
         return default
 
 
+def _headers_have(headers: str, name: str) -> bool:
+    """Return True if the raw header block already contains ``name`` (case-insensitive)."""
+    low = name.lower()
+    for line in headers.splitlines():
+        field_name, sep, _ = line.partition(":")
+        if sep and field_name.strip().lower() == low:
+            return True
+    return False
+
+
+def ensure_host_header(headers: str, host: str, port: int = 0,
+                       scheme: str = "") -> str:
+    """Return the header block with a ``Host`` header guaranteed to be present.
+
+    If ``Host`` is already present (case-insensitive) the block is returned
+    unchanged. Otherwise a ``Host`` line is prepended so the request that gets
+    displayed/edited is complete and header-injection testing is possible.
+    """
+    if not host or _headers_have(headers, "host"):
+        return headers
+    default_ports = {"http": 80, "https": 443}
+    value = host
+    if port and port != default_ports.get(scheme, None):
+        value = f"{host}:{port}"
+    host_line = f"Host: {value}"
+    return f"{host_line}\r\n{headers}" if headers else host_line
+
+
 def build_request_text(method: str, path: str, http_version: str,
-                        headers: str, body: bytes | None) -> str:
-    """Assemble a raw HTTP request string from parts."""
+                        headers: str, body: bytes | None,
+                        host: str = "", port: int = 0,
+                        scheme: str = "") -> str:
+    """Assemble a raw HTTP request string from parts.
+
+    When ``host`` is provided, a ``Host`` header is injected if the header block
+    doesn't already carry one, so the displayed/editable request always shows
+    the target host.
+    """
+    headers = ensure_host_header(headers, host, port, scheme)
     start = f"{method} {path} {http_version}".strip()
     parts = [start, headers, ""]
     text = "\r\n".join(p for p in parts if p is not None)

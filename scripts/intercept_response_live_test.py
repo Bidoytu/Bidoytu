@@ -74,7 +74,7 @@ poll.setInterval(500)
 poll.timeout.connect(check_done)
 poll.start()
 
-QTimer.singleShot(300, win._proxy_tab.start_btn.click)
+QTimer.singleShot(300, win._proxy_tab.toggle_btn.click)
 QTimer.singleShot(30000, lambda: (print("  TIMEOUT"), finish(False)))
 app.exec()
 
