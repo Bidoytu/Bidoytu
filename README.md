@@ -145,7 +145,8 @@ Natural next features:
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the
 testing workflow, and coding conventions, and [CONTRIBUTORS.md](CONTRIBUTORS.md)
-for the list of people who have helped.
+for the list of people who have helped. To report a vulnerability, see
+[SECURITY.md](SECURITY.md).
 
 ## Legal / responsible use
 

@@ -101,5 +101,6 @@ relevant to your change.
 
 - **Bugs:** open an issue with steps to reproduce, expected vs. actual behavior,
   and your OS / Python version.
-- **Security vulnerabilities:** please report privately to the maintainer rather
-  than opening a public issue, so it can be addressed before disclosure.
+- **Security vulnerabilities:** please report privately rather than opening a
+  public issue, so it can be addressed before disclosure. See
+  [SECURITY.md](SECURITY.md) for the process.
