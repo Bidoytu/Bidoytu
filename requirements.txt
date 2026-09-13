@@ -1,3 +1,4 @@
 PySide6>=6.6
 mitmproxy>=11.0
 httpx>=0.27
+cryptography>=42.0
