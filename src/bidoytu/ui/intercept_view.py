@@ -71,6 +71,10 @@ class InterceptView(QWidget):
         self._forward_all_btn.clicked.connect(self._on_forward_all)
         self._drop_all_btn.clicked.connect(self._on_drop_all)
 
+        # Clears the HTTP history; wired by the owner (MainWindow). Lives in
+        # this control row alongside the forward/drop actions.
+        self.clear_history_btn = QPushButton("Clear History")
+
         self._status = QLabel("No intercepted requests.")
 
         controls = QHBoxLayout()
@@ -79,6 +83,7 @@ class InterceptView(QWidget):
         controls.addWidget(self._drop_btn)
         controls.addWidget(self._forward_all_btn)
         controls.addWidget(self._drop_all_btn)
+        controls.addWidget(self.clear_history_btn)
         controls.addStretch(1)
         controls.addWidget(self._status)
 
@@ -168,8 +173,36 @@ class InterceptView(QWidget):
 
     def _on_toggle(self, checked: bool) -> None:
         self._toggle_btn.setText("Intercept is on" if checked else "Intercept is off")
+        # When turning off, forward anything still paused (with edits) and clear
+        # the table before disabling interception, so the selected flow's edits
+        # aren't dropped by the addon releasing paused flows unedited.
+        if not checked:
+            self._forward_pending_and_clear()
         if self.on_toggle_intercept:
             self.on_toggle_intercept(checked)
+
+    def _forward_pending_and_clear(self) -> None:
+        """Forward every still-pending flow, then reset the panel.
+
+        Called when interception is switched off: no requests should stay
+        paused, and the activity log starts fresh. The selected flow keeps its
+        in-progress edit; the rest are forwarded as captured.
+        """
+        self._stash_current_edit()
+        for flow_id in self._activity_model.pending_flow_ids():
+            if self.on_forward:
+                self.on_forward(flow_id, self._edits.get(flow_id))
+        # Wipe all per-flow UI state and the activity table.
+        self._edits.clear()
+        self._awaiting_response.clear()
+        self._current = None
+        self._shown_flow_id = None
+        self._activity_model.clear()
+        self._editor.clear()
+        self._editor.setReadOnly(True)
+        self._response_view.clear_message()
+        self._set_action_buttons_enabled(False)
+        self._update_status()
 
     def is_intercepting(self) -> bool:
         return self._toggle_btn.isChecked()
