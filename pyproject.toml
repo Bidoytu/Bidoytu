@@ -1,6 +1,6 @@
 [project]
 name = "bidoytu"
-version = "0.1.0"
+version = "1.0.0"
 description = "An intercepting HTTP proxy tool built with PySide6 and mitmproxy."
 readme = "README.md"
 requires-python = ">=3.11"
