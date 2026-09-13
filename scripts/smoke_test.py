@@ -148,7 +148,11 @@ def test_qt_and_proxy_apis(tmp: Path) -> None:
                      request_body_inline=b"payload")
     win._send_to_repeater(rec)
     assert tabs.currentWidget() is win._repeater_tab
-    assert "b.com" in win._repeater_tab._target_label.text()
+    # Send-to opens a new session in the stacked content; check its target label.
+    rep = win._repeater_tab
+    assert rep._stack.count() == 1, rep._stack.count()
+    session = rep._stack.currentWidget()
+    assert "b.com" in session._target_label.text()
 
     win._send_to_intruder(rec)
     assert tabs.currentWidget() is win._intruder_tab

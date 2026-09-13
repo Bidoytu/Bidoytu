@@ -3,7 +3,7 @@
 Top-level layout is a QTabWidget with three tabs:
     - Proxy    : proxy controls + HTTP History / Intercept sub-tabs
     - Repeater : edit and resend requests
-    - Intruder : (skeleton) request template + payloads
+    - Intruder : automated fuzzing (positions, payloads, attack runner)
 
 The window owns the ProxyEngine, the storage objects, and the shared async
 HTTP sender, and wires proxy signals to persistence, the history model, and the
@@ -63,6 +63,10 @@ class MainWindow(QMainWindow):
         self._build_menu()
         self._wire()
         self._load_history()
+        # Restore any Repeater sessions from the previous run.
+        self._repeater_tab.restore_sessions(self._config.repeater_sessions_path)
+        # Restore the last Intruder attack configuration.
+        self._intruder_tab.restore_state(self._config.intruder_attack_path)
 
     # -- menu / theme ---------------------------------------------------------
 
@@ -120,6 +124,12 @@ class MainWindow(QMainWindow):
         # Send-to from the intercept panel too.
         self._proxy_tab.intercept.send_to_repeater.connect(self._send_to_repeater)
         self._proxy_tab.intercept.send_to_intruder.connect(self._send_to_intruder)
+
+        # Send-to from a Repeater/Intruder request's right-click menu.
+        self._repeater_tab.send_to_repeater.connect(self._send_to_repeater)
+        self._repeater_tab.send_to_intruder.connect(self._send_to_intruder)
+        self._intruder_tab.send_to_repeater.connect(self._send_to_repeater)
+        self._intruder_tab.send_to_intruder.connect(self._send_to_intruder)
 
     # -- proxy control --------------------------------------------------------
 
@@ -241,6 +251,10 @@ class MainWindow(QMainWindow):
     # -- shutdown -------------------------------------------------------------
 
     def closeEvent(self, event) -> None:
+        # Persist open Repeater sessions before tearing anything down.
+        self._repeater_tab.save_sessions(self._config.repeater_sessions_path)
+        # Persist the current Intruder attack configuration.
+        self._intruder_tab.save_state(self._config.intruder_attack_path)
         if self._engine.isRunning():
             self._engine.stop()
         self._sender.stop()
