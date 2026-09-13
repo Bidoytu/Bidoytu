@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
@@ -323,6 +324,16 @@ class IntruderSession(QWidget):
         self._table.selectionModel().currentRowChanged.connect(
             self._on_row_selected
         )
+
+        # Compact rows matching the Proxy HTTP-history table: as tall as the
+        # text plus a small pad, fixed height (Qt's default row height leaves a
+        # large gap between rows).
+        vheader = self._table.verticalHeader()
+        vheader.setVisible(False)
+        row_h = self._table.fontMetrics().height() + 2
+        vheader.setSectionResizeMode(QHeaderView.Fixed)
+        vheader.setDefaultSectionSize(row_h)
+        vheader.setMinimumSectionSize(row_h)
 
         # -- detail view (request + response) --------------------------------
         self._req_view = MessageView(read_only=True)

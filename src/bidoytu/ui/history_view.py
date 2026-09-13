@@ -6,7 +6,7 @@ exposes a context menu with "Send to Repeater/Intruder" actions.
 from __future__ import annotations
 
 from PySide6.QtCore import QModelIndex, Qt, Signal, Slot
-from PySide6.QtGui import QAction, QColor, QKeySequence, QPalette
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
@@ -39,15 +39,14 @@ class HistoryView(QWidget):
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SingleSelection)
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        # Keep full-row selection, but only paint the highlight on the "#" column.
-        # Make the view's own selection highlight transparent so neither the
-        # native style nor the active stylesheet paints a row-wide blue band;
-        # the delegate draws the "#" cell highlight explicitly instead.
+        # The delegate fully self-paints every cell (soft wash + accent bar +
+        # text) and never calls the base style, so no style-drawn selection
+        # background or coloured focus/selection frame can appear.
         self._table.setItemDelegate(HistoryItemDelegate(self._table))
-        pal = self._table.palette()
-        pal.setColor(QPalette.Highlight, QColor(0, 0, 0, 0))
-        pal.setColor(QPalette.HighlightedText, pal.color(QPalette.Text))
-        self._table.setPalette(pal)
+        # No gridlines: cleaner look, and removes any per-column boundary ticks.
+        self._table.setShowGrid(False)
+        # No focus rectangle regardless of platform style.
+        self._table.setFocusPolicy(Qt.NoFocus)
         self._table.verticalHeader().setVisible(False)
         self._table.setContextMenuPolicy(Qt.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._on_context_menu)

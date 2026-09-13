@@ -85,22 +85,24 @@ class _Chip(QWidget):
 
         self._close_btn = None
         if closable:
-            self._close_btn = QPushButton("\u2715")
+            self._close_btn = QPushButton("\u00d7")  # multiplication sign: cleaner "x"
             self._close_btn.setObjectName("chipclose")
-            self._close_btn.setFixedSize(18, 18)
+            self._close_btn.setFixedSize(16, 16)
             self._close_btn.setFlat(True)
             self._close_btn.setCursor(Qt.PointingHandCursor)
             self._close_btn.setToolTip("Close tab")
+            self._close_btn.setFocusPolicy(Qt.NoFocus)
             # Explicit readable color so the glyph shows on any chip background,
             # with a red hover highlight. Muted color comes from the theme.
             t = tokens(current_mode())
             self._close_btn.setStyleSheet(
                 "#chipclose {"
                 f"  color: {t['text_faint']}; background: transparent;"
-                "  border: none; font-weight: bold; padding: 0;"
+                "  border: none; border-radius: 8px; padding: 0;"
+                "  font-size: 14px; font-weight: normal;"
                 "}"
                 "#chipclose:hover {"
-                "  color: #ffffff; background: #d9534f; border-radius: 4px;"
+                "  color: #ffffff; background: #d9534f;"
                 "}"
             )
             self._close_btn.clicked.connect(lambda: self.close_clicked.emit(self._key))
