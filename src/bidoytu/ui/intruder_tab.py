@@ -14,9 +14,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
+    QMessageBox,
     QPushButton,
     QTabWidget,
     QVBoxLayout,
@@ -30,6 +32,9 @@ from bidoytu.ui.intruder_session import IntruderSession
 
 class IntruderTab(QWidget):
     """Holds multiple :class:`IntruderSession` instances in a tab strip."""
+
+    send_to_repeater = Signal(object)  # FlowRecord, re-emitted from a session
+    send_to_intruder = Signal(object)  # FlowRecord, re-emitted from a session
 
     def __init__(self, sender: AsyncHttpSender, parent=None) -> None:
         super().__init__(parent)
@@ -48,8 +53,14 @@ class IntruderTab(QWidget):
         new_btn.setMaximumWidth(70)
         new_btn.clicked.connect(lambda: self._new_session())
 
+        clear_btn = QPushButton("Clear all")
+        clear_btn.setToolTip("Close every Intruder tab")
+        clear_btn.setMaximumWidth(80)
+        clear_btn.clicked.connect(self._clear_all)
+
         top = QHBoxLayout()
         top.addWidget(new_btn)
+        top.addWidget(clear_btn)
         top.addStretch(1)
 
         layout = QVBoxLayout(self)
@@ -64,6 +75,8 @@ class IntruderTab(QWidget):
         session.title_changed.connect(
             lambda title, s=session: self._on_title_changed(s, title)
         )
+        session.send_to_repeater.connect(self.send_to_repeater)
+        session.send_to_intruder.connect(self.send_to_intruder)
         self._tabs.setCurrentIndex(index)
         return session
 
@@ -88,6 +101,27 @@ class IntruderTab(QWidget):
         )
         if ok and new_name.strip():
             self._tabs.setTabText(index, new_name.strip())
+
+    def _clear_all(self) -> None:
+        """Close every Intruder tab."""
+        total = self._tabs.count()
+        if total == 0:
+            return
+        confirm = QMessageBox.question(
+            self,
+            "Clear all attacks",
+            f"Close all {total} Intruder tab{'s' if total != 1 else ''}? "
+            f"This cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        while self._tabs.count():
+            widget = self._tabs.widget(0)
+            self._tabs.removeTab(0)
+            if widget is not None:
+                widget.deleteLater()
 
     def _current_session(self) -> IntruderSession | None:
         widget = self._tabs.currentWidget()

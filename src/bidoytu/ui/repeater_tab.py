@@ -22,6 +22,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
@@ -52,6 +53,9 @@ class Group:
 
 class RepeaterTab(QWidget):
     """Holds multiple :class:`RepeaterSession` instances with a wrapping bar."""
+
+    send_to_repeater = Signal(object)  # FlowRecord, re-emitted from a session
+    send_to_intruder = Signal(object)  # FlowRecord, re-emitted from a session
 
     def __init__(self, sender: AsyncHttpSender, parent=None) -> None:
         super().__init__(parent)
@@ -106,6 +110,8 @@ class RepeaterTab(QWidget):
         session.duplicate_requested.connect(
             lambda s=session: self._duplicate_session(s)
         )
+        session.send_to_repeater.connect(self.send_to_repeater)
+        session.send_to_intruder.connect(self.send_to_intruder)
         self._current = session
         self._rebuild_bar()
         self._stack.setCurrentWidget(session)

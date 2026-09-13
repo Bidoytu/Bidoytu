@@ -87,6 +87,8 @@ class RepeaterSession(QWidget):
     title_changed = Signal(str)  # emitted when the derived tab title changes
     duplicate_requested = Signal()  # Ctrl+R: clone this request into a new tab
     result_delivered = Signal(object)  # HttpResult, after on_result finishes
+    send_to_repeater = Signal(object)  # FlowRecord (right-click)
+    send_to_intruder = Signal(object)  # FlowRecord (right-click)
     _result_ready = Signal(object)  # HttpResult, marshalled to the UI thread
 
     def __init__(self, sender: AsyncHttpSender, name: str = "Request",
@@ -166,6 +168,8 @@ class RepeaterSession(QWidget):
 
         # Request pane.
         self._request_edit = MessageView(read_only=False)
+        self._request_edit.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._request_edit.customContextMenuRequested.connect(self._on_context_menu)
         self._request_find = FindBar(self._request_edit)
         request_pane = self._pane(
             "Request", self._request_edit, self._request_find,
@@ -274,9 +278,17 @@ class RepeaterSession(QWidget):
         # Ctrl+R duplicates this request into a new tab (handled by container).
         dup_sc = QShortcut(QKeySequence("Ctrl+R"), self)
         dup_sc.activated.connect(self.duplicate_requested.emit)
+        # Ctrl+I sends the current request to the Intruder.
+        intruder_sc = QShortcut(QKeySequence("Ctrl+I"), self)
+        intruder_sc.activated.connect(self._send_to_intruder_shortcut)
         # Ctrl+F focuses the find bar of whichever view has focus.
         find_sc = QShortcut(QKeySequence.Find, self)
         find_sc.activated.connect(self._activate_find)
+
+    def _send_to_intruder_shortcut(self) -> None:
+        record = self._current_as_record()
+        if record is not None:
+            self.send_to_intruder.emit(record)
 
     # -- loading --------------------------------------------------------------
 
@@ -638,3 +650,39 @@ class RepeaterSession(QWidget):
             self._response_find.activate()
         else:
             self._request_find.activate()
+
+    # -- context menu / send-to ----------------------------------------------
+
+    def _on_context_menu(self, pos) -> None:
+        record = self._current_as_record()
+        menu = QMenu(self)
+        act_rep = menu.addAction("Send to Repeater")
+        act_int = menu.addAction("Send to Intruder\tCtrl+I")
+        act_rep.setEnabled(record is not None)
+        act_int.setEnabled(record is not None)
+        chosen = menu.exec(self._request_edit.viewport().mapToGlobal(pos))
+        if record is None:
+            return
+        if chosen == act_rep:
+            self.send_to_repeater.emit(record)
+        elif chosen == act_int:
+            self.send_to_intruder.emit(record)
+
+    def _current_as_record(self) -> FlowRecord | None:
+        """Build a FlowRecord from the current (edited) request text."""
+        text = self._request_edit.toPlainText()
+        if not text.strip():
+            return None
+        parsed = parse_request_text(text)
+        return FlowRecord(
+            flow_id="",
+            method=parsed.method,
+            scheme=self._scheme,
+            host=self._host,
+            port=self._port,
+            path=parsed.path,
+            http_version=parsed.http_version,
+            request_headers="\r\n".join(f"{k}: {v}" for k, v in parsed.headers),
+            request_body_inline=parsed.body or None,
+            request_body_size=len(parsed.body),
+        )

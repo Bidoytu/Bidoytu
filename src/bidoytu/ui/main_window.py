@@ -92,6 +92,12 @@ class MainWindow(QMainWindow):
         self._proxy_tab.intercept.send_to_repeater.connect(self._send_to_repeater)
         self._proxy_tab.intercept.send_to_intruder.connect(self._send_to_intruder)
 
+        # Send-to from a Repeater/Intruder request's right-click menu.
+        self._repeater_tab.send_to_repeater.connect(self._send_to_repeater)
+        self._repeater_tab.send_to_intruder.connect(self._send_to_intruder)
+        self._intruder_tab.send_to_repeater.connect(self._send_to_repeater)
+        self._intruder_tab.send_to_intruder.connect(self._send_to_intruder)
+
     # -- proxy control --------------------------------------------------------
 
     @Slot()

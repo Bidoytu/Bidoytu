@@ -32,7 +32,7 @@ from pathlib import Path
 from shlex import quote
 
 from PySide6.QtCore import Qt, Signal, Slot
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QProgressBar,
     QPushButton,
@@ -88,6 +89,8 @@ class IntruderSession(QWidget):
     """One Intruder attack: template + positions + payload sets + results."""
 
     title_changed = Signal(str)  # emitted when the derived tab title changes
+    send_to_repeater = Signal(object)  # FlowRecord (right-click)
+    send_to_intruder = Signal(object)  # FlowRecord (right-click)
 
     def __init__(self, sender: AsyncHttpSender, name: str = "Intruder",
                  parent=None) -> None:
@@ -106,9 +109,28 @@ class IntruderSession(QWidget):
         self._proxy.setSourceModel(self._model)
 
         self._build_ui()
+        self._wire_shortcuts()
 
     def name(self) -> str:
         return self._name
+
+    def _wire_shortcuts(self) -> None:
+        # Ctrl+R -> Send to Repeater, Ctrl+I -> Send to Intruder, matching the
+        # send-to shortcuts used elsewhere in the app.
+        rep_sc = QShortcut(QKeySequence("Ctrl+R"), self)
+        rep_sc.activated.connect(self._send_to_repeater_shortcut)
+        intr_sc = QShortcut(QKeySequence("Ctrl+I"), self)
+        intr_sc.activated.connect(self._send_to_intruder_shortcut)
+
+    def _send_to_repeater_shortcut(self) -> None:
+        record = self._current_as_record()
+        if record is not None:
+            self.send_to_repeater.emit(record)
+
+    def _send_to_intruder_shortcut(self) -> None:
+        record = self._current_as_record()
+        if record is not None:
+            self.send_to_intruder.emit(record)
 
     # -- UI construction ------------------------------------------------------
 
@@ -185,6 +207,8 @@ class IntruderSession(QWidget):
         self._template = MessageView(
             read_only=False, highlighter_factory=MarkerHighlighter
         )
+        self._template.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._template.customContextMenuRequested.connect(self._on_context_menu)
         add_marker = QPushButton("Add \u00a7")
         add_marker.setToolTip("Wrap the selected text in payload markers")
         add_marker.clicked.connect(self._add_marker)
@@ -744,3 +768,39 @@ class IntruderSession(QWidget):
             QMessageBox.warning(self, "Load failed", str(exc))
             return
         self._restore_attack(payload)
+
+    # -- context menu / send-to ----------------------------------------------
+
+    def _on_context_menu(self, pos) -> None:
+        record = self._current_as_record()
+        menu = QMenu(self)
+        act_rep = menu.addAction("Send to Repeater\tCtrl+R")
+        act_int = menu.addAction("Send to Intruder\tCtrl+I")
+        act_rep.setEnabled(record is not None)
+        act_int.setEnabled(record is not None)
+        chosen = menu.exec(self._template.viewport().mapToGlobal(pos))
+        if record is None:
+            return
+        if chosen == act_rep:
+            self.send_to_repeater.emit(record)
+        elif chosen == act_int:
+            self.send_to_intruder.emit(record)
+
+    def _current_as_record(self) -> FlowRecord | None:
+        """Build a FlowRecord from the template (payload markers removed)."""
+        text = strip_markers(self._template.toPlainText())
+        if not text.strip():
+            return None
+        parsed = parse_request_text(text)
+        return FlowRecord(
+            flow_id="",
+            method=parsed.method,
+            scheme=self._scheme,
+            host=self._host,
+            port=self._port,
+            path=parsed.path,
+            http_version=parsed.http_version,
+            request_headers="\r\n".join(f"{k}: {v}" for k, v in parsed.headers),
+            request_body_inline=parsed.body or None,
+            request_body_size=len(parsed.body),
+        )
