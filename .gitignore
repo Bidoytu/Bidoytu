@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.eggs/
+.Python
+.venv/
+venv/
+env/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.tox/
+
+# Build artifacts
+build/
+dist/
+dist-release/
+*.spec.bak
+*.manifest
+
+# App data (in case someone points data_dir at the repo)
+*.db
+*.db-wal
+*.db-shm
+bodies/
+ca/
+mitmproxy-ca*.pem
+mitmproxy-ca*.cer
+mitmproxy-ca*.p12
+mitmproxy-dhparam.pem
+
+# Secrets / certs (never commit private keys)
+*.key
+*.pfx
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
