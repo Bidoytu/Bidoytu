@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from bidoytu.ui.flow_layout import FlowLayout
+from bidoytu.ui.theme import current_mode, tokens
 
 
 class _FlowHost(QWidget):
@@ -91,14 +92,15 @@ class _Chip(QWidget):
             self._close_btn.setCursor(Qt.PointingHandCursor)
             self._close_btn.setToolTip("Close tab")
             # Explicit readable color so the glyph shows on any chip background,
-            # with a red hover highlight.
+            # with a red hover highlight. Muted color comes from the theme.
+            t = tokens(current_mode())
             self._close_btn.setStyleSheet(
                 "#chipclose {"
-                "  color: #cfd3d8; background: transparent;"
+                f"  color: {t['text_faint']}; background: transparent;"
                 "  border: none; font-weight: bold; padding: 0;"
                 "}"
                 "#chipclose:hover {"
-                "  color: #ffffff; background: #c0392b; border-radius: 3px;"
+                "  color: #ffffff; background: #d9534f; border-radius: 4px;"
                 "}"
             )
             self._close_btn.clicked.connect(lambda: self.close_clicked.emit(self._key))
@@ -124,14 +126,17 @@ class _Chip(QWidget):
         self._apply_style()
 
     def _apply_style(self) -> None:
-        border = "#4a90d9" if self._selected else "#555"
+        t = tokens(current_mode())
+        border = t["accent"] if self._selected else t["border"]
         weight = "bold" if self._selected else "normal"
-        bg = "#3a3f44" if self._selected else "transparent"
+        bg = t["surface_alt"] if self._selected else "transparent"
+        fg = t["text"] if self._selected else t["text_muted"]
         # _base_style carries the optional group-color accent (border-left).
         self.setStyleSheet(
-            "QLabel { font-weight: %s; }"
-            "#chip { border: 1px solid %s; border-radius: 4px; background: %s; %s }"
-            % (weight, border, bg, self._base_style)
+            "QLabel { font-weight: %s; color: %s; background: transparent; }"
+            "#chip { border: 1px solid %s; border-radius: 6px; background: %s; %s }"
+            "#chip:hover { border: 1px solid %s; }"
+            % (weight, fg, border, bg, self._base_style, t["accent"])
         )
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
@@ -194,10 +199,11 @@ class _GroupHeaderChip(QWidget):
         self._arrow.setText("\u25b8" if self._collapsed else "\u25be")  # ▸ / ▾
         # Readable text color against the group color.
         fg = self._contrast(self._color)
+        border = tokens(current_mode())["border"]
         self.setStyleSheet(
-            "QLabel { color: %s; font-weight: bold; }"
-            "#ghdr { background: %s; border: 1px solid #333; border-radius: 4px; }"
-            % (fg, self._color)
+            "QLabel { color: %s; font-weight: bold; background: transparent; }"
+            "#ghdr { background: %s; border: 1px solid %s; border-radius: 6px; }"
+            % (fg, self._color, border)
         )
 
     @staticmethod
