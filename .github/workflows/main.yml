@@ -1,0 +1,104 @@
+name: Release
+
+# Build and publish a rolling release on every push to main.
+#
+# Versioning: main pushes have no unique tag, so we derive one from the run
+# number + short SHA (e.g. "main-42-a1b2c3d") and publish it as a PRE-RELEASE
+# tagged "latest" that is overwritten each time. This keeps a single, current
+# "download the latest build" link instead of accumulating a release per commit.
+#
+# To switch to deliberate, tag-driven releases instead, replace the trigger with:
+#     on:
+#       push:
+#         tags: ["v*"]
+# and set `prerelease: false` / use `${{ github.ref_name }}` as the tag below.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}  # allow manual runs from the Actions tab
+
+# Only one release build at a time; newer pushes cancel in-flight ones.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write  # required to create/update GitHub Releases
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: bidoytu-windows
+          # Uncomment to also build these platforms:
+          # - os: ubuntu-latest
+          #   asset: bidoytu-linux
+          # - os: macos-latest
+          #   asset: bidoytu-macos
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install project + build tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Build with PyInstaller
+        run: pyinstaller packaging/bidoytu.spec --noconfirm
+
+      # PyInstaller's COLLECT step writes a "bidoytu" folder under dist/.
+      # Zip it so the release carries a single downloadable artifact per OS.
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/bidoytu/* -DestinationPath "${{ matrix.asset }}.zip" -Force
+
+      - name: Package (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          cd dist/bidoytu
+          zip -r "../../${{ matrix.asset }}.zip" .
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}.zip
+          retention-days: 7
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish rolling "latest" pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Latest build (main-${{ github.run_number }}-${{ github.sha }})"
+          body: |
+            Automated build from the latest commit on `main`.
+
+            Commit: ${{ github.sha }}
+            Run: ${{ github.run_number }}
+
+            This pre-release is overwritten on every push to `main`.
+          prerelease: true
+          files: artifacts/**/*.zip
