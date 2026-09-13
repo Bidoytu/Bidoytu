@@ -97,7 +97,10 @@ exe = EXE(
     exclude_binaries=True,
     name="bidoytu",
     console=False,
-    icon="../src/bidoytu/assets/logo.png",
+    # Use a real .ico on Windows: PyInstaller only accepts exe/ico for the EXE
+    # icon and otherwise tries to convert a .png via Pillow. We exclude PIL from
+    # the bundle, so shipping a prebuilt .ico avoids a build-time PIL dependency.
+    icon="../src/bidoytu/assets/logo.ico",
 )
 coll = COLLECT(
     exe,
