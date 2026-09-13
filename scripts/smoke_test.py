@@ -164,11 +164,11 @@ def test_qt_and_proxy_apis(tmp: Path) -> None:
 
     # Host/port inputs reflect config defaults.
     assert win._proxy_tab.host_edit.text() == cfg.proxy.listen_host
-    assert win._proxy_tab.port_spin.value() == cfg.proxy.listen_port
+    assert win._proxy_tab.listen_port() == cfg.proxy.listen_port
 
     # Editing the inputs and starting applies them to the engine config.
     win._proxy_tab.host_edit.setText("0.0.0.0")
-    win._proxy_tab.port_spin.setValue(9999)
+    win._proxy_tab.set_port(9999)
     # Call the start slot but stop the engine immediately so no real bind lingers.
     win._on_start()
     assert win._config.proxy.listen_host == "0.0.0.0"
@@ -178,10 +178,10 @@ def test_qt_and_proxy_apis(tmp: Path) -> None:
     # Inputs lock while running and unlock when stopped.
     win._proxy_tab.set_running(True)
     assert not win._proxy_tab.host_edit.isEnabled()
-    assert not win._proxy_tab.port_spin.isEnabled()
+    assert not win._proxy_tab.port_edit.isEnabled()
     win._proxy_tab.set_running(False)
     assert win._proxy_tab.host_edit.isEnabled()
-    assert win._proxy_tab.port_spin.isEnabled()
+    assert win._proxy_tab.port_edit.isEnabled()
 
     win.close()
     print("  qt + tabs + send-to + host/port wiring OK")

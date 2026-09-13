@@ -58,7 +58,7 @@ def finish():
 
 
 # Click Start the way the UI does.
-QTimer.singleShot(500, win._proxy_tab.start_btn.click)
+QTimer.singleShot(500, win._proxy_tab.toggle_btn.click)
 QTimer.singleShot(3000, after_start)
 
 try:

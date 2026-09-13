@@ -1,12 +1,12 @@
 """Proxy tab: proxy start/stop controls + HTTP History / Intercept sub-tabs."""
 from __future__ import annotations
 
+from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
-    QSpinBox,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -28,31 +28,28 @@ class ProxyTab(QWidget):
         self.host_edit.setFixedWidth(120)
         self.host_edit.setToolTip("Interface the proxy listens on")
 
-        self.port_spin = QSpinBox()
-        self.port_spin.setRange(1, 65535)
-        self.port_spin.setValue(8080)
-        self.port_spin.setFixedWidth(80)
-        self.port_spin.setToolTip("Port the proxy listens on")
+        # Plain numeric port input (no up/down steppers).
+        self.port_edit = QLineEdit("8080")
+        self.port_edit.setValidator(QIntValidator(1, 65535, self))
+        self.port_edit.setFixedWidth(80)
+        self.port_edit.setToolTip("Port the proxy listens on")
 
-        # Proxy engine controls.
-        self.start_btn = QPushButton("Start Proxy")
-        self.stop_btn = QPushButton("Stop Proxy")
+        # Proxy engine controls. A single button toggles start/stop.
+        self.toggle_btn = QPushButton("Start Proxy")
         self.clear_btn = QPushButton("Clear History")
         self.ca_btn = QPushButton("CA Certificate")
         self.ca_btn.setToolTip(
             "Export the CA certificate to trust so HTTPS interception works"
         )
-        self.stop_btn.setEnabled(False)
         self.status_label = QLabel("Proxy stopped")
 
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Host:"))
         controls.addWidget(self.host_edit)
         controls.addWidget(QLabel("Port:"))
-        controls.addWidget(self.port_spin)
+        controls.addWidget(self.port_edit)
         controls.addSpacing(12)
-        controls.addWidget(self.start_btn)
-        controls.addWidget(self.stop_btn)
+        controls.addWidget(self.toggle_btn)
         controls.addWidget(self.clear_btn)
         controls.addWidget(self.ca_btn)
         controls.addSpacing(16)
@@ -77,14 +74,23 @@ class ProxyTab(QWidget):
         return host or "127.0.0.1"
 
     def listen_port(self) -> int:
-        return int(self.port_spin.value())
+        text = self.port_edit.text().strip()
+        try:
+            port = int(text)
+        except ValueError:
+            return 8080
+        return port if 1 <= port <= 65535 else 8080
+
+    def set_port(self, port: int) -> None:
+        self.port_edit.setText(str(port))
 
     def set_status(self, text: str) -> None:
         self.status_label.setText(text)
 
     def set_running(self, running: bool) -> None:
-        self.start_btn.setEnabled(not running)
-        self.stop_btn.setEnabled(running)
+        # Single toggle button reflects the current state.
+        self.toggle_btn.setText("Stop Proxy" if running else "Start Proxy")
+        self.toggle_btn.setEnabled(True)
         # Lock the address inputs while the proxy is running.
         self.host_edit.setEnabled(not running)
-        self.port_spin.setEnabled(not running)
+        self.port_edit.setEnabled(not running)

@@ -6,9 +6,10 @@ exposes a context menu with "Send to Repeater/Intruder" actions.
 from __future__ import annotations
 
 from PySide6.QtCore import QModelIndex, Qt, Signal, Slot
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QColor, QKeySequence, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QHeaderView,
     QMenu,
     QSplitter,
     QTableView,
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
 from bidoytu.storage.models import FlowRecord
 from bidoytu.ui.detail_view import DetailView
 from bidoytu.ui.flow_table_model import FlowTableModel
+from bidoytu.ui.history_delegate import HistoryItemDelegate
 
 
 class HistoryView(QWidget):
@@ -37,12 +39,25 @@ class HistoryView(QWidget):
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SingleSelection)
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._table.horizontalHeader().setStretchLastSection(True)
+        # Keep full-row selection, but only paint the highlight on the "#" column.
+        # Make the view's own selection highlight transparent so neither the
+        # native style nor the active stylesheet paints a row-wide blue band;
+        # the delegate draws the "#" cell highlight explicitly instead.
+        self._table.setItemDelegate(HistoryItemDelegate(self._table))
+        pal = self._table.palette()
+        pal.setColor(QPalette.Highlight, QColor(0, 0, 0, 0))
+        pal.setColor(QPalette.HighlightedText, pal.color(QPalette.Text))
+        self._table.setPalette(pal)
         self._table.verticalHeader().setVisible(False)
         self._table.setContextMenuPolicy(Qt.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._on_context_menu)
+        self._configure_columns()
 
         self._detail = DetailView(editable_request=False)
+        # Right-clicking inside the request pane offers the same send-to actions
+        # as the table row menu.
+        self._detail.send_to_repeater.connect(self.send_to_repeater)
+        self._detail.send_to_intruder.connect(self.send_to_intruder)
 
         splitter = QSplitter(Qt.Vertical)
         splitter.addWidget(self._table)
@@ -58,6 +73,51 @@ class HistoryView(QWidget):
         # Shortcuts active when the history table has focus.
         self._add_shortcut("Ctrl+R", self._emit_repeater)
         self._add_shortcut("Ctrl+I", self._emit_intruder)
+
+    def _configure_columns(self) -> None:
+        """Size columns so everything fits without a horizontal scrollbar.
+
+        Host and Path grow to share the leftover width; the remaining columns
+        get compact fixed widths. Column order (from FlowTableModel.COLUMNS):
+        0 #, 1 Method, 2 Host, 3 Path, 4 Ext, 5 Status, 6 Type, 7 Length,
+        8 Cookies, 9 Time (ms).
+        """
+        header = self._table.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setMinimumSectionSize(36)
+
+        # Path stretches to absorb spare width (it's usually the longest value);
+        # Host gets a generous interactive default. Everything else is compact.
+        # Column indices follow FlowTableModel.COLUMNS.
+        interactive_widths = {
+            0: 44,    # #        (smaller, per request)
+            1: 66,    # Method
+            2: 220,   # Host     (bigger default, per request)
+            4: 54,    # Ext
+            5: 58,    # Status
+            6: 130,   # Type (MIME)
+            7: 72,    # Length
+            8: 160,   # Cookies
+            9: 76,    # Time (ms)
+        }
+        stretch_col = 3  # Path
+
+        for col in range(self._model.columnCount()):
+            if col == stretch_col:
+                header.setSectionResizeMode(col, QHeaderView.Stretch)
+            else:
+                header.setSectionResizeMode(col, QHeaderView.Interactive)
+                header.resizeSection(col, interactive_widths.get(col, 80))
+
+        # No horizontal scrollbar; Path reflows to fit whatever room is left.
+        self._table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        # Rows as tall as the text, no extra padding.
+        vheader = self._table.verticalHeader()
+        row_h = self._table.fontMetrics().height() + 2
+        vheader.setSectionResizeMode(QHeaderView.Fixed)
+        vheader.setDefaultSectionSize(row_h)
+        vheader.setMinimumSectionSize(row_h)
 
     def _add_shortcut(self, seq: str, handler) -> None:
         action = QAction(self)

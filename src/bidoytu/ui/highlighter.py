@@ -17,6 +17,8 @@ from PySide6.QtGui import (
     QTextCharFormat,
 )
 
+from bidoytu.ui.theme import current_mode, highlight_colors
+
 
 def _fmt(color: str, bold: bool = False) -> QTextCharFormat:
     f = QTextCharFormat()
@@ -31,16 +33,25 @@ class HttpHighlighter(QSyntaxHighlighter):
 
     def __init__(self, document) -> None:
         super().__init__(document)
-        self._method_fmt = _fmt("#0a84ff", bold=True)
-        self._header_name_fmt = _fmt("#7b61ff", bold=True)
-        self._header_value_fmt = _fmt("#1f9d55")
-        self._status_fmt = _fmt("#d9534f", bold=True)
+        self._apply_colors(current_mode())
 
         self._methods = QRegularExpression(
             r"^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|CONNECT|TRACE)\b"
         )
         self._status = QRegularExpression(r"^HTTP/\d(?:\.\d)?\s+\d{3}\b")
         self._header = QRegularExpression(r"^([A-Za-z0-9\-]+):\s*(.*)$")
+
+    def _apply_colors(self, mode: str) -> None:
+        c = highlight_colors(mode)
+        self._method_fmt = _fmt(c["method"], bold=True)
+        self._header_name_fmt = _fmt(c["header_name"], bold=True)
+        self._header_value_fmt = _fmt(c["header_value"])
+        self._status_fmt = _fmt(c["status"], bold=True)
+
+    def set_mode(self, mode: str) -> None:
+        """Re-color for a new theme mode and re-highlight the document."""
+        self._apply_colors(mode)
+        self.rehighlight()
 
     def highlightBlock(self, text: str) -> None:
         m = self._methods.match(text)
