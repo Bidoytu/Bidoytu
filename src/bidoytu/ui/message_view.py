@@ -41,7 +41,8 @@ def hex_dump(data: bytes, width: int = 16) -> str:
 class MessageView(QPlainTextEdit):
     """A monospace, syntax-highlighted view of a raw HTTP request/response."""
 
-    def __init__(self, parent=None, read_only: bool = True) -> None:
+    def __init__(self, parent=None, read_only: bool = True,
+                 highlighter_factory=None) -> None:
         super().__init__(parent)
         self.setReadOnly(read_only)
         # Soft wrap: wrap long lines at the widget's right edge.
@@ -50,7 +51,11 @@ class MessageView(QPlainTextEdit):
         font.setStyleHint(QFont.Monospace)
         font.setPointSize(10)
         self.setFont(font)
-        self._highlighter = HttpHighlighter(self.document())
+        # A caller can supply a different highlighter (e.g. the Intruder
+        # template uses one that also colours §payload§ positions). It must
+        # accept the QTextDocument as its only argument.
+        factory = highlighter_factory or HttpHighlighter
+        self._highlighter = factory(self.document())
 
         # Remembered parts of the last shown message (for mode switching).
         self._last_start_line: str = ""

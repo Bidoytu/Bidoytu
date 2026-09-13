@@ -3,7 +3,7 @@
 Top-level layout is a QTabWidget with three tabs:
     - Proxy    : proxy controls + HTTP History / Intercept sub-tabs
     - Repeater : edit and resend requests
-    - Intruder : (skeleton) request template + payloads
+    - Intruder : automated fuzzing (positions, payloads, attack runner)
 
 The window owns the ProxyEngine, the storage objects, and the shared async
 HTTP sender, and wires proxy signals to persistence, the history model, and the
@@ -60,6 +60,8 @@ class MainWindow(QMainWindow):
         self._load_history()
         # Restore any Repeater sessions from the previous run.
         self._repeater_tab.restore_sessions(self._config.repeater_sessions_path)
+        # Restore the last Intruder attack configuration.
+        self._intruder_tab.restore_state(self._config.intruder_attack_path)
 
     # -- wiring ---------------------------------------------------------------
 
@@ -203,6 +205,8 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         # Persist open Repeater sessions before tearing anything down.
         self._repeater_tab.save_sessions(self._config.repeater_sessions_path)
+        # Persist the current Intruder attack configuration.
+        self._intruder_tab.save_state(self._config.intruder_attack_path)
         if self._engine.isRunning():
             self._engine.stop()
         self._sender.stop()

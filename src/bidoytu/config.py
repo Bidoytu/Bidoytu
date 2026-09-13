@@ -61,6 +61,11 @@ class AppConfig:
         return self.data_dir / "repeater_sessions.json"
 
     @property
+    def intruder_attack_path(self) -> Path:
+        """JSON file holding the last Intruder attack config across restarts."""
+        return self.data_dir / "intruder_attack.json"
+
+    @property
     def confdir(self) -> Path:
         """Directory where mitmproxy stores its generated CA and certs.
 
