@@ -33,6 +33,9 @@ class HistoryView(QWidget):
     def __init__(self, model: FlowTableModel, parent=None) -> None:
         super().__init__(parent)
         self._model = model
+        # Re-entrancy guard: our own resizeSection() calls emit sectionResized
+        # again, which would recurse into the handler. Set while we adjust Path.
+        self._resizing_guard = False
 
         self._table = QTableView()
         self._table.setModel(model)
@@ -110,11 +113,12 @@ class HistoryView(QWidget):
             header.setSectionResizeMode(col, QHeaderView.Interactive)
             header.resizeSection(col, self._default_widths.get(col, 80))
 
-        # Pin the last column to the right edge (enabled AFTER per-section modes,
-        # which would otherwise clear this flag). It always fills to the table's
-        # right border, so dragging the divider before it resizes that column
-        # in-bounds instead of pushing its right edge off-screen.
-        header.setStretchLastSection(True)
+        # Path (index 3) is the single flexible column: it absorbs or releases
+        # the delta whenever any other column is dragged, keeping the total row
+        # width invariant. We deliberately do NOT use setStretchLastSection here
+        # — a stretch-pinned last column would compete with Path for the same
+        # slack and make dragging feel inverted.
+        header.sectionResized.connect(self._on_section_resized)
 
         # No horizontal scrollbar: Path reflows so the row always fits the
         # viewport, so the table never scrolls a column out of bounds.
@@ -128,6 +132,56 @@ class HistoryView(QWidget):
         vheader.setMinimumSectionSize(row_h)
 
     _PATH_COL = 3
+    _PATH_MIN_WIDTH = 120  # Path's floor when it's the one absorbing/being dragged.
+
+    def _on_section_resized(self, logical_index: int, old_size: int, new_size: int) -> None:
+        """Whenever a column is resized, compensate its immediate right neighbor
+        (or left neighbor, if this is the last column) by the opposite delta, so
+        the total row width stays invariant and the visual change stays local to
+        the two columns touching the dragged divider — not some distant column.
+
+        Path gets no special treatment as a "sink" anymore; it's just floored
+        like any neighbor would be, whether it's the column being dragged or the
+        column absorbing the delta.
+        """
+        if self._resizing_guard:
+            return
+
+        header = self._table.horizontalHeader()
+        last_col = self._model.columnCount() - 1
+
+        # Direct drag on Path's own edge: floor it before doing anything else.
+        if logical_index == self._PATH_COL and new_size < self._PATH_MIN_WIDTH:
+            self._resizing_guard = True
+            try:
+                header.resizeSection(self._PATH_COL, old_size)
+            finally:
+                self._resizing_guard = False
+            return
+
+        delta = new_size - old_size
+        if delta == 0:
+            return
+
+        # The divider being dragged sits between logical_index and its right
+        # neighbor (standard Qt convention) — except for the last column, which
+        # has no right neighbor, so it borrows from the left instead.
+        neighbor = logical_index + 1 if logical_index < last_col else logical_index - 1
+        neighbor_min = (
+            self._PATH_MIN_WIDTH if neighbor == self._PATH_COL
+            else header.minimumSectionSize()
+        )
+        new_neighbor_w = header.sectionSize(neighbor) - delta
+
+        self._resizing_guard = True
+        try:
+            if new_neighbor_w < neighbor_min:
+                # Neighbor has no slack left — reject the drag, snap back.
+                header.resizeSection(logical_index, old_size)
+            else:
+                header.resizeSection(neighbor, new_neighbor_w)
+        finally:
+            self._resizing_guard = False
 
     def _fit_path_column(self) -> None:
         """Reflow the Path column to absorb the viewport's leftover width.
@@ -143,13 +197,17 @@ class HistoryView(QWidget):
         viewport_w = self._table.viewport().width()
         if viewport_w <= 0:
             return
-        min_w = max(header.minimumSectionSize(), 120)
+        min_w = max(header.minimumSectionSize(), self._PATH_MIN_WIDTH)
         others = sum(
             header.sectionSize(c)
             for c in range(self._model.columnCount())
             if c != self._PATH_COL
         )
-        header.resizeSection(self._PATH_COL, max(min_w, viewport_w - others))
+        self._resizing_guard = True
+        try:
+            header.resizeSection(self._PATH_COL, max(min_w, viewport_w - others))
+        finally:
+            self._resizing_guard = False
 
     def showEvent(self, event) -> None:  # noqa: N802 (Qt override)
         super().showEvent(event)
