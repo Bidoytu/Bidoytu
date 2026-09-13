@@ -69,8 +69,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      # Use bash on every OS (Git Bash ships on the Windows runner). PowerShell
+      # treats PyInstaller's INFO logging on stderr as a failure and exits 1
+      # even on a successful build; bash keys off the real exit code instead.
+      # `python -m PyInstaller` avoids depending on the Scripts dir being on PATH.
       - name: Build with PyInstaller
-        run: pyinstaller packaging/bidoytu.spec --noconfirm
+        shell: bash
+        run: python -m PyInstaller packaging/bidoytu.spec --noconfirm
 
       # PyInstaller's COLLECT step writes a "bidoytu" folder under dist/.
       # Zip it so the release carries a single downloadable artifact per OS.
