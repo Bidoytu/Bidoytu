@@ -40,30 +40,66 @@ class _PendingFlow:
     flow: http.HTTPFlow
     event: asyncio.Event = field(default_factory=asyncio.Event)
     drop: bool = False
-    edited_text: Optional[str] = None  # raw request text if the user edited it
+    edited_text: Optional[str] = None  # raw request/response text if edited
 
 
 class CaptureAddon:
     """Emits FlowRecords and optionally pauses flows for interception."""
 
-    def __init__(self, on_flow: FlowCallback, on_intercept: InterceptCallback) -> None:
+    def __init__(self, on_flow: FlowCallback, on_intercept: InterceptCallback,
+                 on_intercept_response: Optional[InterceptCallback] = None) -> None:
         self._on_flow = on_flow
         self._on_intercept = on_intercept
+        # Separate callback for paused responses so the UI can distinguish them
+        # from paused requests. Falls back to the request callback if unset.
+        self._on_intercept_response = on_intercept_response or on_intercept
         self._intercept_enabled = False
+        # Global "intercept responses" toggle (Burp/Caido style): when on, every
+        # response is paused for review.
+        self._intercept_responses = False
+        # Flow ids the user explicitly asked to intercept the response for
+        # (Burp's "Response to this request"), even when the global toggle is
+        # off. One-shot: consumed when the response is paused.
+        self._response_watch: set[str] = set()
+        # Paused requests keyed by flow id.
         self._pending: dict[str, _PendingFlow] = {}
+        # Paused responses keyed by flow id.
+        self._pending_responses: dict[str, _PendingFlow] = {}
 
     # -- interception control (called on the proxy loop) ----------------------
 
     def set_intercept_enabled(self, enabled: bool) -> None:
         self._intercept_enabled = enabled
-        # When turning interception off, release anything currently paused.
+        # When turning interception off, release anything currently paused
+        # (both requests and responses).
         if not enabled:
             for pending in list(self._pending.values()):
                 pending.event.set()
+            for pending in list(self._pending_responses.values()):
+                pending.event.set()
+
+    def set_intercept_responses(self, enabled: bool) -> None:
+        """Global toggle: pause every response for review when enabled."""
+        self._intercept_responses = enabled
+
+    def intercept_response_for(self, flow_id: str) -> None:
+        """Arm a one-shot response intercept for a single flow (Burp's
+        "Response to this request"), independent of the global toggle."""
+        self._response_watch.add(flow_id)
 
     def resolve(self, flow_id: str, drop: bool, edited_text: Optional[str]) -> None:
-        """Apply a UI decision to a paused flow. Runs on the proxy loop."""
+        """Apply a UI decision to a paused request. Runs on the proxy loop."""
         pending = self._pending.get(flow_id)
+        if pending is None:
+            return
+        pending.drop = drop
+        pending.edited_text = edited_text
+        pending.event.set()
+
+    def resolve_response(self, flow_id: str, drop: bool,
+                         edited_text: Optional[str]) -> None:
+        """Apply a UI decision to a paused response. Runs on the proxy loop."""
+        pending = self._pending_responses.get(flow_id)
         if pending is None:
             return
         pending.drop = drop
@@ -94,7 +130,32 @@ class CaptureAddon:
         if pending.edited_text is not None:
             self._apply_edited_request(flow, pending.edited_text)
 
-    def response(self, flow: http.HTTPFlow) -> None:
+    async def response(self, flow: http.HTTPFlow) -> None:
+        # Decide whether this response should be paused: interception must be on
+        # AND either the global response toggle is set or this flow was armed
+        # via "intercept response to this request".
+        armed = flow.id in self._response_watch
+        self._response_watch.discard(flow.id)
+        should_pause = self._intercept_enabled and (self._intercept_responses or armed)
+
+        if should_pause:
+            pending = _PendingFlow(flow=flow)
+            self._pending_responses[flow.id] = pending
+            record = self._record_from_request(flow)
+            self._apply_response(record, flow)
+            self._on_intercept_response(record)
+            try:
+                await pending.event.wait()
+            finally:
+                self._pending_responses.pop(flow.id, None)
+
+            if pending.drop:
+                flow.kill()
+                return
+            if pending.edited_text is not None:
+                self._apply_edited_response(flow, pending.edited_text)
+
+        # Surface the (possibly edited) response to the history.
         record = self._record_from_request(flow)
         self._apply_response(record, flow)
         self._on_flow(record, True)
@@ -115,6 +176,24 @@ class CaptureAddon:
         for k, v in parsed.headers:
             req.headers.add(k, v)
         req.content = parsed.body
+
+    @staticmethod
+    def _apply_edited_response(flow: http.HTTPFlow, text: str) -> None:
+        """Rewrite a flow's response from edited raw text before forwarding."""
+        from bidoytu.http_utils import parse_response_text
+
+        parsed = parse_response_text(text)
+        resp = flow.response
+        if resp is None:
+            return
+        resp.status_code = parsed.status_code
+        if parsed.reason:
+            resp.reason = parsed.reason
+        # Replace headers wholesale to reflect edits/removals.
+        resp.headers.clear()
+        for k, v in parsed.headers:
+            resp.headers.add(k, v)
+        resp.content = parsed.body
 
     # -- mapping helpers ------------------------------------------------------
 

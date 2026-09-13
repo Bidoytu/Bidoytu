@@ -12,7 +12,7 @@ intercept panel.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Qt, QTimer, Slot
 from PySide6.QtGui import QActionGroup, QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -94,6 +94,11 @@ class MainWindow(QMainWindow):
         # Restore the Collaborator session (re-registers with the server).
         self._collaborator_tab.restore_state(self._config.collaborator_state_path)
 
+        # Start the proxy automatically once the UI is up. Deferred to the event
+        # loop so the window is shown first and any port-in-use dialog has a
+        # visible parent to attach to.
+        QTimer.singleShot(0, self._on_start)
+
     # -- menu / theme ---------------------------------------------------------
 
     def _build_menu(self) -> None:
@@ -145,6 +150,7 @@ class MainWindow(QMainWindow):
         # Engine signals.
         self._engine.flow_captured.connect(self._on_flow_captured)
         self._engine.flow_intercepted.connect(self._on_flow_intercepted)
+        self._engine.response_intercepted.connect(self._on_response_intercepted)
         self._engine.started_ok.connect(self._on_started)
         self._engine.stopped.connect(self._on_stopped)
         self._engine.error.connect(self._on_error)
@@ -158,6 +164,16 @@ class MainWindow(QMainWindow):
         self._proxy_tab.intercept.on_toggle_intercept = self._engine.set_intercept_enabled
         self._proxy_tab.intercept.on_forward = self._engine.forward
         self._proxy_tab.intercept.on_drop = self._engine.drop
+        # Response interception: global toggle, per-flow arm, and resolving
+        # paused responses (forward/drop).
+        self._proxy_tab.intercept.on_toggle_intercept_responses = (
+            self._engine.set_intercept_responses
+        )
+        self._proxy_tab.intercept.on_intercept_response_for = (
+            self._engine.intercept_response_for
+        )
+        self._proxy_tab.intercept.on_forward_response = self._engine.forward_response
+        self._proxy_tab.intercept.on_drop_response = self._engine.drop_response
         # Send-to from the intercept panel too.
         self._proxy_tab.intercept.send_to_repeater.connect(self._send_to_repeater)
         self._proxy_tab.intercept.send_to_intruder.connect(self._send_to_intruder)
@@ -216,7 +232,37 @@ class MainWindow(QMainWindow):
         self._proxy_running = False
         self._proxy_tab.set_status(f"Proxy error: {message}")
         self._proxy_tab.set_running(False)
+        # A busy listen port is the common, recoverable failure. Show a clear,
+        # actionable dialog that tells the user the port is taken and lets them
+        # change it and retry, or open the proxy settings to pick a new one.
+        if "in use" in message.lower():
+            self._show_port_in_use_dialog()
+            return
         QMessageBox.critical(self, "Proxy error", message)
+
+    def _show_port_in_use_dialog(self) -> None:
+        host = self._proxy_tab.listen_host()
+        port = self._proxy_tab.listen_port()
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Warning)
+        box.setWindowTitle("Port already in use")
+        box.setText(f"Port {port} on {host} is already in use.")
+        box.setInformativeText(
+            "Another program (possibly another Bidoytu instance) is already "
+            "listening on this port.\n\n"
+            "Close whatever is using the port, or change the port and try again."
+        )
+        change_btn = box.addButton("Change Port...", QMessageBox.AcceptRole)
+        retry_btn = box.addButton("Retry", QMessageBox.ActionRole)
+        box.addButton("Cancel", QMessageBox.RejectRole)
+        box.setDefaultButton(change_btn)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is change_btn:
+            # Surface the proxy settings popup so the user can edit the port.
+            self._proxy_tab.settings_btn.showMenu()
+        elif clicked is retry_btn:
+            self._on_start()
 
     # -- flow handling --------------------------------------------------------
 
@@ -233,6 +279,10 @@ class MainWindow(QMainWindow):
     @Slot(object)
     def _on_flow_intercepted(self, record: FlowRecord) -> None:
         self._proxy_tab.intercept.enqueue(record)
+
+    @Slot(object)
+    def _on_response_intercepted(self, record: FlowRecord) -> None:
+        self._proxy_tab.intercept.enqueue_response(record)
 
     def _persist(self, record: FlowRecord) -> None:
         limit = self._config.body_inline_limit

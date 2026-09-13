@@ -115,6 +115,21 @@ class InterceptActivityModel(QAbstractTableModel):
             length=record.request_body_size,
         ))
 
+    def add_response(self, record: FlowRecord) -> int:
+        """Log a paused (pending) response. Returns its row index."""
+        status = str(record.status_code) if record.status_code else ""
+        return self._append(ActivityRow(
+            when=record.completed_at or time.time(),
+            direction=RESPONSE,
+            record=record,
+            pending=True,
+            method=record.method,
+            url=record.url,
+            mime=record.content_type or "",
+            status=status,
+            length=record.response_body_size,
+        ))
+
     def row_at(self, row: int) -> Optional[ActivityRow]:
         if 0 <= row < len(self._rows):
             return self._rows[row]
@@ -125,17 +140,39 @@ class InterceptActivityModel(QAbstractTableModel):
         return r.record if r is not None else None
 
     def is_pending(self, row: int) -> bool:
+        """True if the row is a still-pending request or response."""
+        r = self.row_at(row)
+        return bool(r and r.pending)
+
+    def direction_at(self, row: int) -> str:
+        r = self.row_at(row)
+        return r.direction if r is not None else ""
+
+    def is_pending_request(self, row: int) -> bool:
         r = self.row_at(row)
         return bool(r and r.direction == REQUEST and r.pending)
+
+    def is_pending_response(self, row: int) -> bool:
+        r = self.row_at(row)
+        return bool(r and r.direction == RESPONSE and r.pending)
 
     def pending_flow_ids(self) -> list[str]:
         """Flow ids of all still-pending requests, in arrival order."""
         return [r.record.flow_id for r in self._rows
                 if r.direction == REQUEST and r.pending]
 
+    def pending_response_flow_ids(self) -> list[str]:
+        """Flow ids of all still-pending responses, in arrival order."""
+        return [r.record.flow_id for r in self._rows
+                if r.direction == RESPONSE and r.pending]
+
+    def has_any_pending(self) -> bool:
+        return any(r.pending for r in self._rows)
+
     def first_pending_row(self) -> Optional[int]:
+        """First still-pending row, whether request or response."""
         for i, r in enumerate(self._rows):
-            if r.direction == REQUEST and r.pending:
+            if r.pending:
                 return i
         return None
 
@@ -146,6 +183,20 @@ class InterceptActivityModel(QAbstractTableModel):
                 self.beginRemoveRows(QModelIndex(), i, i)
                 self._rows.pop(i)
                 self.endRemoveRows()
+
+    def remove_row(self, row: int) -> None:
+        """Remove a single row by index."""
+        if 0 <= row < len(self._rows):
+            self.beginRemoveRows(QModelIndex(), row, row)
+            self._rows.pop(row)
+            self.endRemoveRows()
+
+    def row_index_for(self, flow_id: str, direction: str) -> Optional[int]:
+        """Row index of the (flow_id, direction) pair, or None."""
+        for i, r in enumerate(self._rows):
+            if r.record.flow_id == flow_id and r.direction == direction:
+                return i
+        return None
 
     def clear(self) -> None:
         self.beginResetModel()
