@@ -58,6 +58,10 @@ class InterceptView(QWidget):
         # between paused requests preserves in-progress edits.
         self._edits: dict[str, str] = {}
 
+        # Re-entrancy guard: our own resizeSection() calls emit sectionResized
+        # again, which would recurse into the handler. Set while we adjust URL.
+        self._resizing_guard = False
+
         self._toggle_btn = QPushButton("Intercept is off")
         self._toggle_btn.setCheckable(True)
         self._toggle_btn.toggled.connect(self._on_toggle)
@@ -134,30 +138,44 @@ class InterceptView(QWidget):
         v.addWidget(widget)
         return container
 
+    _URL_COL = 4
+    _URL_MIN_WIDTH = 120  # URL's floor when it's the one absorbing/being dragged.
+
     def _configure_activity_columns(self) -> None:
-        """Size the activity table so URL stretches and the rest stay compact.
+        """Size the activity table so URL fills the leftover width, while every
+        column divider stays freely draggable.
 
         Columns (from InterceptActivityModel.COLUMNS):
         0 Time, 1 Type, 2 Direction, 3 Method, 4 URL, 5 Status, 6 Length.
+
+        Every column uses Interactive resize mode. We deliberately avoid
+        QHeaderView.Stretch on URL: a stretch section has no draggable right
+        edge and greedily reabsorbs space, which makes dragging any divider
+        after it feel inverted. Instead URL is given the leftover viewport width
+        via :meth:`_fit_url_column`, and divider drags compensate the immediate
+        neighbor via :meth:`_on_activity_section_resized`.
         """
         header = self._activity_table.horizontalHeader()
         header.setStretchLastSection(False)
         header.setMinimumSectionSize(36)
-        widths = {
+        self._activity_default_widths = {
             0: 76,    # Time
             1: 120,   # Type (MIME)
             2: 78,    # Direction
             3: 68,    # Method
+            4: 300,   # URL (initial; recomputed to fill leftover width)
             5: 58,    # Status
             6: 72,    # Length
         }
-        stretch_col = 4  # URL
         for col in range(self._activity_model.columnCount()):
-            if col == stretch_col:
-                header.setSectionResizeMode(col, QHeaderView.Stretch)
-            else:
-                header.setSectionResizeMode(col, QHeaderView.Interactive)
-                header.resizeSection(col, widths.get(col, 80))
+            header.setSectionResizeMode(col, QHeaderView.Interactive)
+            header.resizeSection(col, self._activity_default_widths.get(col, 80))
+
+        # URL (index 4) is the flexible column: divider drags compensate the
+        # immediate neighbor, keeping the visual change local to the two columns
+        # touching the dragged divider.
+        header.sectionResized.connect(self._on_activity_section_resized)
+
         self._activity_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         # Show a vertical scrollbar when the row count exceeds the visible area.
         self._activity_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -168,6 +186,88 @@ class InterceptView(QWidget):
         vheader.setSectionResizeMode(QHeaderView.Fixed)
         vheader.setDefaultSectionSize(row_h)
         vheader.setMinimumSectionSize(row_h)
+
+    def _on_activity_section_resized(self, logical_index: int, old_size: int, new_size: int) -> None:
+        """Whenever a column is resized, compensate its immediate right neighbor
+        (or left neighbor, if this is the last column) by the opposite delta, so
+        the total row width stays invariant and the visual change stays local to
+        the two columns touching the dragged divider — not some distant column.
+
+        URL gets no special treatment as a "sink"; it's just floored like any
+        neighbor would be, whether it's the column being dragged or the column
+        absorbing the delta.
+        """
+        if self._resizing_guard:
+            return
+
+        header = self._activity_table.horizontalHeader()
+        last_col = self._activity_model.columnCount() - 1
+
+        # Direct drag on URL's own edge: floor it before doing anything else.
+        if logical_index == self._URL_COL and new_size < self._URL_MIN_WIDTH:
+            self._resizing_guard = True
+            try:
+                header.resizeSection(self._URL_COL, old_size)
+            finally:
+                self._resizing_guard = False
+            return
+
+        delta = new_size - old_size
+        if delta == 0:
+            return
+
+        # The divider being dragged sits between logical_index and its right
+        # neighbor (standard Qt convention) — except for the last column, which
+        # has no right neighbor, so it borrows from the left instead.
+        neighbor = logical_index + 1 if logical_index < last_col else logical_index - 1
+        neighbor_min = (
+            self._URL_MIN_WIDTH if neighbor == self._URL_COL
+            else header.minimumSectionSize()
+        )
+        new_neighbor_w = header.sectionSize(neighbor) - delta
+
+        self._resizing_guard = True
+        try:
+            if new_neighbor_w < neighbor_min:
+                # Neighbor has no slack left — reject the drag, snap back.
+                header.resizeSection(logical_index, old_size)
+            else:
+                header.resizeSection(neighbor, new_neighbor_w)
+        finally:
+            self._resizing_guard = False
+
+    def _fit_url_column(self) -> None:
+        """Reflow the URL column to absorb the viewport's leftover width.
+
+        URL is the flexible column: it fills whatever space the other columns
+        don't use, so the total always matches the viewport and nothing spills
+        out of bounds when the panel shrinks. URL keeps a draggable right edge
+        (it's Interactive, not Stretch); it just re-fills on the next resize.
+        """
+        header = self._activity_table.horizontalHeader()
+        viewport_w = self._activity_table.viewport().width()
+        if viewport_w <= 0:
+            return
+        min_w = max(header.minimumSectionSize(), self._URL_MIN_WIDTH)
+        others = sum(
+            header.sectionSize(c)
+            for c in range(self._activity_model.columnCount())
+            if c != self._URL_COL
+        )
+        self._resizing_guard = True
+        try:
+            header.resizeSection(self._URL_COL, max(min_w, viewport_w - others))
+        finally:
+            self._resizing_guard = False
+
+    def showEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        super().showEvent(event)
+        self._fit_url_column()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        super().resizeEvent(event)
+        # URL reflows to keep the row width == viewport, so nothing overflows.
+        self._fit_url_column()
 
     # -- intercept toggle -----------------------------------------------------
 
