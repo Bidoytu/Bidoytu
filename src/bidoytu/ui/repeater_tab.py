@@ -60,6 +60,10 @@ class RepeaterTab(QWidget):
     def __init__(self, sender: AsyncHttpSender, parent=None) -> None:
         super().__init__(parent)
         self._sender = sender
+        # Optional provider of Collaborator (OAST) payloads, propagated to each
+        # session so its request editor can insert a payload from the context
+        # menu. Set by MainWindow once the Collaborator tab exists.
+        self.payload_provider = None  # Callable[[], Optional[str]] | None
 
         # Ordered ungrouped sessions, groups (insertion order), and titles.
         self._ungrouped: list[RepeaterSession] = []
@@ -101,6 +105,7 @@ class RepeaterTab(QWidget):
 
     def _new_session(self, name: str = "Request") -> RepeaterSession:
         session = RepeaterSession(self._sender, name=name)
+        session.payload_provider = self.payload_provider
         self._base_titles[session] = name
         self._ungrouped.append(session)
         self._stack.addWidget(session)

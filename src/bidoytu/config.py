@@ -31,6 +31,36 @@ class ProxyConfig:
     http2: bool = True
 
 
+# Free, public Interactsh servers operated by ProjectDiscovery. They are tried
+# in order at registration time; the first that accepts the registration wins.
+# Users can add their own (self-hosted) server in the Collaborator tab.
+DEFAULT_OAST_SERVERS = (
+    "oast.pro",
+    "oast.live",
+    "oast.site",
+    "oast.online",
+    "oast.fun",
+    "oast.me",
+)
+
+
+@dataclass(slots=True)
+class CollaboratorConfig:
+    """Settings for the Collaborator (out-of-band interaction) feature.
+
+    Attributes:
+        servers: Ordered list of Interactsh server hostnames to try when
+            registering. The first entry is treated as the preferred server.
+        token: Optional ``Authorization`` token for protected / self-hosted
+            servers (leave empty for the public ones).
+        poll_interval_secs: How often to poll the server for new interactions.
+    """
+
+    servers: list[str] = field(default_factory=lambda: list(DEFAULT_OAST_SERVERS))
+    token: str = ""
+    poll_interval_secs: int = 10
+
+
 @dataclass(slots=True)
 class AppConfig:
     """Top-level runtime configuration.
@@ -45,6 +75,7 @@ class AppConfig:
 
     data_dir: Path = field(default_factory=_default_data_dir)
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
+    collaborator: CollaboratorConfig = field(default_factory=CollaboratorConfig)
     body_inline_limit: int = 64 * 1024  # 64 KiB
 
     @property
@@ -64,6 +95,16 @@ class AppConfig:
     def intruder_attack_path(self) -> Path:
         """JSON file holding the last Intruder attack config across restarts."""
         return self.data_dir / "intruder_attack.json"
+
+    @property
+    def collaborator_state_path(self) -> Path:
+        """JSON file holding Collaborator session state across restarts.
+
+        Stores the active Interactsh session (server, correlation id, keys),
+        generated payloads, and captured interactions so a running OAST session
+        can be resumed after a restart.
+        """
+        return self.data_dir / "collaborator.json"
 
     @property
     def confdir(self) -> Path:

@@ -103,6 +103,10 @@ class RepeaterSession(QWidget):
         self._handle: SendHandle | None = None
         self._history: list[HistoryEntry] = []
         self._history_index = -1
+        # Optional provider that returns a fresh Collaborator (OAST) payload
+        # hostname, or None if unavailable. Set by the container so the request
+        # editor's context menu can insert a payload at the cursor.
+        self.payload_provider = None  # Callable[[], Optional[str]] | None
 
         self._build_ui()
         self._wire_shortcuts()
@@ -660,13 +664,28 @@ class RepeaterSession(QWidget):
         act_int = menu.addAction("Send to Intruder\tCtrl+I")
         act_rep.setEnabled(record is not None)
         act_int.setEnabled(record is not None)
+        act_oast = None
+        if self.payload_provider is not None:
+            menu.addSeparator()
+            act_oast = menu.addAction("Insert Collaborator payload")
         chosen = menu.exec(self._request_edit.viewport().mapToGlobal(pos))
+        if chosen is not None and chosen == act_oast:
+            self._insert_collaborator_payload()
+            return
         if record is None:
             return
         if chosen == act_rep:
             self.send_to_repeater.emit(record)
         elif chosen == act_int:
             self.send_to_intruder.emit(record)
+
+    def _insert_collaborator_payload(self) -> None:
+        """Ask the provider for a payload and insert it at the cursor."""
+        if self.payload_provider is None:
+            return
+        host = self.payload_provider()
+        if host:
+            self._request_edit.insertPlainText(host)
 
     def _current_as_record(self) -> FlowRecord | None:
         """Build a FlowRecord from the current (edited) request text."""

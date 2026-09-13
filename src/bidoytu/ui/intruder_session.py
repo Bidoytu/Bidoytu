@@ -104,6 +104,9 @@ class IntruderSession(QWidget):
 
         self._runner: AttackRunner | None = None
         self._baseline: ResultRow | None = None
+        # Optional provider returning a fresh Collaborator (OAST) payload host,
+        # set by the container so the template context menu can insert one.
+        self.payload_provider = None  # Callable[[], Optional[str]] | None
 
         self._model = IntruderResultsModel()
         self._proxy = ResultFilterProxy()
@@ -789,13 +792,27 @@ class IntruderSession(QWidget):
         act_int = menu.addAction("Send to Intruder\tCtrl+I")
         act_rep.setEnabled(record is not None)
         act_int.setEnabled(record is not None)
+        act_oast = None
+        if self.payload_provider is not None:
+            menu.addSeparator()
+            act_oast = menu.addAction("Insert Collaborator payload")
         chosen = menu.exec(self._template.viewport().mapToGlobal(pos))
+        if chosen is not None and chosen == act_oast:
+            self._insert_collaborator_payload()
+            return
         if record is None:
             return
         if chosen == act_rep:
             self.send_to_repeater.emit(record)
         elif chosen == act_int:
             self.send_to_intruder.emit(record)
+
+    def _insert_collaborator_payload(self) -> None:
+        if self.payload_provider is None:
+            return
+        host = self.payload_provider()
+        if host:
+            self._template.insertPlainText(host)
 
     def _current_as_record(self) -> FlowRecord | None:
         """Build a FlowRecord from the template (payload markers removed)."""

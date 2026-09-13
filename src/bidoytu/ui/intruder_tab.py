@@ -39,6 +39,8 @@ class IntruderTab(QWidget):
     def __init__(self, sender: AsyncHttpSender, parent=None) -> None:
         super().__init__(parent)
         self._sender = sender
+        # Optional Collaborator (OAST) payload provider propagated to sessions.
+        self.payload_provider = None  # Callable[[], Optional[str]] | None
 
         self._tabs = QTabWidget()
         self._tabs.setTabsClosable(True)
@@ -71,6 +73,7 @@ class IntruderTab(QWidget):
 
     def _new_session(self, name: str = "Intruder") -> IntruderSession:
         session = IntruderSession(self._sender, name=name)
+        session.payload_provider = self.payload_provider
         index = self._tabs.addTab(session, name)
         session.title_changed.connect(
             lambda title, s=session: self._on_title_changed(s, title)

@@ -1,9 +1,10 @@
 """Main application window.
 
-Top-level layout is a QTabWidget with three tabs:
-    - Proxy    : proxy controls + HTTP History / Intercept sub-tabs
-    - Repeater : edit and resend requests
-    - Intruder : automated fuzzing (positions, payloads, attack runner)
+Top-level layout is a QTabWidget with four tabs:
+    - Proxy        : proxy controls + HTTP History / Intercept sub-tabs
+    - Repeater     : edit and resend requests
+    - Intruder     : automated fuzzing (positions, payloads, attack runner)
+    - Collaborator : out-of-band (OAST) interaction listener via Interactsh
 
 The window owns the ProxyEngine, the storage objects, and the shared async
 HTTP sender, and wires proxy signals to persistence, the history model, and the
@@ -21,6 +22,8 @@ from bidoytu.proxy.engine import ProxyEngine
 from bidoytu.storage.body_store import BodyStore
 from bidoytu.storage.models import FlowRecord
 from bidoytu.storage.repository import FlowRepository
+from bidoytu.net.interactsh import InteractshError
+from bidoytu.ui.collaborator_tab import CollaboratorTab
 from bidoytu.ui.flow_table_model import FlowTableModel
 from bidoytu.ui.intruder_tab import IntruderTab
 from bidoytu.ui.message_view import MessageView
@@ -55,10 +58,19 @@ class MainWindow(QMainWindow):
         self._proxy_running = False
         self._repeater_tab = RepeaterTab(self._sender)
         self._intruder_tab = IntruderTab(self._sender)
+        self._collaborator_tab = CollaboratorTab(self._sender, config.collaborator)
         self._tabs.addTab(self._proxy_tab, "Proxy")
         self._tabs.addTab(self._repeater_tab, "Repeater")
         self._tabs.addTab(self._intruder_tab, "Intruder")
+        self._collab_tab_index = self._tabs.addTab(
+            self._collaborator_tab, "Collaborator"
+        )
         self.setCentralWidget(self._tabs)
+
+        # Let Repeater/Intruder request editors insert a fresh Collaborator
+        # payload from their right-click menu.
+        self._repeater_tab.payload_provider = self._collaborator_payload
+        self._intruder_tab.payload_provider = self._collaborator_payload
 
         self._build_menu()
         self._wire()
@@ -67,6 +79,8 @@ class MainWindow(QMainWindow):
         self._repeater_tab.restore_sessions(self._config.repeater_sessions_path)
         # Restore the last Intruder attack configuration.
         self._intruder_tab.restore_state(self._config.intruder_attack_path)
+        # Restore the Collaborator session (re-registers with the server).
+        self._collaborator_tab.restore_state(self._config.collaborator_state_path)
 
     # -- menu / theme ---------------------------------------------------------
 
@@ -130,6 +144,13 @@ class MainWindow(QMainWindow):
         self._repeater_tab.send_to_intruder.connect(self._send_to_intruder)
         self._intruder_tab.send_to_repeater.connect(self._send_to_repeater)
         self._intruder_tab.send_to_intruder.connect(self._send_to_intruder)
+
+        # Badge the Collaborator tab when new out-of-band interactions arrive
+        # (unless it is already the active tab). Clear the badge on switch to it.
+        self._collaborator_tab.interactions_received.connect(
+            self._on_collaborator_interactions
+        )
+        self._tabs.currentChanged.connect(self._on_tab_changed)
 
     # -- proxy control --------------------------------------------------------
 
@@ -242,6 +263,50 @@ class MainWindow(QMainWindow):
         self._intruder_tab.load_from_record(record)
         self._tabs.setCurrentWidget(self._intruder_tab)
 
+    # -- collaborator ---------------------------------------------------------
+
+    def _collaborator_payload(self):
+        """Return a fresh Collaborator payload host, or None if unavailable.
+
+        Called by Repeater/Intruder request editors when the user picks
+        "Insert Collaborator payload". Prompts to register if the session isn't
+        set up yet.
+        """
+        if not self._collaborator_tab.is_registered:
+            QMessageBox.information(
+                self, "Collaborator not registered",
+                "Open the Collaborator tab and register with an Interactsh "
+                "server before inserting a payload.",
+            )
+            return None
+        try:
+            return self._collaborator_tab.take_payload_for("inserted into request")
+        except InteractshError as exc:
+            QMessageBox.warning(self, "Payload error", str(exc))
+            return None
+
+    @Slot(int)
+    def _on_collaborator_interactions(self, count: int) -> None:
+        # Only badge when the user isn't already looking at the tab.
+        if self._tabs.currentIndex() != self._collab_tab_index:
+            base = "Collaborator"
+            current = self._tabs.tabText(self._collab_tab_index)
+            # Accumulate the count shown in the badge.
+            shown = 0
+            if current.endswith(")") and "(" in current:
+                try:
+                    shown = int(current[current.rindex("(") + 1:-1])
+                except ValueError:
+                    shown = 0
+            self._tabs.setTabText(
+                self._collab_tab_index, f"{base} ({shown + count})"
+            )
+
+    @Slot(int)
+    def _on_tab_changed(self, index: int) -> None:
+        if index == self._collab_tab_index:
+            self._tabs.setTabText(self._collab_tab_index, "Collaborator")
+
     def _hydrate_request_body(self, record: FlowRecord) -> None:
         """Load a file-backed request body inline so editors can show it."""
         if record.request_body_inline is None and record.request_body_path:
@@ -255,6 +320,9 @@ class MainWindow(QMainWindow):
         self._repeater_tab.save_sessions(self._config.repeater_sessions_path)
         # Persist the current Intruder attack configuration.
         self._intruder_tab.save_state(self._config.intruder_attack_path)
+        # Persist the Collaborator session, then stop polling and deregister.
+        self._collaborator_tab.save_state(self._config.collaborator_state_path)
+        self._collaborator_tab.shutdown()
         if self._engine.isRunning():
             self._engine.stop()
         self._sender.stop()
