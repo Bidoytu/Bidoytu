@@ -16,21 +16,27 @@ from typing import Callable, Optional
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QMenu,
     QPushButton,
+    QSizePolicy,
     QSplitter,
     QTableView,
     QVBoxLayout,
     QWidget,
 )
 
-from bidoytu.http_utils import build_request_text
+from bidoytu.http_utils import build_request_text, build_response_text
 from bidoytu.storage.models import FlowRecord
 from bidoytu.ui.body_format import content_type_from_headers
-from bidoytu.ui.intercept_activity_model import InterceptActivityModel
+from bidoytu.ui.intercept_activity_model import (
+    REQUEST,
+    RESPONSE,
+    InterceptActivityModel,
+)
 from bidoytu.ui.message_view import MessageView
 
 
@@ -46,9 +52,17 @@ class InterceptView(QWidget):
         self.on_toggle_intercept: Optional[Callable[[bool], None]] = None
         self.on_forward: Optional[Callable[[str, str], None]] = None  # (flow_id, edited_text)
         self.on_drop: Optional[Callable[[str], None]] = None          # (flow_id)
+        # Response interception callbacks.
+        self.on_toggle_intercept_responses: Optional[Callable[[bool], None]] = None
+        self.on_intercept_response_for: Optional[Callable[[str], None]] = None  # (flow_id)
+        self.on_forward_response: Optional[Callable[[str, str], None]] = None   # (flow_id, edited_text)
+        self.on_drop_response: Optional[Callable[[str], None]] = None           # (flow_id)
 
         # The flow currently loaded in the editor (selected in the table).
         self._current: Optional[FlowRecord] = None
+        # Whether the current selection is a paused request or a paused response.
+        # One of REQUEST / RESPONSE / "" (nothing editable).
+        self._current_kind: str = ""
         # Flows we have forwarded and are awaiting a response for, so we can
         # display the response when it arrives.
         self._awaiting_response: dict[str, FlowRecord] = {}
@@ -57,6 +71,8 @@ class InterceptView(QWidget):
         # Edited request text kept per pending flow, so switching selection
         # between paused requests preserves in-progress edits.
         self._edits: dict[str, str] = {}
+        # Edited response text kept per pending response flow.
+        self._response_edits: dict[str, str] = {}
 
         # Re-entrancy guard: our own resizeSection() calls emit sectionResized
         # again, which would recurse into the handler. Set while we adjust URL.
@@ -65,6 +81,14 @@ class InterceptView(QWidget):
         self._toggle_btn = QPushButton("Intercept is off")
         self._toggle_btn.setCheckable(True)
         self._toggle_btn.toggled.connect(self._on_toggle)
+
+        # Global "intercept responses" switch (Burp/Caido style). When checked,
+        # every response is paused for review, not just requests.
+        self._intercept_responses_cb = QCheckBox("Intercept responses")
+        self._intercept_responses_cb.setToolTip(
+            "Pause and review every response, not just requests."
+        )
+        self._intercept_responses_cb.toggled.connect(self._on_toggle_responses)
 
         self._forward_btn = QPushButton("Forward")
         self._drop_btn = QPushButton("Drop")
@@ -80,9 +104,16 @@ class InterceptView(QWidget):
         self.clear_history_btn = QPushButton("Clear History")
 
         self._status = QLabel("No intercepted requests.")
+        # Don't let a long status string (it can include a big URL) force the
+        # window wider. The label reports its full text as its minimum width by
+        # default, so pin the horizontal policy to Ignored and let it shrink.
+        self._status.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        self._status.setMinimumWidth(0)
+        self._status.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
         controls = QHBoxLayout()
         controls.addWidget(self._toggle_btn)
+        controls.addWidget(self._intercept_responses_cb)
         controls.addWidget(self._forward_btn)
         controls.addWidget(self._drop_btn)
         controls.addWidget(self._forward_all_btn)
@@ -107,7 +138,8 @@ class InterceptView(QWidget):
         # Now that the model exists, initialize the action buttons.
         self._set_action_buttons_enabled(False)
 
-        # Request (editable) + response (read-only) side by side.
+        # Request (editable) + response (editable while a response is paused)
+        # side by side.
         self._editor = MessageView(read_only=False)
         self._editor.setContextMenuPolicy(Qt.CustomContextMenu)
         self._editor.customContextMenuRequested.connect(self._on_context_menu)
@@ -281,6 +313,10 @@ class InterceptView(QWidget):
         if self.on_toggle_intercept:
             self.on_toggle_intercept(checked)
 
+    def _on_toggle_responses(self, checked: bool) -> None:
+        if self.on_toggle_intercept_responses:
+            self.on_toggle_intercept_responses(checked)
+
     def _forward_pending_and_clear(self) -> None:
         """Forward every still-pending flow, then reset the panel.
 
@@ -292,15 +328,21 @@ class InterceptView(QWidget):
         for flow_id in self._activity_model.pending_flow_ids():
             if self.on_forward:
                 self.on_forward(flow_id, self._edits.get(flow_id))
+        for flow_id in self._activity_model.pending_response_flow_ids():
+            if self.on_forward_response:
+                self.on_forward_response(flow_id, self._response_edits.get(flow_id))
         # Wipe all per-flow UI state and the activity table.
         self._edits.clear()
+        self._response_edits.clear()
         self._awaiting_response.clear()
         self._current = None
+        self._current_kind = ""
         self._shown_flow_id = None
         self._activity_model.clear()
         self._editor.clear()
         self._editor.setReadOnly(True)
         self._response_view.clear_message()
+        self._response_view.setReadOnly(True)
         self._set_action_buttons_enabled(False)
         self._update_status()
 
@@ -310,10 +352,18 @@ class InterceptView(QWidget):
     # -- incoming paused flows ------------------------------------------------
 
     def enqueue(self, record: FlowRecord) -> None:
-        """A flow was paused by the proxy; add it to the table."""
+        """A request was paused by the proxy; add it to the table."""
         row = self._activity_model.add_request(record)
         self._activity_table.scrollToBottom()
-        # Auto-select the first paused request when nothing is being edited yet.
+        # Auto-select the first paused item when nothing is being edited yet.
+        if self._current is None:
+            self._activity_table.selectRow(row)
+        self._update_status()
+
+    def enqueue_response(self, record: FlowRecord) -> None:
+        """A response was paused by the proxy; add it to the table."""
+        row = self._activity_model.add_response(record)
+        self._activity_table.scrollToBottom()
         if self._current is None:
             self._activity_table.selectRow(row)
         self._update_status()
@@ -329,11 +379,16 @@ class InterceptView(QWidget):
         record = self._activity_model.record_at(row)
         if record is None:
             return
-        pending = self._activity_model.is_pending(row)
-        self._show(record, pending)
+        if self._activity_model.is_pending_response(row):
+            self._show_response(record)
+        else:
+            pending = self._activity_model.is_pending_request(row)
+            self._show(record, pending)
 
     def _show(self, record: FlowRecord, pending: bool) -> None:
+        """Show a request (editable when pending) in the Request pane."""
         self._current = record if pending else None
+        self._current_kind = REQUEST if pending else ""
         # Restore any in-progress edit for a pending flow, else rebuild text.
         if pending and record.flow_id in self._edits:
             text = self._edits[record.flow_id]
@@ -346,24 +401,70 @@ class InterceptView(QWidget):
         self._editor.setPlainText(text)
         self._editor.setReadOnly(not pending)
         self._shown_flow_id = record.flow_id
-        # Response pane: show a stored response if we have one for this flow.
+        # Response pane: nothing to edit for a request selection.
         self._response_view.clear_message()
+        self._response_view.setReadOnly(True)
         self._set_action_buttons_enabled(pending)
+        self._update_status()
+
+    def _show_response(self, record: FlowRecord) -> None:
+        """Show a paused response: request read-only on the left, editable
+        response on the right."""
+        self._current = record
+        self._current_kind = RESPONSE
+        # Left pane: the original request, read-only for reference.
+        req_text = build_request_text(
+            record.method, record.path, record.http_version,
+            record.request_headers, record.request_body_inline,
+            host=record.host, port=record.port, scheme=record.scheme,
+        )
+        self._editor.setPlainText(req_text)
+        self._editor.setReadOnly(True)
+        # Right pane: the editable raw response.
+        if record.flow_id in self._response_edits:
+            resp_text = self._response_edits[record.flow_id]
+        else:
+            resp_text = build_response_text(
+                record.http_version, record.status_code, record.reason,
+                record.response_headers, record.response_body_inline,
+            )
+        self._response_view.setReadOnly(False)
+        self._response_view.setPlainText(resp_text)
+        self._shown_flow_id = record.flow_id
+        self._set_action_buttons_enabled(True)
         self._update_status()
 
     def _stash_current_edit(self) -> None:
         """Remember the editor text for the currently selected pending flow."""
-        if self._current is not None:
+        if self._current is None:
+            return
+        if self._current_kind == RESPONSE:
+            self._response_edits[self._current.flow_id] = self._response_view.toPlainText()
+        elif self._current_kind == REQUEST:
             self._edits[self._current.flow_id] = self._editor.toPlainText()
 
     def _select_next_pending(self) -> None:
-        """Select the first still-pending request, or clear the editor."""
+        """Select the first still-pending item (request or response), or clear."""
         row = self._activity_model.first_pending_row()
         if row is not None:
+            # Update the selection UI, then drive the editor directly. We don't
+            # rely solely on the selectionChanged signal because selecting a row
+            # that is already the current index emits nothing (e.g. after the
+            # row above it was removed and it shifted into the selected index).
             self._activity_table.selectRow(row)
+            record = self._activity_model.record_at(row)
+            if record is not None:
+                if self._activity_model.is_pending_response(row):
+                    self._show_response(record)
+                else:
+                    self._show(record, self._activity_model.is_pending_request(row))
         else:
             self._current = None
+            self._current_kind = ""
             self._editor.clear()
+            self._editor.setReadOnly(True)
+            self._response_view.clear_message()
+            self._response_view.setReadOnly(True)
             self._set_action_buttons_enabled(False)
             self._update_status()
 
@@ -375,10 +476,16 @@ class InterceptView(QWidget):
         if record.flow_id not in self._awaiting_response:
             return
         self._awaiting_response.pop(record.flow_id, None)
+        # Don't clobber the pane if the user is actively editing a paused
+        # response for the same flow.
+        if self._current_kind == RESPONSE and self._current is not None \
+                and self._current.flow_id == record.flow_id:
+            return
         # Paint it when this forwarded flow is the one whose response we're
         # showing (set at forward time), or nothing else has taken the pane.
         if self._shown_flow_id in (record.flow_id, None):
             self._shown_flow_id = record.flow_id
+            self._response_view.setReadOnly(True)
             body = record.response_body_inline
             status_line = (
                 f"{record.http_version} {record.status_code} {record.reason}".strip()
@@ -391,6 +498,14 @@ class InterceptView(QWidget):
     def _on_forward_clicked(self) -> None:
         if self._current is None:
             return
+        if self._current_kind == RESPONSE:
+            self._forward_current_response()
+        else:
+            self._forward_current_request()
+        # Advance to the next pending item immediately (Burp/Caido behavior).
+        self._select_next_pending()
+
+    def _forward_current_request(self) -> None:
         record = self._current
         flow_id = record.flow_id
         edited = self._editor.toPlainText()
@@ -400,66 +515,109 @@ class InterceptView(QWidget):
         if self.on_forward:
             self.on_forward(flow_id, edited)
         self._edits.pop(flow_id, None)
-        # Remove the resolved request from the table; keep the request text in
-        # the editor (read-only) so the response lands next to it.
+        # Remove the resolved request row from the table.
+        row = self._activity_model.row_index_for(flow_id, REQUEST)
+        if row is not None:
+            self._activity_model.remove_row(row)
         self._current = None
-        self._activity_model.remove_flow(flow_id)
-        self._editor.setReadOnly(True)
-        self._set_action_buttons_enabled(False)
-        self._update_status()
+        self._current_kind = ""
+
+    def _forward_current_response(self) -> None:
+        flow_id = self._current.flow_id
+        edited = self._response_view.toPlainText()
+        if self.on_forward_response:
+            self.on_forward_response(flow_id, edited)
+        self._response_edits.pop(flow_id, None)
+        self._awaiting_response.pop(flow_id, None)
+        row = self._activity_model.row_index_for(flow_id, RESPONSE)
+        if row is not None:
+            self._activity_model.remove_row(row)
+        self._current = None
+        self._current_kind = ""
 
     def _on_drop_clicked(self) -> None:
         if self._current is None:
             return
         flow_id = self._current.flow_id
-        if self.on_drop:
-            self.on_drop(flow_id)
-        self._edits.pop(flow_id, None)
+        if self._current_kind == RESPONSE:
+            if self.on_drop_response:
+                self.on_drop_response(flow_id)
+            self._response_edits.pop(flow_id, None)
+            row = self._activity_model.row_index_for(flow_id, RESPONSE)
+        else:
+            if self.on_drop:
+                self.on_drop(flow_id)
+            self._edits.pop(flow_id, None)
+            row = self._activity_model.row_index_for(flow_id, REQUEST)
         self._awaiting_response.pop(flow_id, None)
+        if row is not None:
+            self._activity_model.remove_row(row)
         self._current = None
-        self._activity_model.remove_flow(flow_id)
-        # Drops have no response; move on to the next pending request.
-        self._response_view.clear_message()
+        self._current_kind = ""
+        # Move on to the next pending item immediately.
         self._select_next_pending()
 
     def _on_forward_all(self) -> None:
-        """Forward every still-pending flow. The selected one uses its edited
-        text; the rest are forwarded as captured. Rows are removed as resolved."""
+        """Forward every still-pending request and response. The selected one
+        uses its edited text; the rest are forwarded as captured."""
         self._stash_current_edit()
         for flow_id in self._activity_model.pending_flow_ids():
             edited = self._edits.get(flow_id)
             if self.on_forward:
                 self.on_forward(flow_id, edited)
-            self._awaiting_response[flow_id] = self._activity_model_record(flow_id)
+            rec = self._activity_model_record(flow_id, REQUEST)
+            if rec is not None:
+                self._awaiting_response[flow_id] = rec
+        for flow_id in self._activity_model.pending_response_flow_ids():
+            if self.on_forward_response:
+                self.on_forward_response(flow_id, self._response_edits.get(flow_id))
+        # Remove all resolved rows.
+        for flow_id in list(self._activity_model.pending_flow_ids()):
+            self._activity_model.remove_flow(flow_id)
+        for flow_id in list(self._activity_model.pending_response_flow_ids()):
             self._activity_model.remove_flow(flow_id)
         self._edits.clear()
-        # Nothing left to edit; leave the response pane for whichever forwarded
-        # flow's response was last shown.
+        self._response_edits.clear()
         self._current = None
+        self._current_kind = ""
         self._editor.setReadOnly(True)
+        self._response_view.setReadOnly(True)
         self._set_action_buttons_enabled(False)
         self._update_status()
 
     def _on_drop_all(self) -> None:
-        """Drop every still-pending flow and remove their rows."""
+        """Drop every still-pending request and response, and remove their rows."""
         for flow_id in self._activity_model.pending_flow_ids():
             if self.on_drop:
                 self.on_drop(flow_id)
             self._awaiting_response.pop(flow_id, None)
+        for flow_id in self._activity_model.pending_response_flow_ids():
+            if self.on_drop_response:
+                self.on_drop_response(flow_id)
+            self._awaiting_response.pop(flow_id, None)
+        for flow_id in list(self._activity_model.pending_flow_ids()):
+            self._activity_model.remove_flow(flow_id)
+        for flow_id in list(self._activity_model.pending_response_flow_ids()):
             self._activity_model.remove_flow(flow_id)
         self._edits.clear()
+        self._response_edits.clear()
         self._current = None
+        self._current_kind = ""
         self._editor.clear()
+        self._editor.setReadOnly(True)
         self._response_view.clear_message()
+        self._response_view.setReadOnly(True)
         self._set_action_buttons_enabled(False)
         self._update_status()
 
-    def _activity_model_record(self, flow_id: str):
-        """Find the FlowRecord for a flow_id currently in the table."""
+    def _activity_model_record(self, flow_id: str, direction: Optional[str] = None):
+        """Find the FlowRecord for a flow_id (optionally filtered by direction)
+        currently in the table."""
         for i in range(self._activity_model.rowCount()):
             rec = self._activity_model.record_at(i)
             if rec is not None and rec.flow_id == flow_id:
-                return rec
+                if direction is None or self._activity_model.direction_at(i) == direction:
+                    return rec
         return None
 
     # -- context menu / send-to -----------------------------------------------
@@ -467,18 +625,40 @@ class InterceptView(QWidget):
     def _on_context_menu(self, pos) -> None:
         record = self._current_as_record()
         menu = QMenu(self)
+        # Only offered for a paused request: arm a one-shot response intercept
+        # so this specific flow's response gets paused for review, even when the
+        # global "Intercept responses" switch is off (Burp's behavior).
+        act_resp: Optional[object] = None
+        if self._current_kind == REQUEST and self._current is not None:
+            act_resp = menu.addAction("Intercept response to this request")
+            menu.addSeparator()
         act_rep = menu.addAction("Send to Repeater\tCtrl+R")
         act_int = menu.addAction("Send to Intruder\tCtrl+I")
         # Disable when there is nothing to send.
         act_rep.setEnabled(record is not None)
         act_int.setEnabled(record is not None)
         chosen = menu.exec(self._editor.viewport().mapToGlobal(pos))
+        if act_resp is not None and chosen == act_resp:
+            self._arm_response_intercept()
+            return
         if record is None:
             return
         if chosen == act_rep:
             self.send_to_repeater.emit(record)
         elif chosen == act_int:
             self.send_to_intruder.emit(record)
+
+    def _arm_response_intercept(self) -> None:
+        """Arm a one-shot response intercept for the current paused request,
+        then forward the request so its response comes back paused."""
+        if self._current is None or self._current_kind != REQUEST:
+            return
+        flow_id = self._current.flow_id
+        if self.on_intercept_response_for:
+            self.on_intercept_response_for(flow_id)
+        # Forward the request now so the response will be produced and paused.
+        self._forward_current_request()
+        self._select_next_pending()
 
     def _current_as_record(self) -> Optional[FlowRecord]:
         """Build a FlowRecord from the (possibly edited) request in the editor.
@@ -508,24 +688,29 @@ class InterceptView(QWidget):
     # -- helpers --------------------------------------------------------------
 
     def _set_action_buttons_enabled(self, enabled: bool) -> None:
-        # Forward/Drop act on the selected pending flow.
+        # Forward/Drop act on the selected pending item (request or response).
         self._forward_btn.setEnabled(enabled)
         self._drop_btn.setEnabled(enabled)
         # Forward All / Drop All are enabled whenever anything is still pending.
-        has_pending = bool(self._activity_model.pending_flow_ids())
+        has_pending = self._activity_model.has_any_pending()
         self._forward_all_btn.setEnabled(has_pending)
         self._drop_all_btn.setEnabled(has_pending)
 
     def _update_status(self) -> None:
-        pending = self._activity_model.pending_flow_ids()
-        if not pending:
+        reqs = self._activity_model.pending_flow_ids()
+        resps = self._activity_model.pending_response_flow_ids()
+        total = len(reqs) + len(resps)
+        if total == 0:
             self._status.setText("No pending requests.")
             return
         if self._current is not None:
+            kind = "response" if self._current_kind == RESPONSE else "request"
+            target = f"{self._current.host}{self._current.path}"
+            if len(target) > 80:
+                target = target[:77] + "..."
             self._status.setText(
-                f"Editing: {self._current.method} "
-                f"{self._current.host}{self._current.path}  "
-                f"({len(pending)} pending)"
+                f"Editing {kind}: {self._current.method} {target}  "
+                f"({total} pending)"
             )
         else:
-            self._status.setText(f"{len(pending)} pending request(s).")
+            self._status.setText(f"{total} pending item(s).")

@@ -15,7 +15,7 @@ from typing import Callable
 
 from PySide6.QtCore import QRect, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QPainter
-from PySide6.QtWidgets import QMenu, QPlainTextEdit, QWidget
+from PySide6.QtWidgets import QMenu, QPlainTextEdit, QSizePolicy, QWidget
 
 from bidoytu.ui.body_format import format_body
 from bidoytu.ui.highlighter import HttpHighlighter
@@ -67,6 +67,13 @@ class MessageView(QPlainTextEdit):
         self._extra_actions: list[tuple[str, Callable[[], None], Callable[[], bool]]] = []
         # Soft wrap: wrap long lines at the widget's right edge.
         self.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        # Let the widget shrink freely: without this, a very long unwrapped line
+        # (e.g. a huge request URL) makes QPlainTextEdit report a content-sized
+        # minimumSizeHint that propagates up through the splitters and forces the
+        # whole window wider. Ignoring the horizontal hint keeps the layout
+        # driven by the splitter, and soft wrap reflows the text to fit.
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Expanding)
+        self.setMinimumWidth(0)
         font = QFont("Consolas")
         font.setStyleHint(QFont.Monospace)
         font.setPointSize(10)
@@ -89,6 +96,18 @@ class MessageView(QPlainTextEdit):
         self.blockCountChanged.connect(lambda _: self._update_line_number_area_width())
         self.updateRequest.connect(self._update_line_number_area)
         self._update_line_number_area_width()
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt override)
+        # Pin the minimum width small so a long unwrapped line can never force
+        # the containing splitter/window to grow horizontally. Height keeps the
+        # base class's hint so vertical sizing is unaffected.
+        base = super().minimumSizeHint()
+        return QSize(0, base.height())
+
+    def sizeHint(self) -> QSize:  # noqa: N802 (Qt override)
+        # Provide a modest preferred width instead of a content-driven one.
+        base = super().sizeHint()
+        return QSize(200, base.height())
 
     # -- line number gutter ---------------------------------------------------
 

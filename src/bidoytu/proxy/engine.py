@@ -31,7 +31,8 @@ class ProxyEngine(QThread):
     """QThread that hosts a mitmproxy DumpMaster on its own asyncio loop."""
 
     flow_captured = Signal(object, bool)  # (FlowRecord, is_response)
-    flow_intercepted = Signal(object)     # (FlowRecord) paused, awaiting decision
+    flow_intercepted = Signal(object)     # (FlowRecord) request paused, awaiting decision
+    response_intercepted = Signal(object)  # (FlowRecord) response paused, awaiting decision
     started_ok = Signal(str, int)         # (host, port)
     stopped = Signal()
     error = Signal(str)
@@ -47,6 +48,7 @@ class ProxyEngine(QThread):
         self._master = None
         self._addon: Optional[CaptureAddon] = None
         self._intercept_enabled = False
+        self._intercept_responses = False
 
     # -- QThread entry point --------------------------------------------------
 
@@ -121,9 +123,12 @@ class ProxyEngine(QThread):
             # Set where mitmproxy generates/reads its CA and leaf certs.
             options.confdir = self._confdir
         self._master = DumpMaster(options, with_termlog=False, with_dumper=False)
-        self._addon = CaptureAddon(self._emit_flow, self._emit_intercept)
+        self._addon = CaptureAddon(
+            self._emit_flow, self._emit_intercept, self._emit_response_intercept
+        )
         # Apply any intercept state requested before the loop existed.
         self._addon.set_intercept_enabled(self._intercept_enabled)
+        self._addon.set_intercept_responses(self._intercept_responses)
         self._master.addons.add(self._addon)
 
         # Emit started_ok only once servers are actually up (mitmproxy fires the
@@ -148,6 +153,9 @@ class ProxyEngine(QThread):
     def _emit_intercept(self, record: FlowRecord) -> None:
         self.flow_intercepted.emit(record)
 
+    def _emit_response_intercept(self, record: FlowRecord) -> None:
+        self.response_intercepted.emit(record)
+
     # -- interception control (UI -> proxy loop) ------------------------------
 
     def set_intercept_enabled(self, enabled: bool) -> None:
@@ -159,17 +167,42 @@ class ProxyEngine(QThread):
     def is_intercept_enabled(self) -> bool:
         return self._intercept_enabled
 
+    def set_intercept_responses(self, enabled: bool) -> None:
+        """Toggle the global 'intercept responses' behavior."""
+        self._intercept_responses = enabled
+        loop, addon = self._loop, self._addon
+        if loop is not None and addon is not None:
+            loop.call_soon_threadsafe(addon.set_intercept_responses, enabled)
+
+    def intercept_response_for(self, flow_id: str) -> None:
+        """Arm a one-shot response intercept for a single flow."""
+        loop, addon = self._loop, self._addon
+        if loop is not None and addon is not None:
+            loop.call_soon_threadsafe(addon.intercept_response_for, flow_id)
+
     def forward(self, flow_id: str, edited_text: Optional[str] = None) -> None:
-        """Forward a paused flow, optionally with edited raw request text."""
+        """Forward a paused request, optionally with edited raw request text."""
         loop, addon = self._loop, self._addon
         if loop is not None and addon is not None:
             loop.call_soon_threadsafe(addon.resolve, flow_id, False, edited_text)
 
     def drop(self, flow_id: str) -> None:
-        """Drop a paused flow."""
+        """Drop a paused request."""
         loop, addon = self._loop, self._addon
         if loop is not None and addon is not None:
             loop.call_soon_threadsafe(addon.resolve, flow_id, True, None)
+
+    def forward_response(self, flow_id: str, edited_text: Optional[str] = None) -> None:
+        """Forward a paused response, optionally with edited raw response text."""
+        loop, addon = self._loop, self._addon
+        if loop is not None and addon is not None:
+            loop.call_soon_threadsafe(addon.resolve_response, flow_id, False, edited_text)
+
+    def drop_response(self, flow_id: str) -> None:
+        """Drop a paused response."""
+        loop, addon = self._loop, self._addon
+        if loop is not None and addon is not None:
+            loop.call_soon_threadsafe(addon.resolve_response, flow_id, True, None)
 
     # -- control --------------------------------------------------------------
 

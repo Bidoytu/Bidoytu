@@ -112,6 +112,68 @@ def parse_request_text(text: str) -> ParsedRequest:
     )
 
 
+@dataclass(slots=True)
+class ParsedResponse:
+    http_version: str = "HTTP/1.1"
+    status_code: int = 200
+    reason: str = ""
+    headers: list[tuple[str, str]] = field(default_factory=list)
+    body: bytes = b""
+
+
+def build_response_text(http_version: str, status_code: int, reason: str,
+                        headers: str, body: bytes | None) -> str:
+    """Assemble a raw HTTP response string from parts."""
+    version = http_version or "HTTP/1.1"
+    status_line = f"{version} {status_code} {reason}".strip()
+    head_lines = [status_line]
+    if headers:
+        head_lines.append(headers)
+    text = "\r\n".join(head_lines) + "\r\n\r\n"
+    if body:
+        text += body.decode("utf-8", errors="replace")
+    return text
+
+
+def parse_response_text(text: str) -> ParsedResponse:
+    """Parse raw HTTP response text into a :class:`ParsedResponse`.
+
+    Tolerant of both CRLF and LF line endings. The header/body boundary is the
+    first blank line.
+    """
+    normalized = text.replace("\r\n", "\n")
+    if "\n\n" in normalized:
+        head, _, body_str = normalized.partition("\n\n")
+    else:
+        head, body_str = normalized, ""
+
+    lines = head.split("\n")
+    status_line = lines[0].strip() if lines else ""
+    tokens = status_line.split(None, 2)
+    http_version = tokens[0] if len(tokens) >= 1 else "HTTP/1.1"
+    try:
+        status_code = int(tokens[1]) if len(tokens) >= 2 else 200
+    except ValueError:
+        status_code = 200
+    reason = tokens[2] if len(tokens) >= 3 else ""
+
+    headers: list[tuple[str, str]] = []
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        if ":" in line:
+            k, _, v = line.partition(":")
+            headers.append((k.strip(), v.strip()))
+
+    return ParsedResponse(
+        http_version=http_version,
+        status_code=status_code,
+        reason=reason,
+        headers=headers,
+        body=body_str.encode("utf-8"),
+    )
+
+
 def absolute_url(scheme: str, host: str, port: int, path: str) -> str:
     """Reconstruct an absolute URL from flow parts (path may be absolute)."""
     if path.startswith("http://") or path.startswith("https://"):

@@ -1,7 +1,8 @@
 """Application entry point.
 
 Creates the Qt application, builds the main window, and starts the event loop.
-The proxy is not started automatically; the user starts it from the toolbar.
+The proxy starts automatically once the window is shown; if the listen port is
+already in use, the window prompts the user to change the port or retry.
 """
 from __future__ import annotations
 
