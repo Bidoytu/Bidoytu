@@ -116,7 +116,7 @@ class HistoryView(QWidget):
         # Path (index 3) is the single flexible column: it absorbs or releases
         # the delta whenever any other column is dragged, keeping the total row
         # width invariant. We deliberately do NOT use setStretchLastSection here
-        # — a stretch-pinned last column would compete with Path for the same
+        # - a stretch-pinned last column would compete with Path for the same
         # slack and make dragging feel inverted.
         header.sectionResized.connect(self._on_section_resized)
 
@@ -138,7 +138,7 @@ class HistoryView(QWidget):
         """Whenever a column is resized, compensate its immediate right neighbor
         (or left neighbor, if this is the last column) by the opposite delta, so
         the total row width stays invariant and the visual change stays local to
-        the two columns touching the dragged divider — not some distant column.
+        the two columns touching the dragged divider - not some distant column.
 
         Path gets no special treatment as a "sink" anymore; it's just floored
         like any neighbor would be, whether it's the column being dragged or the
@@ -164,7 +164,7 @@ class HistoryView(QWidget):
             return
 
         # The divider being dragged sits between logical_index and its right
-        # neighbor (standard Qt convention) — except for the last column, which
+        # neighbor (standard Qt convention) - except for the last column, which
         # has no right neighbor, so it borrows from the left instead.
         neighbor = logical_index + 1 if logical_index < last_col else logical_index - 1
         neighbor_min = (
@@ -176,7 +176,7 @@ class HistoryView(QWidget):
         self._resizing_guard = True
         try:
             if new_neighbor_w < neighbor_min:
-                # Neighbor has no slack left — reject the drag, snap back.
+                # Neighbor has no slack left - reject the drag, snap back.
                 header.resizeSection(logical_index, old_size)
             else:
                 header.resizeSection(neighbor, new_neighbor_w)

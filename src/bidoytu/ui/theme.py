@@ -775,8 +775,8 @@ class _NoFocusRectStyle(QProxyStyle):
     wraps *this* proxy, so the suppression stays in the paint chain even with a
     global stylesheet applied. Two hooks cover the styles that differ:
 
-    * ``PE_FrameFocusRect`` — skipped entirely.
-    * ``CE_ItemViewItem`` — the ``State_HasFocus`` flag is cleared before the
+    * ``PE_FrameFocusRect`` - skipped entirely.
+    * ``CE_ItemViewItem`` - the ``State_HasFocus`` flag is cleared before the
       base style draws the item, so no focus frame is painted.
     """
 

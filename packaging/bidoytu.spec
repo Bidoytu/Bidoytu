@@ -7,6 +7,9 @@ Build from the project root with:
 mitmproxy ships data files and has several hidden imports; ``collect_all``
 gathers them so the frozen app can start the proxy.
 """
+from pathlib import PurePosixPath
+
+from PyInstaller.building.datastruct import TOC
 from PyInstaller.utils.hooks import collect_all
 
 datas = [
@@ -68,8 +71,10 @@ excludes = [
     "PySide6.QtPdf",
     "PySide6.QtPdfWidgets",
     "PySide6.QtSvgWidgets",
+    "PySide6.QtSvg",
     "PySide6.QtOpenGL",
     "PySide6.QtOpenGLWidgets",
+    "PySide6.QtVirtualKeyboard",
     # numpy/scipy are pulled in transitively but unused by the app.
     "numpy",
     "scipy",
@@ -88,6 +93,50 @@ a = Analysis(
     excludes=excludes,
     noarchive=False,
 )
+
+# PySide6's hook also copies shared libraries and plugins for modules that
+# are not imported by the application. The module exclusions above prevent
+# Python imports, but do not remove those hook-added runtime files. Filter the
+# corresponding Qt payloads after Analysis while retaining QtCore, QtGui,
+# QtNetwork, QtWidgets, and the native platform plugins used by each OS.
+_unused_qt_library_stems = {
+    "qt6opengl",
+    "qt6pdf",
+    "qt6qml",
+    "qt6qmlmeta",
+    "qt6qmlmodels",
+    "qt6qmlworkerscript",
+    "qt6quick",
+    "qt6svg",
+    "qt6virtualkeyboard",
+}
+_unused_qt_plugin_stems = {
+    "qpdf",
+    "qsvg",
+    "qsvgicon",
+    "qtvirtualkeyboardplugin",
+}
+
+
+def _keep_qt_payload(entry):
+    destination = PurePosixPath(str(entry[0]).replace("\\", "/"))
+    if "PySide6" not in destination.parts:
+        return True
+    filename = destination.name.casefold()
+    normalized_filename = filename.removeprefix("lib")
+    if any(normalized_filename.startswith(stem) for stem in _unused_qt_library_stems):
+        return False
+    if any(normalized_filename.startswith(stem) for stem in _unused_qt_plugin_stems):
+        return False
+    # Keep only the English Qt catalogs; the application has no translated UI.
+    if "translations" in destination.parts and filename not in {"qt_en.qm", "qtbase_en.qm"}:
+        return False
+    return True
+
+
+a.binaries = TOC([entry for entry in a.binaries if _keep_qt_payload(entry)])
+a.datas = TOC([entry for entry in a.datas if _keep_qt_payload(entry)])
+
 pyz = PYZ(a.pure)
 
 exe = EXE(

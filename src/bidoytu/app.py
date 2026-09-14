@@ -61,6 +61,8 @@ def main() -> int:
     base_config = AppConfig()
     manager = WorkspaceManager(base_config.data_dir)
     picker = WorkspaceDialog(manager)
+    if not icon.isNull():
+        picker.setWindowIcon(icon)
     if picker.exec() != WorkspaceDialog.Accepted or picker.workspace is None:
         return 0
 

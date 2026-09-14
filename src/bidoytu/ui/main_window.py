@@ -12,11 +12,10 @@ intercept panel.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer, Slot
+from PySide6.QtCore import QTimer, Slot
 from PySide6.QtGui import QActionGroup, QIcon
 from PySide6.QtWidgets import (
     QApplication,
-    QLabel,
     QMainWindow,
     QMessageBox,
     QTabWidget,
@@ -64,7 +63,7 @@ class MainWindow(QMainWindow):
         # Name alone in the title bar; the logo is set as the window icon.
         title = __app_name__
         if workspace is not None:
-            title = f"{__app_name__} — {workspace.name}"
+            title = f"{__app_name__} - {workspace.name}"
         self.setWindowTitle(title)
         self._logo = QIcon(str(logo_path()))
         if not self._logo.isNull():
@@ -118,12 +117,6 @@ class MainWindow(QMainWindow):
     # -- menu / theme ---------------------------------------------------------
 
     def _build_menu(self) -> None:
-        self._build_branding()
-
-        session_menu = self.menuBar().addMenu("&Session")
-        export_sessions = session_menu.addAction("Export all sessions...")
-        export_sessions.triggered.connect(self._export_sessions)
-
         view_menu = self.menuBar().addMenu("&View")
         theme_menu = view_menu.addMenu("Theme")
 
@@ -141,14 +134,9 @@ class MainWindow(QMainWindow):
         self._light_action.setChecked(active == LIGHT)
         self._dark_action.setChecked(active == DARK)
 
-    def _build_branding(self) -> None:
-        """Pin the logo to the top-left of the menu bar."""
-        menubar = self.menuBar()
-        self._logo_label = QLabel(menubar)
-        if not self._logo.isNull():
-            self._logo_label.setPixmap(self._logo.pixmap(20, 20))
-        self._logo_label.setContentsMargins(6, 0, 6, 0)
-        menubar.setCornerWidget(self._logo_label, Qt.TopLeftCorner)
+        session_menu = self.menuBar().addMenu("&Session")
+        export_sessions = session_menu.addAction("Export all sessions...")
+        export_sessions.triggered.connect(self._export_sessions)
 
     def _set_theme(self, mode: str) -> None:
         app = QApplication.instance()
