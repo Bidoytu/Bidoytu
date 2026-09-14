@@ -1,469 +1,481 @@
 {
   "pyproject.toml": {
-    "mtime": 1789403964.637377,
-    "seen": 1789405140.4202056,
-    "ast_hash": "4dfa0dce72bea8ab9e6ade5bb2cb8f01",
-    "semantic_hash": "4dfa0dce72bea8ab9e6ade5bb2cb8f01"
+    "mtime": 1789411248.7270207,
+    "seen": 1789411314.0372405,
+    "ast_hash": "056e6762b4475fc3e86bf1f69fe1b338",
+    "semantic_hash": ""
   },
   "scripts/ca_export_test.py": {
-    "mtime": 1789318702.4381764,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2571423,
+    "seen": 1789411314.0372515,
     "ast_hash": "58701b36b5cc2fc68f860e9f7b4fd206",
     "semantic_hash": "58701b36b5cc2fc68f860e9f7b4fd206"
   },
   "scripts/gzip_decode_test.py": {
-    "mtime": 1789318659.2448316,
-    "seen": 1789405140.4202056,
-    "ast_hash": "edccc079404ae19957d2778a49e42c3e",
-    "semantic_hash": "edccc079404ae19957d2778a49e42c3e"
+    "mtime": 1789411246.258145,
+    "seen": 1789411314.0372555,
+    "ast_hash": "37e7ee45d3bd528eb8d0ba8acc6f8d70",
+    "semantic_hash": ""
   },
   "scripts/intercept_live_test.py": {
-    "mtime": 1789318659.2519548,
-    "seen": 1789405140.4202056,
-    "ast_hash": "545368940b2150e857103369be4a8446",
-    "semantic_hash": "545368940b2150e857103369be4a8446"
+    "mtime": 1789411246.2591412,
+    "seen": 1789411314.0372577,
+    "ast_hash": "86806f38fdfadccb9cb8cd7db65724d6",
+    "semantic_hash": ""
   },
   "scripts/intercept_response_live_test.py": {
-    "mtime": 1789320967.2820933,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2601318,
+    "seen": 1789411314.0372598,
     "ast_hash": "b1700d869ca6e8669265bc20fd26d170",
     "semantic_hash": "b1700d869ca6e8669265bc20fd26d170"
   },
   "scripts/port_conflict_test.py": {
-    "mtime": 1789318659.2663357,
-    "seen": 1789405140.4202056,
-    "ast_hash": "b93b39af1c74838b0784fa9e7ec796e8",
-    "semantic_hash": "b93b39af1c74838b0784fa9e7ec796e8"
+    "mtime": 1789411246.262138,
+    "seen": 1789411314.0372615,
+    "ast_hash": "ce10f6074fe76d0b78f10ec52536ce37",
+    "semantic_hash": ""
   },
   "scripts/proxy_live_test.py": {
-    "mtime": 1789318659.274286,
-    "seen": 1789405140.4202056,
-    "ast_hash": "7c2dbb6e9c1d380bd3ff3bca76fb1643",
-    "semantic_hash": "7c2dbb6e9c1d380bd3ff3bca76fb1643"
+    "mtime": 1789411246.2631478,
+    "seen": 1789411314.0372636,
+    "ast_hash": "5d28f12562a937dba35e9d85687b5da1",
+    "semantic_hash": ""
   },
   "scripts/repeater_live_test.py": {
-    "mtime": 1789318659.2821054,
-    "seen": 1789405140.4202056,
-    "ast_hash": "befacb2b83cbc037873ae082403fada3",
-    "semantic_hash": "befacb2b83cbc037873ae082403fada3"
+    "mtime": 1789411246.264156,
+    "seen": 1789411314.0372653,
+    "ast_hash": "6d1b89b9396534f4bafe48274836411b",
+    "semantic_hash": ""
   },
   "scripts/smoke_test.py": {
-    "mtime": 1789321624.3480241,
-    "seen": 1789405140.4202056,
-    "ast_hash": "9f197eb85e5467efc09bfee5dbb3d00e",
-    "semantic_hash": "9f197eb85e5467efc09bfee5dbb3d00e"
+    "mtime": 1789411248.7302928,
+    "seen": 1789411314.0372674,
+    "ast_hash": "99aeee8fefe7eefc0ebe3d89517c282d",
+    "semantic_hash": ""
   },
   "scripts/start_proxy_repro.py": {
-    "mtime": 1789318702.441955,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2651403,
+    "seen": 1789411314.0372696,
     "ast_hash": "028cb50b47e3a238c8dbfaf57b8f3249",
     "semantic_hash": "028cb50b47e3a238c8dbfaf57b8f3249"
   },
   "src/bidoytu/__init__.py": {
-    "mtime": 1789403964.6393795,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2664745,
+    "seen": 1789411314.037271,
     "ast_hash": "c75eb3974cb17a8be088c2f971afa0b4",
-    "semantic_hash": "c75eb3974cb17a8be088c2f971afa0b4"
+    "semantic_hash": ""
   },
   "src/bidoytu/__main__.py": {
-    "mtime": 1789318659.3295643,
-    "seen": 1789405140.4202056,
-    "ast_hash": "2c358b4d2ba8ca18dd218e9b1d25c2ea",
-    "semantic_hash": "2c358b4d2ba8ca18dd218e9b1d25c2ea"
+    "mtime": 1789411246.2674918,
+    "seen": 1789411314.0372727,
+    "ast_hash": "757ec4a70e8741fdd9659a103f522e1f",
+    "semantic_hash": ""
   },
   "src/bidoytu/app.py": {
-    "mtime": 1789403964.6403937,
-    "seen": 1789405140.4202056,
-    "ast_hash": "4b8c2b9e34260c674d12e82c622ba35a",
-    "semantic_hash": "4b8c2b9e34260c674d12e82c622ba35a"
+    "mtime": 1789411248.731295,
+    "seen": 1789411314.0372744,
+    "ast_hash": "eb3af342ee2ef207f1a242a636488354",
+    "semantic_hash": ""
   },
   "src/bidoytu/config.py": {
-    "mtime": 1789325058.945099,
-    "seen": 1789405140.4202056,
-    "ast_hash": "c1b3c37bbd57c69983ffac6505557866",
-    "semantic_hash": "c1b3c37bbd57c69983ffac6505557866"
+    "mtime": 1789411248.7322924,
+    "seen": 1789411314.0372756,
+    "ast_hash": "4d95c3019fb1ae84b58e388306f7b50d",
+    "semantic_hash": ""
   },
   "src/bidoytu/http_utils.py": {
-    "mtime": 1789403964.6433842,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2778797,
+    "seen": 1789411314.0372772,
     "ast_hash": "021ff0e71fbc89f90bf9167212574f7d",
     "semantic_hash": "021ff0e71fbc89f90bf9167212574f7d"
   },
   "src/bidoytu/net/__init__.py": {
-    "mtime": 1789318659.377996,
-    "seen": 1789405140.4202056,
-    "ast_hash": "7fe2084fa881e18bd7ef4ddb6d37c74b",
-    "semantic_hash": "7fe2084fa881e18bd7ef4ddb6d37c74b"
+    "mtime": 1789411246.2778797,
+    "seen": 1789411314.0372791,
+    "ast_hash": "242afb8f65b903e79b81cdbafad65ab5",
+    "semantic_hash": ""
   },
   "src/bidoytu/net/async_sender.py": {
-    "mtime": 1789318702.4476836,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2793534,
+    "seen": 1789411314.037281,
     "ast_hash": "b1dc2a3e67d746dd13e6d2b4d7308dca",
     "semantic_hash": "b1dc2a3e67d746dd13e6d2b4d7308dca"
   },
   "src/bidoytu/net/attack.py": {
-    "mtime": 1789318702.4489312,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2793534,
+    "seen": 1789411314.037284,
     "ast_hash": "28a05c26ff70332e75201ed934cc2506",
     "semantic_hash": "28a05c26ff70332e75201ed934cc2506"
   },
   "src/bidoytu/net/interactsh.py": {
-    "mtime": 1789325058.9471748,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2803762,
+    "seen": 1789411314.037285,
     "ast_hash": "ddff4f016a8e019299bb8bad221d17cc",
     "semantic_hash": "ddff4f016a8e019299bb8bad221d17cc"
   },
   "src/bidoytu/net/payloads.py": {
-    "mtime": 1789318702.4494407,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2803762,
+    "seen": 1789411314.0372872,
     "ast_hash": "6b9814b6d38f941a88f172620ef9b818",
     "semantic_hash": "6b9814b6d38f941a88f172620ef9b818"
   },
   "src/bidoytu/proxy/__init__.py": {
-    "mtime": 1789318659.4178185,
-    "seen": 1789405140.4202056,
-    "ast_hash": "26bf53cd2db146327d1fe3b94201843a",
-    "semantic_hash": "26bf53cd2db146327d1fe3b94201843a"
+    "mtime": 1789411246.2813697,
+    "seen": 1789411314.0372887,
+    "ast_hash": "b097e0caa3e72675930f0ce3e102737c",
+    "semantic_hash": ""
   },
   "src/bidoytu/proxy/capture_addon.py": {
-    "mtime": 1789403964.644379,
-    "seen": 1789405140.4202056,
-    "ast_hash": "c081e646c1825e4ea2531999fa41e35a",
-    "semantic_hash": "c081e646c1825e4ea2531999fa41e35a"
+    "mtime": 1789411248.7322924,
+    "seen": 1789411314.0372915,
+    "ast_hash": "1643e40601a9531d47e656c521f6f066",
+    "semantic_hash": ""
   },
   "src/bidoytu/proxy/engine.py": {
-    "mtime": 1789403964.644379,
-    "seen": 1789405140.4202056,
-    "ast_hash": "ca8d78ac7ecde968016c2843b0d95ae0",
-    "semantic_hash": "ca8d78ac7ecde968016c2843b0d95ae0"
+    "mtime": 1789411248.7335482,
+    "seen": 1789411314.0372937,
+    "ast_hash": "9c4eb4de9ada9a4a7b9a6adeb3e99069",
+    "semantic_hash": ""
   },
   "src/bidoytu/resources.py": {
-    "mtime": 1789321253.772822,
-    "seen": 1789405140.4202056,
-    "ast_hash": "b892b3d0ea605bbad64e1717af8a6d15",
-    "semantic_hash": "b892b3d0ea605bbad64e1717af8a6d15"
+    "mtime": 1789411248.7348788,
+    "seen": 1789411314.0372956,
+    "ast_hash": "43427fe4c500d979b1f7d558e4c1b811",
+    "semantic_hash": ""
   },
   "src/bidoytu/storage/__init__.py": {
-    "mtime": 1789318659.462746,
-    "seen": 1789405140.4202056,
-    "ast_hash": "7ed5ed69a8a9cd7908120bedbc01a448",
-    "semantic_hash": "7ed5ed69a8a9cd7908120bedbc01a448"
+    "mtime": 1789411246.2866988,
+    "seen": 1789411314.0372975,
+    "ast_hash": "3046836f8ac70e1393eb640e4de4a41a",
+    "semantic_hash": ""
   },
   "src/bidoytu/storage/body_store.py": {
-    "mtime": 1789318659.491763,
-    "seen": 1789405140.4202056,
-    "ast_hash": "6567dbed5aae6c458b1a188454eb5e88",
-    "semantic_hash": "6567dbed5aae6c458b1a188454eb5e88"
+    "mtime": 1789411246.2866988,
+    "seen": 1789411314.0372992,
+    "ast_hash": "385a71b475e53192e3327893c77c5392",
+    "semantic_hash": ""
   },
   "src/bidoytu/storage/models.py": {
-    "mtime": 1789318702.4504511,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2866988,
+    "seen": 1789411314.0373006,
     "ast_hash": "48db506352525dbad7bd4b41e389309f",
     "semantic_hash": "48db506352525dbad7bd4b41e389309f"
   },
   "src/bidoytu/storage/repository.py": {
-    "mtime": 1789403964.6453798,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.28769,
+    "seen": 1789411314.0373025,
     "ast_hash": "b52d62867fa08006e887725ffce10bbe",
-    "semantic_hash": "b52d62867fa08006e887725ffce10bbe"
+    "semantic_hash": ""
   },
   "src/bidoytu/ui/__init__.py": {
-    "mtime": 1789318659.5360162,
-    "seen": 1789405140.4202056,
-    "ast_hash": "4ac666b6063d2ef274682efc79e362d6",
-    "semantic_hash": "4ac666b6063d2ef274682efc79e362d6"
+    "mtime": 1789411246.28769,
+    "seen": 1789411314.0373044,
+    "ast_hash": "336e39cc7ecbced8d9c46070c44eb055",
+    "semantic_hash": ""
   },
   "src/bidoytu/ui/attack_runner.py": {
-    "mtime": 1789318702.4504511,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2886887,
+    "seen": 1789411314.0373058,
     "ast_hash": "2823ac88392a966be523db6105bc3bc6",
     "semantic_hash": "2823ac88392a966be523db6105bc3bc6"
   },
   "src/bidoytu/ui/body_format.py": {
-    "mtime": 1789325058.9501722,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2898145,
+    "seen": 1789411314.0373075,
     "ast_hash": "02a87d3565fc32d9648c5e0e0e8c4665",
     "semantic_hash": "02a87d3565fc32d9648c5e0e0e8c4665"
   },
   "src/bidoytu/ui/ca_dialog.py": {
-    "mtime": 1789318659.5608006,
-    "seen": 1789405140.4202056,
-    "ast_hash": "990b0182dc0090affc6051deb313173e",
-    "semantic_hash": "990b0182dc0090affc6051deb313173e"
+    "mtime": 1789411246.2918139,
+    "seen": 1789411314.0373092,
+    "ast_hash": "b859b84be8dceab044d98c71274cc71a",
+    "semantic_hash": "b859b84be8dceab044d98c71274cc71a"
   },
   "src/bidoytu/ui/collaborator_model.py": {
-    "mtime": 1789325058.9514458,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2933378,
+    "seen": 1789411314.0373113,
     "ast_hash": "3658072ae8d01c7662f77daf19205188",
     "semantic_hash": "3658072ae8d01c7662f77daf19205188"
   },
   "src/bidoytu/ui/collaborator_tab.py": {
-    "mtime": 1789325058.952446,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.294354,
+    "seen": 1789411314.0373135,
     "ast_hash": "109fbdc8d3e69bd8d185943af21fa929",
     "semantic_hash": "109fbdc8d3e69bd8d185943af21fa929"
   },
   "src/bidoytu/ui/detail_view.py": {
-    "mtime": 1789407970.8120239,
-    "seen": 1789409226.3676782,
+    "mtime": 1789411246.294354,
+    "seen": 1789411314.037315,
     "ast_hash": "597fa2aee011f93c9768301c22f7c402",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/find_bar.py": {
-    "mtime": 1789318702.4525316,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2963576,
+    "seen": 1789411314.0373163,
     "ast_hash": "f269da54518e05c7b2634aa0c60ed51f",
     "semantic_hash": "f269da54518e05c7b2634aa0c60ed51f"
   },
   "src/bidoytu/ui/flow_layout.py": {
-    "mtime": 1789318702.4525316,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2973573,
+    "seen": 1789411314.0373173,
     "ast_hash": "07085e2c22b37d2e8f8032dbfdef5b2a",
     "semantic_hash": "07085e2c22b37d2e8f8032dbfdef5b2a"
   },
   "src/bidoytu/ui/flow_table_model.py": {
-    "mtime": 1789318702.4535418,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2983663,
+    "seen": 1789411314.037319,
     "ast_hash": "a41c62b97614da1c0caee62a4fc82e4d",
     "semantic_hash": "a41c62b97614da1c0caee62a4fc82e4d"
   },
   "src/bidoytu/ui/group_dialog.py": {
-    "mtime": 1789318702.454525,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.300361,
+    "seen": 1789411314.0373204,
     "ast_hash": "861682ca210ef55044fe0e5788d4c5af",
     "semantic_hash": "861682ca210ef55044fe0e5788d4c5af"
   },
   "src/bidoytu/ui/highlighter.py": {
-    "mtime": 1789318702.4557042,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.3015227,
+    "seen": 1789411314.037322,
     "ast_hash": "2063da21d495df052582c2216e1b21f9",
     "semantic_hash": "2063da21d495df052582c2216e1b21f9"
   },
   "src/bidoytu/ui/history_delegate.py": {
-    "mtime": 1789325058.9534445,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.3025284,
+    "seen": 1789411314.037325,
     "ast_hash": "0ab9031555b086199708bc4ec2084304",
     "semantic_hash": "0ab9031555b086199708bc4ec2084304"
   },
   "src/bidoytu/ui/history_view.py": {
-    "mtime": 1789325689.6539507,
-    "seen": 1789405140.4202056,
-    "ast_hash": "1cfe5e7d5232dfaae3ca1e7e75c8e8f9",
-    "semantic_hash": "1cfe5e7d5232dfaae3ca1e7e75c8e8f9"
+    "mtime": 1789411248.7362418,
+    "seen": 1789411314.037326,
+    "ast_hash": "bf1d4f72a603a8c8e46f0f7fec0f5e13",
+    "semantic_hash": ""
   },
   "src/bidoytu/ui/intercept_activity_model.py": {
-    "mtime": 1789403964.6463783,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.305969,
+    "seen": 1789411314.0373275,
     "ast_hash": "abaebdb5c0b028781cbf475d05c1d04c",
     "semantic_hash": "abaebdb5c0b028781cbf475d05c1d04c"
   },
   "src/bidoytu/ui/intercept_view.py": {
-    "mtime": 1789403964.6483815,
-    "seen": 1789405140.4202056,
-    "ast_hash": "5397ef0700f08e57057c6e7d4d4cc76e",
-    "semantic_hash": "5397ef0700f08e57057c6e7d4d4cc76e"
+    "mtime": 1789411248.7372863,
+    "seen": 1789411314.037329,
+    "ast_hash": "1cbf7bb7af525200457fba858d59feaf",
+    "semantic_hash": ""
   },
   "src/bidoytu/ui/intruder_results_model.py": {
-    "mtime": 1789318702.4601784,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.3094113,
+    "seen": 1789411314.03733,
     "ast_hash": "c5db8b325131762848a2d7bf95299735",
     "semantic_hash": "c5db8b325131762848a2d7bf95299735"
   },
   "src/bidoytu/ui/intruder_session.py": {
-    "mtime": 1789325058.957531,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.3104293,
+    "seen": 1789411314.0373318,
     "ast_hash": "b9c6ae11ad816b5b16d0411371c89708",
     "semantic_hash": "b9c6ae11ad816b5b16d0411371c89708"
   },
   "src/bidoytu/ui/intruder_tab.py": {
-    "mtime": 1789325058.9586284,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.3124692,
+    "seen": 1789411314.0373335,
     "ast_hash": "3dae693dd35d5f4a44b70918ade67e3b",
     "semantic_hash": "3dae693dd35d5f4a44b70918ade67e3b"
   },
   "src/bidoytu/ui/main_window.py": {
-    "mtime": 1789407068.8137023,
-    "seen": 1789407128.9574988,
-    "ast_hash": "cebebcbe0dc4a552086d9543781a5cce",
+    "mtime": 1789411248.7382689,
+    "seen": 1789411314.0373344,
+    "ast_hash": "6450eadd93530cddba52f6647de72bf9",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/marker_highlighter.py": {
-    "mtime": 1789318702.4650624,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.3145418,
+    "seen": 1789411314.0373359,
     "ast_hash": "7785e1dac34a6224e13ec934c2d9a8aa",
     "semantic_hash": "7785e1dac34a6224e13ec934c2d9a8aa"
   },
   "src/bidoytu/ui/message_view.py": {
-    "mtime": 1789403964.650381,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.3155723,
+    "seen": 1789411314.037337,
     "ast_hash": "aca5ddef201aa57639d24a453817a4c1",
     "semantic_hash": "aca5ddef201aa57639d24a453817a4c1"
   },
   "src/bidoytu/ui/payload_editor.py": {
-    "mtime": 1789318702.466278,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.3155723,
+    "seen": 1789411314.037339,
     "ast_hash": "8940f9195ee7f1e502bf5218ff1a4493",
     "semantic_hash": "8940f9195ee7f1e502bf5218ff1a4493"
   },
   "src/bidoytu/ui/proxy_tab.py": {
-    "mtime": 1789407056.017024,
-    "seen": 1789407128.9574988,
-    "ast_hash": "a369a085d51576f773de1e76d4ed5481",
+    "mtime": 1789411285.1883385,
+    "seen": 1789411314.0373402,
+    "ast_hash": "e29c8bba456d2163b4b54b22bc3bc313",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/repeater_session.py": {
-    "mtime": 1789410181.6978698,
-    "seen": 1789410233.4996538,
+    "mtime": 1789411246.3188217,
+    "seen": 1789411314.037341,
     "ast_hash": "285a8a7d768382fb50bd1ae3683ea2b4",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/repeater_tab.py": {
-    "mtime": 1789409858.199817,
-    "seen": 1789409904.8449314,
+    "mtime": 1789411246.3198345,
+    "seen": 1789411314.0373425,
     "ast_hash": "3dca678358b6f55a41afb3b82c4f9df2",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/theme.py": {
-    "mtime": 1789408136.874825,
-    "seen": 1789409226.3676782,
-    "ast_hash": "228a6e7c87bd22432587a9120a2ca0af",
+    "mtime": 1789411248.7405047,
+    "seen": 1789411314.0373456,
+    "ast_hash": "b062992976b210c1ee833ff05f2a1e88",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/wrapping_tab_bar.py": {
-    "mtime": 1789409658.9814665,
-    "seen": 1789409715.3131628,
+    "mtime": 1789411246.3198345,
+    "seen": 1789411314.0373492,
     "ast_hash": "feef1157d96fa7469d5ace9423ff2fb2",
     "semantic_hash": ""
   },
   ".github/workflows/main.yml": {
-    "mtime": 1789403964.6033041,
-    "seen": 1789405140.4202056,
-    "ast_hash": "6af664b6a9c95aeb642f230797b86f6e",
-    "semantic_hash": "6af664b6a9c95aeb642f230797b86f6e"
+    "mtime": 1789411248.7123804,
+    "seen": 1789411314.037352,
+    "ast_hash": "6aa9d74edebc53ae8b486702114c6636",
+    "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1789403964.6073034,
-    "seen": 1789405713.2915857,
+    "mtime": 1789411246.2125182,
+    "seen": 1789411314.0373719,
     "ast_hash": "21ceb6533048be51308e69e7b74a35cf",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1789403964.6083074,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2145157,
+    "seen": 1789411314.0373735,
     "ast_hash": "e07ef153bafb88a7b879687eaea14c73",
-    "semantic_hash": "e07ef153bafb88a7b879687eaea14c73"
+    "semantic_hash": ""
   },
   "CONTRIBUTING.md": {
-    "mtime": 1789403964.6103048,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2155428,
+    "seen": 1789411314.037375,
     "ast_hash": "51c7d246f824b3274e22c9a37323bace",
-    "semantic_hash": "51c7d246f824b3274e22c9a37323bace"
+    "semantic_hash": ""
   },
   "CONTRIBUTORS.md": {
-    "mtime": 1789403964.611303,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2175717,
+    "seen": 1789411314.0373762,
     "ast_hash": "04c0f843a40553da1bfc457173fd0e38",
-    "semantic_hash": "04c0f843a40553da1bfc457173fd0e38"
+    "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1789403964.614381,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2225697,
+    "seen": 1789411314.0373776,
     "ast_hash": "7ca93856e9f1263bb0f3d7a7b34a9766",
-    "semantic_hash": "7ca93856e9f1263bb0f3d7a7b34a9766"
+    "semantic_hash": ""
   },
   "SECURITY.md": {
-    "mtime": 1789403964.61639,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2245886,
+    "seen": 1789411314.037379,
     "ast_hash": "27ede0b8f2319148dca26ef9d4a53987",
-    "semantic_hash": "27ede0b8f2319148dca26ef9d4a53987"
+    "semantic_hash": ""
   },
   "packaging/build_release.md": {
-    "mtime": 1789403964.637377,
-    "seen": 1789405140.4202056,
-    "ast_hash": "657603efd9553e4ec0da9fc0c0b21870",
-    "semantic_hash": "657603efd9553e4ec0da9fc0c0b21870"
+    "mtime": 1789411248.7270207,
+    "seen": 1789411314.037381,
+    "ast_hash": "1496070b0c7c45efe2433f611daf9f68",
+    "semantic_hash": ""
   },
   "requirements.txt": {
-    "mtime": 1789325058.9428816,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2551422,
+    "seen": 1789411314.0373824,
     "ast_hash": "f9eb113a9c0b305ad06c6550334f168f",
-    "semantic_hash": "f9eb113a9c0b305ad06c6550334f168f"
+    "semantic_hash": ""
   },
   "bidoytu-long.png": {
-    "mtime": 1789403964.6233795,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.229569,
+    "seen": 1789411314.0373845,
     "ast_hash": "b9b38fd43082a351a4fb399f863f39cc",
-    "semantic_hash": "b9b38fd43082a351a4fb399f863f39cc"
+    "semantic_hash": ""
   },
   "logo.png": {
-    "mtime": 1789319888.3800452,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.248757,
+    "seen": 1789411314.037386,
     "ast_hash": "8762b27e31fadb62e0651f1dfd9e0c5f",
-    "semantic_hash": "8762b27e31fadb62e0651f1dfd9e0c5f"
+    "semantic_hash": ""
   },
   "src/bidoytu/assets/logo.png": {
-    "mtime": 1789319888.3800452,
-    "seen": 1789405140.4202056,
+    "mtime": 1789411246.2768812,
+    "seen": 1789411314.0373876,
     "ast_hash": "8762b27e31fadb62e0651f1dfd9e0c5f",
-    "semantic_hash": "8762b27e31fadb62e0651f1dfd9e0c5f"
+    "semantic_hash": ""
+  },
+  "src/bidoytu/ui/workspace_dialog.py": {
+    "mtime": 1789411248.7415283,
+    "seen": 1789411314.0373478,
+    "ast_hash": "549708bc4ed3c6f030cc66758a417e14",
+    "semantic_hash": ""
+  },
+  "src/bidoytu/workspace.py": {
+    "mtime": 1789411248.7415283,
+    "seen": 1789411314.0373511,
+    "ast_hash": "131f609723fb7e9882c20ada530468cf",
+    "semantic_hash": ""
   },
   ".kiro/skills/graphify/SKILL.md": {
-    "mtime": 1789404483.6805916,
-    "seen": 1789405713.2915857,
-    "ast_hash": "1656a8a8e4a05bbe69f32cd15de81e87",
+    "mtime": 1789411246.1975694,
+    "seen": 1789411314.037355,
+    "ast_hash": "27332bcad618129dbd265b54d42b6ad7",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/add-watch.md": {
-    "mtime": 1789404366.7031226,
-    "seen": 1789405713.2915857,
-    "ast_hash": "d59d027fe449f06aa03905a01184e779",
+    "mtime": 1789411246.1975694,
+    "seen": 1789411314.037358,
+    "ast_hash": "58c888b5ec0689a886543dd765c1acc9",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/exports.md": {
-    "mtime": 1789404366.704246,
-    "seen": 1789405713.2915857,
-    "ast_hash": "9da2a2152e60a22f07f05fed5158f287",
+    "mtime": 1789411246.199079,
+    "seen": 1789411314.03736,
+    "ast_hash": "ecc0c36852fee4ba6280cdf2b9149039",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/extraction-spec.md": {
-    "mtime": 1789404366.7051177,
-    "seen": 1789405713.2915857,
-    "ast_hash": "bf895ec4d4e40f5f66f7d31c2a9bd4a7",
+    "mtime": 1789411246.2015195,
+    "seen": 1789411314.0373611,
+    "ast_hash": "e36dd450e4a3a90f5fe9073f4198fabc",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/github-and-merge.md": {
-    "mtime": 1789404366.722121,
-    "seen": 1789405713.2915857,
-    "ast_hash": "cde13df085e4c492aeb7ba298a996d0d",
+    "mtime": 1789411246.2035148,
+    "seen": 1789411314.037363,
+    "ast_hash": "aa0e7ef186392cad062e60483ca7dbbf",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/hooks.md": {
-    "mtime": 1789404366.7242901,
-    "seen": 1789405713.2915857,
-    "ast_hash": "3f545db6ce646650bb9de588f5512a27",
+    "mtime": 1789411246.2035148,
+    "seen": 1789411314.0373647,
+    "ast_hash": "0045c2f12c69bff3a641a8908a1ac057",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/query.md": {
-    "mtime": 1789404366.7251227,
-    "seen": 1789405713.2915857,
-    "ast_hash": "3c46f8ad006874260614ed8657d02307",
+    "mtime": 1789411246.2045033,
+    "seen": 1789411314.0373664,
+    "ast_hash": "852ef14334d60a75ae666ea103d4c4f0",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/transcribe.md": {
-    "mtime": 1789404366.7261243,
-    "seen": 1789405713.2915857,
-    "ast_hash": "67b6a5fa6c0974e18f60db9f8932fbd8",
+    "mtime": 1789411246.2045033,
+    "seen": 1789411314.0373678,
+    "ast_hash": "5c6a9af05d12b5797b2fa8b9493dcc37",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/update.md": {
-    "mtime": 1789404366.7261243,
-    "seen": 1789405713.2915857,
-    "ast_hash": "9378bd03d56baaf78bd738ab3848f142",
+    "mtime": 1789411246.2065206,
+    "seen": 1789411314.037369,
+    "ast_hash": "07bf4293ea21b4e00a9655dd4e7f0af5",
     "semantic_hash": ""
   },
   ".kiro/steering/graphify.md": {
-    "mtime": 1789404483.6856065,
-    "seen": 1789405713.2915857,
+    "mtime": 1789411246.2105198,
+    "seen": 1789411314.0373704,
     "ast_hash": "81be1a4201e0893879433cddab9ffd20",
     "semantic_hash": ""
   }

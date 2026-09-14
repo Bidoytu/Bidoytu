@@ -12,11 +12,10 @@ intercept panel.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer, Slot
+from PySide6.QtCore import QTimer, Slot
 from PySide6.QtGui import QActionGroup, QIcon
 from PySide6.QtWidgets import (
     QApplication,
-    QLabel,
     QMainWindow,
     QMessageBox,
     QTabWidget,
@@ -38,13 +37,22 @@ from bidoytu.ui.message_view import MessageView
 from bidoytu.ui.proxy_tab import ProxyTab
 from bidoytu.ui.repeater_tab import RepeaterTab
 from bidoytu.ui.theme import DARK, LIGHT, apply_theme, current_mode, save_theme
+from bidoytu.workspace import Workspace, WorkspaceManager
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, config: AppConfig) -> None:
+    def __init__(
+        self,
+        config: AppConfig,
+        workspace: Workspace | None = None,
+        workspace_manager: WorkspaceManager | None = None,
+    ) -> None:
         super().__init__()
         self._config = config
+        self._workspace = workspace
+        self._workspace_manager = workspace_manager
         self._config.ensure_dirs()
+        self._config.load_proxy_scope()
 
         self._repo = FlowRepository(config.db_path)
         self._body_store = BodyStore(config.bodies_dir)
@@ -53,7 +61,10 @@ class MainWindow(QMainWindow):
         self._sender.start()
 
         # Name alone in the title bar; the logo is set as the window icon.
-        self.setWindowTitle(__app_name__)
+        title = __app_name__
+        if workspace is not None:
+            title = f"{__app_name__} - {workspace.name}"
+        self.setWindowTitle(title)
         self._logo = QIcon(str(logo_path()))
         if not self._logo.isNull():
             self.setWindowIcon(self._logo)
@@ -63,7 +74,11 @@ class MainWindow(QMainWindow):
 
         # Top-level tabs.
         self._tabs = QTabWidget()
-        self._proxy_tab = ProxyTab(self._model)
+        self._proxy_tab = ProxyTab(
+            self._model,
+            include_scope=config.proxy.include_scope,
+            exclude_scope=config.proxy.exclude_scope,
+        )
         # Reflect the configured defaults in the address inputs.
         self._proxy_tab.host_edit.setText(config.proxy.listen_host)
         self._proxy_tab.set_port(config.proxy.listen_port)
@@ -104,8 +119,6 @@ class MainWindow(QMainWindow):
     # -- menu / theme ---------------------------------------------------------
 
     def _build_menu(self) -> None:
-        self._build_branding()
-
         view_menu = self.menuBar().addMenu("&View")
         theme_menu = view_menu.addMenu("Theme")
 
@@ -123,14 +136,9 @@ class MainWindow(QMainWindow):
         self._light_action.setChecked(active == LIGHT)
         self._dark_action.setChecked(active == DARK)
 
-    def _build_branding(self) -> None:
-        """Pin the logo to the top-left of the menu bar."""
-        menubar = self.menuBar()
-        self._logo_label = QLabel(menubar)
-        if not self._logo.isNull():
-            self._logo_label.setPixmap(self._logo.pixmap(20, 20))
-        self._logo_label.setContentsMargins(6, 0, 6, 0)
-        menubar.setCornerWidget(self._logo_label, Qt.TopLeftCorner)
+        session_menu = self.menuBar().addMenu("&Session")
+        export_sessions = session_menu.addAction("Export all sessions...")
+        export_sessions.triggered.connect(self._export_sessions)
 
     def _set_theme(self, mode: str) -> None:
         app = QApplication.instance()
@@ -141,6 +149,37 @@ class MainWindow(QMainWindow):
         for view in self.findChildren(MessageView):
             view.set_theme(mode)
 
+    def _export_sessions(self) -> None:
+        """Export every locally saved session to one portable archive."""
+        if self._workspace_manager is None:
+            return
+        from pathlib import Path
+        from PySide6.QtWidgets import QFileDialog
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Export all sessions", "bidoytu-sessions.bidoytu.zip",
+            "Bidoytu sessions (*.bidoytu.zip)",
+        )
+        if not filename:
+            return
+        path = Path(filename)
+        if path.suffix.lower() != ".zip":
+            path = path.with_suffix(".bidoytu.zip")
+        try:
+            self._save_workspace_state()
+            self._workspace_manager.export_all(path)
+        except OSError as exc:
+            QMessageBox.warning(self, "Export failed", str(exc))
+            return
+        QMessageBox.information(self, "Sessions exported", f"Saved to {path.name}.")
+
+    def _save_workspace_state(self) -> None:
+        """Flush state that lives in widgets rather than the flow repository."""
+        self._config.save_proxy_scope()
+        self._repeater_tab.save_sessions(self._config.repeater_sessions_path)
+        self._intruder_tab.save_state(self._config.intruder_attack_path)
+        self._collaborator_tab.save_state(self._config.collaborator_state_path)
+
     # -- wiring ---------------------------------------------------------------
 
     def _wire(self) -> None:
@@ -150,6 +189,7 @@ class MainWindow(QMainWindow):
         # Tab-bar Clear History button (two-click confirm before it fires).
         self._proxy_tab.clear_history_requested.connect(self._on_clear)
         self._proxy_tab.ca_btn.clicked.connect(self._on_show_ca)
+        self._proxy_tab.scope_changed.connect(self._on_scope_changed)
 
         # Engine signals.
         self._engine.flow_captured.connect(self._on_flow_captured)
@@ -213,6 +253,13 @@ class MainWindow(QMainWindow):
         # Disable the toggle until we hear back (started/error).
         self._proxy_tab.toggle_btn.setEnabled(False)
         self._engine.start()
+
+    @Slot(list, list)
+    def _on_scope_changed(self, include_scope: list[str],
+                          exclude_scope: list[str]) -> None:
+        self._config.proxy.include_scope = list(include_scope)
+        self._config.proxy.exclude_scope = list(exclude_scope)
+        self._engine.set_scope(include_scope, exclude_scope)
 
     def _on_stop(self) -> None:
         self._proxy_tab.set_status("Stopping proxy...")
@@ -393,15 +440,35 @@ class MainWindow(QMainWindow):
     # -- shutdown -------------------------------------------------------------
 
     def closeEvent(self, event) -> None:
-        # Persist open Repeater sessions before tearing anything down.
-        self._repeater_tab.save_sessions(self._config.repeater_sessions_path)
-        # Persist the current Intruder attack configuration.
-        self._intruder_tab.save_state(self._config.intruder_attack_path)
-        # Persist the Collaborator session, then stop polling and deregister.
-        self._collaborator_tab.save_state(self._config.collaborator_state_path)
+        discard = False
+        if self._workspace is not None and self._workspace_manager is not None:
+            choice = QMessageBox(self)
+            choice.setIcon(QMessageBox.Question)
+            choice.setWindowTitle("Close session")
+            choice.setText(f"What would you like to do with '{self._workspace.name}'?")
+            choice.setInformativeText(
+                "Save keeps this session locally. Discard permanently removes its "
+                "history, requests, bodies, and saved tool state."
+            )
+            save_button = choice.addButton("Save session", QMessageBox.AcceptRole)
+            discard_button = choice.addButton("Discard session", QMessageBox.DestructiveRole)
+            cancel_button = choice.addButton(QMessageBox.Cancel)
+            choice.setDefaultButton(save_button)
+            choice.exec()
+            if choice.clickedButton() is None or choice.clickedButton() is cancel_button:
+                event.ignore()
+                return
+            discard = choice.clickedButton() is discard_button
+
+        if not discard:
+            self._save_workspace_state()
         self._collaborator_tab.shutdown()
         if self._engine.isRunning():
             self._engine.stop()
         self._sender.stop()
         self._repo.close()
+        if discard and self._workspace is not None and self._workspace_manager is not None:
+            self._workspace_manager.discard(self._workspace)
+        elif self._workspace is not None and self._workspace_manager is not None:
+            self._workspace_manager.touch(self._workspace)
         super().closeEvent(event)

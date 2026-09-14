@@ -49,6 +49,8 @@ class ProxyEngine(QThread):
         self._addon: Optional[CaptureAddon] = None
         self._intercept_enabled = False
         self._intercept_responses = False
+        self._include_scope = tuple(config.include_scope)
+        self._exclude_scope = tuple(config.exclude_scope)
 
     # -- QThread entry point --------------------------------------------------
 
@@ -124,7 +126,11 @@ class ProxyEngine(QThread):
             options.confdir = self._confdir
         self._master = DumpMaster(options, with_termlog=False, with_dumper=False)
         self._addon = CaptureAddon(
-            self._emit_flow, self._emit_intercept, self._emit_response_intercept
+            self._emit_flow,
+            self._emit_intercept,
+            self._emit_response_intercept,
+            self._include_scope,
+            self._exclude_scope,
         )
         # Apply any intercept state requested before the loop existed.
         self._addon.set_intercept_enabled(self._intercept_enabled)
@@ -163,6 +169,16 @@ class ProxyEngine(QThread):
         loop, addon = self._loop, self._addon
         if loop is not None and addon is not None:
             loop.call_soon_threadsafe(addon.set_intercept_enabled, enabled)
+
+    def set_scope(self, include_scope: list[str], exclude_scope: list[str]) -> None:
+        """Update target scope immediately, including while the proxy runs."""
+        self._include_scope = tuple(include_scope)
+        self._exclude_scope = tuple(exclude_scope)
+        loop, addon = self._loop, self._addon
+        if loop is not None and addon is not None:
+            loop.call_soon_threadsafe(
+                addon.set_scope, self._include_scope, self._exclude_scope
+            )
 
     def is_intercept_enabled(self) -> bool:
         return self._intercept_enabled

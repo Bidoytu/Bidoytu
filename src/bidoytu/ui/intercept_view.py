@@ -223,7 +223,7 @@ class InterceptView(QWidget):
         """Whenever a column is resized, compensate its immediate right neighbor
         (or left neighbor, if this is the last column) by the opposite delta, so
         the total row width stays invariant and the visual change stays local to
-        the two columns touching the dragged divider — not some distant column.
+        the two columns touching the dragged divider - not some distant column.
 
         URL gets no special treatment as a "sink"; it's just floored like any
         neighbor would be, whether it's the column being dragged or the column
@@ -249,7 +249,7 @@ class InterceptView(QWidget):
             return
 
         # The divider being dragged sits between logical_index and its right
-        # neighbor (standard Qt convention) — except for the last column, which
+        # neighbor (standard Qt convention) - except for the last column, which
         # has no right neighbor, so it borrows from the left instead.
         neighbor = logical_index + 1 if logical_index < last_col else logical_index - 1
         neighbor_min = (
@@ -261,7 +261,7 @@ class InterceptView(QWidget):
         self._resizing_guard = True
         try:
             if new_neighbor_w < neighbor_min:
-                # Neighbor has no slack left — reject the drag, snap back.
+                # Neighbor has no slack left - reject the drag, snap back.
                 header.resizeSection(logical_index, old_size)
             else:
                 header.resizeSection(neighbor, new_neighbor_w)

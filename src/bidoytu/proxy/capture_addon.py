@@ -25,6 +25,7 @@ from typing import Callable, Optional
 
 from mitmproxy import http
 
+from bidoytu.config import host_matches_scope
 from bidoytu.storage.models import FlowRecord
 
 # (record, is_response) -> None
@@ -47,7 +48,9 @@ class CaptureAddon:
     """Emits FlowRecords and optionally pauses flows for interception."""
 
     def __init__(self, on_flow: FlowCallback, on_intercept: InterceptCallback,
-                 on_intercept_response: Optional[InterceptCallback] = None) -> None:
+                 on_intercept_response: Optional[InterceptCallback] = None,
+                 include_scope: tuple[str, ...] = (),
+                 exclude_scope: tuple[str, ...] = ()) -> None:
         self._on_flow = on_flow
         self._on_intercept = on_intercept
         # Separate callback for paused responses so the UI can distinguish them
@@ -57,6 +60,8 @@ class CaptureAddon:
         # Global "intercept responses" toggle (Burp/Caido style): when on, every
         # response is paused for review.
         self._intercept_responses = False
+        self._include_scope = include_scope
+        self._exclude_scope = exclude_scope
         # Flow ids the user explicitly asked to intercept the response for
         # (Burp's "Response to this request"), even when the global toggle is
         # off. One-shot: consumed when the response is paused.
@@ -67,6 +72,18 @@ class CaptureAddon:
         self._pending_responses: dict[str, _PendingFlow] = {}
 
     # -- interception control (called on the proxy loop) ----------------------
+
+    def set_scope(self, include_scope: tuple[str, ...],
+                  exclude_scope: tuple[str, ...]) -> None:
+        """Replace the active target scope on the proxy event loop."""
+        self._include_scope = include_scope
+        self._exclude_scope = exclude_scope
+
+    def _flow_in_scope(self, flow: http.HTTPFlow) -> bool:
+        host = getattr(flow.request, "pretty_host", "") or getattr(
+            flow.request, "host", ""
+        )
+        return host_matches_scope(host, self._include_scope, self._exclude_scope)
 
     def set_intercept_enabled(self, enabled: bool) -> None:
         self._intercept_enabled = enabled
@@ -109,6 +126,10 @@ class CaptureAddon:
     # -- mitmproxy hooks ------------------------------------------------------
 
     async def request(self, flow: http.HTTPFlow) -> None:
+        # Scope is a capture/interception filter only; out-of-scope traffic is
+        # still forwarded by mitmproxy without touching the UI or history.
+        if not self._flow_in_scope(flow):
+            return
         # Always surface the request to the history first.
         self._on_flow(self._record_from_request(flow), False)
 
@@ -131,11 +152,13 @@ class CaptureAddon:
             self._apply_edited_request(flow, pending.edited_text)
 
     async def response(self, flow: http.HTTPFlow) -> None:
+        armed = flow.id in self._response_watch
+        self._response_watch.discard(flow.id)
+        if not self._flow_in_scope(flow):
+            return
         # Decide whether this response should be paused: interception must be on
         # AND either the global response toggle is set or this flow was armed
         # via "intercept response to this request".
-        armed = flow.id in self._response_watch
-        self._response_watch.discard(flow.id)
         should_pause = self._intercept_enabled and (self._intercept_responses or armed)
 
         if should_pause:

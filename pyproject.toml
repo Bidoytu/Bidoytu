@@ -32,4 +32,4 @@ where = ["src"]
 "" = "src"
 
 [tool.setuptools.package-data]
-bidoytu = ["assets/*.png"]
+bidoytu = ["assets/*.png", "assets/*.ico"]

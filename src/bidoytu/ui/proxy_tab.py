@@ -1,4 +1,4 @@
-"""Proxy tab: proxy start/stop controls + HTTP History / Intercept sub-tabs.
+"""Proxy tab: Target scope, proxy controls, and HTTP History / Intercept tabs.
 
 The proxy settings (listen host/port, start/stop, CA certificate export) live
 in a popup menu opened from a "Settings" button pinned to the far right of the
@@ -6,15 +6,21 @@ sub-tab bar, so the main area stays uncluttered.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QTimer, Signal
+import re
+
+from PySide6.QtCore import QTimer, QSize, Signal
 from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QGroupBox,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
     QMenu,
     QPushButton,
+    QStyle,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -26,12 +32,89 @@ from bidoytu.ui.history_view import HistoryView
 from bidoytu.ui.intercept_view import InterceptView
 
 
+class _ScopeList(QWidget):
+    """Editable list of host patterns used by the Target scope panel."""
+
+    changed = Signal()
+
+    def __init__(self, title: str, placeholder: str, parent=None) -> None:
+        super().__init__(parent)
+        self._title = QLabel(title)
+        self._title.setStyleSheet("font-weight: 600;")
+        self.entry_edit = QLineEdit()
+        self.entry_edit.setPlaceholderText(placeholder)
+        self.entry_edit.returnPressed.connect(self._add_entries)
+
+        self.add_btn = QPushButton("Add")
+        self.add_btn.clicked.connect(self._add_entries)
+        add_row = QHBoxLayout()
+        add_row.setContentsMargins(0, 0, 0, 0)
+        add_row.addWidget(self.entry_edit, 1)
+        add_row.addWidget(self.add_btn)
+
+        self.entries = QListWidget()
+        self.entries.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.entries.setMinimumHeight(72)
+        self.entries.setToolTip(
+            "A domain also matches its subdomains; for example, example.com "
+            "matches api.example.com."
+        )
+
+        self.remove_btn = QPushButton("Remove selected")
+        self.remove_btn.clicked.connect(self._remove_selected)
+        self.remove_btn.setEnabled(False)
+        self.entries.itemSelectionChanged.connect(
+            lambda: self.remove_btn.setEnabled(bool(self.entries.selectedItems()))
+        )
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+        layout.addWidget(self._title)
+        layout.addLayout(add_row)
+        layout.addWidget(self.entries)
+        layout.addWidget(self.remove_btn)
+
+    def _add_entries(self) -> None:
+        raw = self.entry_edit.text().strip()
+        if not raw:
+            return
+        existing = {
+            self.entries.item(i).text().casefold()
+            for i in range(self.entries.count())
+        }
+        for value in re.split(r"[,;\s]+", raw):
+            value = value.strip().strip(".")
+            if value and value.casefold() not in existing:
+                self.entries.addItem(value)
+                existing.add(value.casefold())
+        self.entry_edit.clear()
+        self.changed.emit()
+
+    def _remove_selected(self) -> None:
+        for item in self.entries.selectedItems():
+            self.entries.takeItem(self.entries.row(item))
+        self.changed.emit()
+
+    def values(self) -> list[str]:
+        return [self.entries.item(i).text() for i in range(self.entries.count())]
+
+    def set_values(self, values: list[str]) -> None:
+        self.entries.clear()
+        for value in values:
+            if str(value).strip():
+                self.entries.addItem(str(value).strip())
+
+
 class ProxyTab(QWidget):
     """Container widget for everything under the top-level "Proxy" tab."""
 
+    scope_changed = Signal(list, list)
     clear_history_requested = Signal()  # emitted on confirmed Clear History
 
-    def __init__(self, model: FlowTableModel, parent=None) -> None:
+    def __init__(self, model: FlowTableModel, parent=None,
+                 include_scope: list[str] | None = None,
+                 exclude_scope: list[str] | None = None) -> None:
         super().__init__(parent)
 
         # Listen address inputs.
@@ -58,6 +141,13 @@ class ProxyTab(QWidget):
         self.sub_tabs = QTabWidget()
         self.sub_tabs.addTab(self.history, "HTTP History")
         self.sub_tabs.addTab(self.intercept, "Intercept")
+
+        # Burp-style Target panel.  It stays visible beside the proxy views so
+        # the active scope is always easy to inspect and edit.
+        self.target_panel = self._build_target_panel()
+        self._target_panel_width = 310
+        self._target_collapsed = False
+        self.target_panel.setFixedWidth(self._target_panel_width)
 
         # Clear HTTP History button, placed to the LEFT of Proxy Settings in
         # the tab-bar corner. Requires a second click to confirm so history
@@ -86,7 +176,101 @@ class ProxyTab(QWidget):
         self.sub_tabs.setCornerWidget(self._corner)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(self.sub_tabs)
+        content = QHBoxLayout()
+        content.setSpacing(10)
+        content.addWidget(self.target_panel, 0)
+        content.addWidget(self.sub_tabs, 1)
+        layout.addLayout(content)
+
+        self.set_scope(include_scope or [], exclude_scope or [])
+
+    def _build_target_panel(self) -> QWidget:
+        panel = QWidget()
+        outer = QVBoxLayout(panel)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
+
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        self._target_title = QLabel("Target")
+        self._target_title.setStyleSheet("font-size: 16px; font-weight: 700;")
+        header.addWidget(self._target_title)
+        header.addStretch(1)
+
+        self.target_toggle_btn = QPushButton()
+        self.target_toggle_btn.setFixedSize(30, 28)
+        self.target_toggle_btn.setIconSize(QSize(18, 18))
+        self._set_target_toggle_icon(QStyle.SP_ArrowLeft)
+        self.target_toggle_btn.setToolTip("Minimize Target panel")
+        self.target_toggle_btn.setAccessibleName("Minimize Target panel")
+        self.target_toggle_btn.clicked.connect(self._toggle_target_panel)
+        header.addWidget(self.target_toggle_btn)
+        outer.addLayout(header)
+
+        self.scope_group = QGroupBox("Scope")
+        scope_layout = QVBoxLayout(self.scope_group)
+        scope_layout.setContentsMargins(10, 12, 10, 10)
+        scope_layout.setSpacing(10)
+
+        description = QLabel(
+            "Define the domains and subdomains that belong to this target. "
+            "Exclusions take precedence over inclusions."
+        )
+        description.setWordWrap(True)
+        description.setStyleSheet("color: #8f98a8;")
+        scope_layout.addWidget(description)
+
+        self.include_scope_list = _ScopeList(
+            "Include in scope", "example.com or *.example.com", self.scope_group
+        )
+        self.exclude_scope_list = _ScopeList(
+            "Exclude from scope", "cdn.example.com", self.scope_group
+        )
+        self.include_scope_list.changed.connect(self._emit_scope_changed)
+        self.exclude_scope_list.changed.connect(self._emit_scope_changed)
+        scope_layout.addWidget(self.include_scope_list)
+        scope_layout.addWidget(self.exclude_scope_list)
+        outer.addWidget(self.scope_group)
+        outer.addStretch(1)
+        return panel
+
+    def _toggle_target_panel(self) -> None:
+        """Collapse the Target panel to an arrow, or restore its full width."""
+        if not self._target_collapsed:
+            self._target_collapsed = True
+            self._target_title.hide()
+            self.scope_group.hide()
+            self.target_panel.setFixedWidth(36)
+            self._set_target_toggle_icon(QStyle.SP_ArrowRight)
+            self.target_toggle_btn.setToolTip("Expand Target panel")
+            self.target_toggle_btn.setAccessibleName("Expand Target panel")
+        else:
+            self._target_collapsed = False
+            self._target_title.show()
+            self.scope_group.show()
+            self.target_panel.setFixedWidth(self._target_panel_width)
+            self._set_target_toggle_icon(QStyle.SP_ArrowLeft)
+            self.target_toggle_btn.setToolTip("Minimize Target panel")
+            self.target_toggle_btn.setAccessibleName("Minimize Target panel")
+
+    def _set_target_toggle_icon(self, standard_icon: QStyle.StandardPixmap) -> None:
+        """Use Qt's native arrow icon so the control does not depend on fonts."""
+        self.target_toggle_btn.setIcon(
+            self.target_toggle_btn.style().standardIcon(standard_icon)
+        )
+
+    def _emit_scope_changed(self) -> None:
+        self.scope_changed.emit(self.include_scope(), self.exclude_scope())
+
+    def include_scope(self) -> list[str]:
+        return self.include_scope_list.values()
+
+    def exclude_scope(self) -> list[str]:
+        return self.exclude_scope_list.values()
+
+    def set_scope(self, include_scope: list[str], exclude_scope: list[str]) -> None:
+        self.include_scope_list.set_values(include_scope)
+        self.exclude_scope_list.set_values(exclude_scope)
 
     # -- settings menu --------------------------------------------------------
 
@@ -114,11 +298,9 @@ class ProxyTab(QWidget):
 
     @property
     def clear_btn(self) -> QPushButton:
-        """The secondary Clear History button in the Intercept control row.
+        """The Clear History button now lives in the Intercept control row.
 
-        Kept exposed so existing wiring stays intact; it triggers the same
-        clear as the tab-bar button (but without the two-click confirmation,
-        since it lives in a less exposed spot).
+        Exposed here so existing wiring (MainWindow) keeps working unchanged.
         """
         return self.intercept.clear_history_btn
 
