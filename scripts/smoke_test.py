@@ -15,7 +15,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from bidoytu.config import AppConfig
+from bidoytu.config import AppConfig, host_matches_scope
 from bidoytu.storage.body_store import BodyStore
 from bidoytu.storage.models import FlowRecord
 from bidoytu.storage.repository import FlowRepository
@@ -105,6 +105,26 @@ def test_http_utils() -> None:
     print("  http_utils parse OK")
 
 
+def test_target_scope(tmp: Path) -> None:
+    assert host_matches_scope("example.com", ["example.com"], [])
+    assert host_matches_scope("api.example.com", ["*.example.com"], [])
+    assert not host_matches_scope(
+        "cdn.example.com", ["example.com"], ["cdn.example.com"]
+    )
+    assert host_matches_scope("other.test", [], [])
+
+    cfg = AppConfig(data_dir=tmp / "scope")
+    cfg.ensure_dirs()
+    cfg.proxy.include_scope = ["example.com"]
+    cfg.proxy.exclude_scope = ["cdn.example.com"]
+    cfg.save_proxy_scope()
+    restored = AppConfig(data_dir=tmp / "scope")
+    restored.load_proxy_scope()
+    assert restored.proxy.include_scope == ["example.com"]
+    assert restored.proxy.exclude_scope == ["cdn.example.com"]
+    print("  target scope matching + persistence OK")
+
+
 def test_qt_and_proxy_apis(tmp: Path) -> None:
     from PySide6.QtWidgets import QApplication, QTabWidget
     from bidoytu.ui.flow_table_model import FlowTableModel
@@ -132,12 +152,22 @@ def test_qt_and_proxy_apis(tmp: Path) -> None:
     # Top-level tabs present in order.
     tabs: QTabWidget = win._tabs
     labels = [tabs.tabText(i) for i in range(tabs.count())]
-    assert labels == ["Proxy", "Repeater", "Intruder"], labels
+    assert labels == ["Proxy", "Repeater", "Intruder", "Collaborator"], labels
 
     # Proxy sub-tabs.
     sub = win._proxy_tab.sub_tabs
     sub_labels = [sub.tabText(i) for i in range(sub.count())]
     assert sub_labels == ["HTTP History", "Intercept"], sub_labels
+    assert win._proxy_tab.scope_group.title() == "Scope"
+    assert win._proxy_tab.target_panel is not None
+    target_toggle = win._proxy_tab.target_toggle_btn
+    assert not target_toggle.icon().isNull()
+    target_toggle.click()
+    assert not target_toggle.icon().isNull()
+    assert win._proxy_tab.target_panel.width() == 36
+    target_toggle.click()
+    assert not target_toggle.icon().isNull()
+    assert win._proxy_tab.target_panel.width() == 310
 
     # Soft wrap defaults on in the history detail views.
     assert win._proxy_tab.history._detail.request_view.soft_wrap_enabled()
@@ -165,6 +195,10 @@ def test_qt_and_proxy_apis(tmp: Path) -> None:
     # Host/port inputs reflect config defaults.
     assert win._proxy_tab.host_edit.text() == cfg.proxy.listen_host
     assert win._proxy_tab.listen_port() == cfg.proxy.listen_port
+
+    win._proxy_tab.include_scope_list.entry_edit.setText("example.com")
+    win._proxy_tab.include_scope_list.add_btn.click()
+    assert cfg.proxy.include_scope == ["example.com"]
 
     # Editing the inputs and starting applies them to the engine config.
     win._proxy_tab.host_edit.setText("0.0.0.0")
@@ -245,6 +279,7 @@ def main() -> int:
         test_body_store(tmp)
         test_body_format()
         test_http_utils()
+        test_target_scope(tmp)
         test_qt_and_proxy_apis(tmp)
         test_intercept_view()
     print("ALL SMOKE TESTS PASSED")

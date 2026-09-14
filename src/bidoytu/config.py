@@ -5,6 +5,7 @@ a single data directory so it is easy to locate, back up, or clear.
 """
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,11 +25,62 @@ def _default_data_dir() -> Path:
 
 @dataclass(slots=True)
 class ProxyConfig:
-    """Listen settings for the mitmproxy engine."""
+    """Listen and target-scope settings for the mitmproxy engine."""
 
     listen_host: str = "127.0.0.1"
     listen_port: int = 8080
     http2: bool = True
+    include_scope: list[str] = field(default_factory=list)
+    exclude_scope: list[str] = field(default_factory=list)
+
+
+def _normalise_scope_entry(value: str) -> str:
+    """Return a host-pattern suitable for scope matching.
+
+    Scope entries are intentionally host-only.  Be forgiving of values pasted
+    from a browser or Burp export by removing a scheme, path, and port before
+    storing the pattern.
+    """
+    value = value.strip().lower()
+    if not value:
+        return ""
+    if "://" in value:
+        value = value.split("://", 1)[1]
+    value = value.split("/", 1)[0]
+    if value.startswith("*."):
+        value = value[2:]
+    if value.startswith("."):
+        value = value[1:]
+    if value.count(":") == 1:
+        value = value.rsplit(":", 1)[0]
+    return value.strip(".")
+
+
+def host_matches_scope(
+    host: str, include_scope: list[str] | tuple[str, ...],
+    exclude_scope: list[str] | tuple[str, ...],
+) -> bool:
+    """Return whether *host* is in the configured target scope.
+
+    A host entry matches the host itself and all of its subdomains, so
+    ``example.com`` covers ``api.example.com``.  Exclusions always win.  With
+    no include entries everything is included unless explicitly excluded.
+    """
+    candidate = _normalise_scope_entry(host)
+    if not candidate:
+        return False
+
+    def matches(pattern: str) -> bool:
+        normalised = _normalise_scope_entry(pattern)
+        return bool(normalised) and (
+            candidate == normalised or candidate.endswith("." + normalised)
+        )
+
+    include_patterns = [pattern for pattern in include_scope if str(pattern).strip()]
+    exclude_patterns = [pattern for pattern in exclude_scope if str(pattern).strip()]
+    if any(matches(pattern) for pattern in exclude_patterns):
+        return False
+    return not include_patterns or any(matches(pattern) for pattern in include_patterns)
 
 
 # Free, public Interactsh servers operated by ProjectDiscovery. They are tried
@@ -97,6 +149,11 @@ class AppConfig:
         return self.data_dir / "intruder_attack.json"
 
     @property
+    def proxy_scope_path(self) -> Path:
+        """JSON file holding the Target scope for this workspace."""
+        return self.data_dir / "proxy_scope.json"
+
+    @property
     def collaborator_state_path(self) -> Path:
         """JSON file holding Collaborator session state across restarts.
 
@@ -130,3 +187,33 @@ class AppConfig:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.bodies_dir.mkdir(parents=True, exist_ok=True)
         self.confdir.mkdir(parents=True, exist_ok=True)
+
+    def load_proxy_scope(self) -> None:
+        """Restore Target scope, tolerating files from older versions."""
+        try:
+            data = json.loads(self.proxy_scope_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        if not isinstance(data, dict):
+            return
+        for key in ("include_scope", "exclude_scope"):
+            values = data.get(key, [])
+            if isinstance(values, list):
+                setattr(
+                    self.proxy,
+                    key,
+                    [str(value) for value in values if str(value).strip()],
+                )
+
+    def save_proxy_scope(self) -> None:
+        """Persist the current Target scope inside the active workspace."""
+        self.proxy_scope_path.write_text(
+            json.dumps(
+                {
+                    "include_scope": self.proxy.include_scope,
+                    "exclude_scope": self.proxy.exclude_scope,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )

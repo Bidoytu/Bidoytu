@@ -53,6 +53,7 @@ class MainWindow(QMainWindow):
         self._workspace = workspace
         self._workspace_manager = workspace_manager
         self._config.ensure_dirs()
+        self._config.load_proxy_scope()
 
         self._repo = FlowRepository(config.db_path)
         self._body_store = BodyStore(config.bodies_dir)
@@ -74,7 +75,11 @@ class MainWindow(QMainWindow):
 
         # Top-level tabs.
         self._tabs = QTabWidget()
-        self._proxy_tab = ProxyTab(self._model)
+        self._proxy_tab = ProxyTab(
+            self._model,
+            include_scope=config.proxy.include_scope,
+            exclude_scope=config.proxy.exclude_scope,
+        )
         # Reflect the configured defaults in the address inputs.
         self._proxy_tab.host_edit.setText(config.proxy.listen_host)
         self._proxy_tab.set_port(config.proxy.listen_port)
@@ -180,6 +185,7 @@ class MainWindow(QMainWindow):
 
     def _save_workspace_state(self) -> None:
         """Flush state that lives in widgets rather than the flow repository."""
+        self._config.save_proxy_scope()
         self._repeater_tab.save_sessions(self._config.repeater_sessions_path)
         self._intruder_tab.save_state(self._config.intruder_attack_path)
         self._collaborator_tab.save_state(self._config.collaborator_state_path)
@@ -191,6 +197,7 @@ class MainWindow(QMainWindow):
         self._proxy_tab.toggle_btn.clicked.connect(self._on_toggle_proxy)
         self._proxy_tab.clear_btn.clicked.connect(self._on_clear)
         self._proxy_tab.ca_btn.clicked.connect(self._on_show_ca)
+        self._proxy_tab.scope_changed.connect(self._on_scope_changed)
 
         # Engine signals.
         self._engine.flow_captured.connect(self._on_flow_captured)
@@ -254,6 +261,13 @@ class MainWindow(QMainWindow):
         # Disable the toggle until we hear back (started/error).
         self._proxy_tab.toggle_btn.setEnabled(False)
         self._engine.start()
+
+    @Slot(list, list)
+    def _on_scope_changed(self, include_scope: list[str],
+                          exclude_scope: list[str]) -> None:
+        self._config.proxy.include_scope = list(include_scope)
+        self._config.proxy.exclude_scope = list(exclude_scope)
+        self._engine.set_scope(include_scope, exclude_scope)
 
     def _on_stop(self) -> None:
         self._proxy_tab.set_status("Stopping proxy...")
