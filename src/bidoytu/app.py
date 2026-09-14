@@ -17,6 +17,8 @@ from bidoytu.config import AppConfig
 from bidoytu.resources import logo_path
 from bidoytu.ui.main_window import MainWindow
 from bidoytu.ui.theme import apply_theme, load_theme
+from bidoytu.ui.workspace_dialog import WorkspaceDialog
+from bidoytu.workspace import WorkspaceManager
 
 
 def _set_windows_app_id() -> None:
@@ -54,8 +56,17 @@ def main() -> int:
     # highlighters pick up matching colors from the start.
     apply_theme(app, load_theme())
 
-    config = AppConfig()
-    window = MainWindow(config)
+    # Pick a local workspace before constructing any storage-backed widget.
+    # This guarantees that a new session cannot inherit history or tool state.
+    base_config = AppConfig()
+    manager = WorkspaceManager(base_config.data_dir)
+    picker = WorkspaceDialog(manager)
+    if picker.exec() != WorkspaceDialog.Accepted or picker.workspace is None:
+        return 0
+
+    workspace = picker.workspace
+    config = AppConfig(data_dir=manager.path_for(workspace))
+    window = MainWindow(config, workspace=workspace, workspace_manager=manager)
     window.show()
 
     return app.exec()

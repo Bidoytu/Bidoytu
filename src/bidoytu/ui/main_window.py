@@ -38,12 +38,20 @@ from bidoytu.ui.message_view import MessageView
 from bidoytu.ui.proxy_tab import ProxyTab
 from bidoytu.ui.repeater_tab import RepeaterTab
 from bidoytu.ui.theme import DARK, LIGHT, apply_theme, current_mode, save_theme
+from bidoytu.workspace import Workspace, WorkspaceManager
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, config: AppConfig) -> None:
+    def __init__(
+        self,
+        config: AppConfig,
+        workspace: Workspace | None = None,
+        workspace_manager: WorkspaceManager | None = None,
+    ) -> None:
         super().__init__()
         self._config = config
+        self._workspace = workspace
+        self._workspace_manager = workspace_manager
         self._config.ensure_dirs()
 
         self._repo = FlowRepository(config.db_path)
@@ -53,7 +61,10 @@ class MainWindow(QMainWindow):
         self._sender.start()
 
         # Name alone in the title bar; the logo is set as the window icon.
-        self.setWindowTitle(__app_name__)
+        title = __app_name__
+        if workspace is not None:
+            title = f"{__app_name__} — {workspace.name}"
+        self.setWindowTitle(title)
         self._logo = QIcon(str(logo_path()))
         if not self._logo.isNull():
             self.setWindowIcon(self._logo)
@@ -104,6 +115,10 @@ class MainWindow(QMainWindow):
     def _build_menu(self) -> None:
         self._build_branding()
 
+        session_menu = self.menuBar().addMenu("&Session")
+        export_sessions = session_menu.addAction("Export all sessions...")
+        export_sessions.triggered.connect(self._export_sessions)
+
         view_menu = self.menuBar().addMenu("&View")
         theme_menu = view_menu.addMenu("Theme")
 
@@ -138,6 +153,36 @@ class MainWindow(QMainWindow):
         # Re-color every raw-message highlighter to match the new mode.
         for view in self.findChildren(MessageView):
             view.set_theme(mode)
+
+    def _export_sessions(self) -> None:
+        """Export every locally saved session to one portable archive."""
+        if self._workspace_manager is None:
+            return
+        from pathlib import Path
+        from PySide6.QtWidgets import QFileDialog
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Export all sessions", "bidoytu-sessions.bidoytu.zip",
+            "Bidoytu sessions (*.bidoytu.zip)",
+        )
+        if not filename:
+            return
+        path = Path(filename)
+        if path.suffix.lower() != ".zip":
+            path = path.with_suffix(".bidoytu.zip")
+        try:
+            self._save_workspace_state()
+            self._workspace_manager.export_all(path)
+        except OSError as exc:
+            QMessageBox.warning(self, "Export failed", str(exc))
+            return
+        QMessageBox.information(self, "Sessions exported", f"Saved to {path.name}.")
+
+    def _save_workspace_state(self) -> None:
+        """Flush state that lives in widgets rather than the flow repository."""
+        self._repeater_tab.save_sessions(self._config.repeater_sessions_path)
+        self._intruder_tab.save_state(self._config.intruder_attack_path)
+        self._collaborator_tab.save_state(self._config.collaborator_state_path)
 
     # -- wiring ---------------------------------------------------------------
 
@@ -389,15 +434,35 @@ class MainWindow(QMainWindow):
     # -- shutdown -------------------------------------------------------------
 
     def closeEvent(self, event) -> None:
-        # Persist open Repeater sessions before tearing anything down.
-        self._repeater_tab.save_sessions(self._config.repeater_sessions_path)
-        # Persist the current Intruder attack configuration.
-        self._intruder_tab.save_state(self._config.intruder_attack_path)
-        # Persist the Collaborator session, then stop polling and deregister.
-        self._collaborator_tab.save_state(self._config.collaborator_state_path)
+        discard = False
+        if self._workspace is not None and self._workspace_manager is not None:
+            choice = QMessageBox(self)
+            choice.setIcon(QMessageBox.Question)
+            choice.setWindowTitle("Close session")
+            choice.setText(f"What would you like to do with '{self._workspace.name}'?")
+            choice.setInformativeText(
+                "Save keeps this session locally. Discard permanently removes its "
+                "history, requests, bodies, and saved tool state."
+            )
+            save_button = choice.addButton("Save session", QMessageBox.AcceptRole)
+            discard_button = choice.addButton("Discard session", QMessageBox.DestructiveRole)
+            cancel_button = choice.addButton(QMessageBox.Cancel)
+            choice.setDefaultButton(save_button)
+            choice.exec()
+            if choice.clickedButton() is None or choice.clickedButton() is cancel_button:
+                event.ignore()
+                return
+            discard = choice.clickedButton() is discard_button
+
+        if not discard:
+            self._save_workspace_state()
         self._collaborator_tab.shutdown()
         if self._engine.isRunning():
             self._engine.stop()
         self._sender.stop()
         self._repo.close()
+        if discard and self._workspace is not None and self._workspace_manager is not None:
+            self._workspace_manager.discard(self._workspace)
+        elif self._workspace is not None and self._workspace_manager is not None:
+            self._workspace_manager.touch(self._workspace)
         super().closeEvent(event)

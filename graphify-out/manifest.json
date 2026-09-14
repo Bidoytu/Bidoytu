@@ -72,10 +72,10 @@
     "semantic_hash": "2c358b4d2ba8ca18dd218e9b1d25c2ea"
   },
   "src/bidoytu/app.py": {
-    "mtime": 1789328940.4559915,
-    "seen": 1789401311.8922174,
-    "ast_hash": "4b8c2b9e34260c674d12e82c622ba35a",
-    "semantic_hash": "4b8c2b9e34260c674d12e82c622ba35a"
+    "mtime": 1789404841.2723575,
+    "seen": 1789405014.1660554,
+    "ast_hash": "04cc123fd87ecb8224c2c9b95ab77105",
+    "semantic_hash": ""
   },
   "src/bidoytu/config.py": {
     "mtime": 1789328940.464149,
@@ -282,10 +282,10 @@
     "semantic_hash": "3dae693dd35d5f4a44b70918ade67e3b"
   },
   "src/bidoytu/ui/main_window.py": {
-    "mtime": 1789328940.4952426,
-    "seen": 1789401311.8922584,
-    "ast_hash": "1374ea4a1df5ccb8e15e8809390d8714",
-    "semantic_hash": "1374ea4a1df5ccb8e15e8809390d8714"
+    "mtime": 1789404861.907211,
+    "seen": 1789405014.1660872,
+    "ast_hash": "8b0f4d87e62943b7928863c5c2c774dc",
+    "semantic_hash": ""
   },
   "src/bidoytu/ui/marker_highlighter.py": {
     "mtime": 1789328940.4962428,
@@ -405,6 +405,18 @@
     "mtime": 1789328940.4631495,
     "seen": 1789402187.5270066,
     "ast_hash": "8762b27e31fadb62e0651f1dfd9e0c5f",
+    "semantic_hash": ""
+  },
+  "src/bidoytu/ui/workspace_dialog.py": {
+    "mtime": 1789405776.7119384,
+    "seen": 1789405829.304211,
+    "ast_hash": "7b26af54d4e3d630dbf835fa7c2b924c",
+    "semantic_hash": ""
+  },
+  "src/bidoytu/workspace.py": {
+    "mtime": 1789405776.0025456,
+    "seen": 1789405829.3042135,
+    "ast_hash": "0853ebbdbdb19550d19e9cb2c85cc2ad",
     "semantic_hash": ""
   }
 }
