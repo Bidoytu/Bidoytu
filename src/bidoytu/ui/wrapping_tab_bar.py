@@ -16,7 +16,7 @@ Ordering rule for display:
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QMouseEvent, QResizeEvent
 from PySide6.QtWidgets import (
     QLabel,
@@ -234,13 +234,21 @@ class WrappingTabBar(QScrollArea):
     group_context_menu = Signal(str, object)      # (group name, global pos)
     group_toggled = Signal(str)                   # group name
 
+    # Vertical padding baked into a single flow row (chip height + margins +
+    # spacing). Used to cap the bar at two rows before it starts scrolling.
+    _ROW_HEIGHT = 29
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setWidgetResizable(True)
         self.setFrameShape(QScrollArea.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.setMaximumHeight(96)  # ~ up to 3 rows before its own scroll
+        # Start at exactly one row; grow to a second row as chips wrap; only
+        # once a third row is needed does the bar become scrollable.
+        self._max_rows = 2
+        self.setMinimumHeight(self._ROW_HEIGHT)
+        self.setMaximumHeight(self._ROW_HEIGHT * self._max_rows + 2)
 
         self._host = _FlowHost()
         self._flow = FlowLayout(self._host, margin=2, h_spacing=4, v_spacing=4)
@@ -321,7 +329,23 @@ class WrappingTabBar(QScrollArea):
         self._flow.invalidate()
         self._flow.activate()
         self._host.updateGeometry()
-        self._host.setMinimumHeight(self._flow.heightForWidth(self._host.width()))
+        self._sync_height()
+
+    def _sync_height(self) -> None:
+        """Grow the bar to fit its rows, capped at ``_max_rows`` (then scroll)."""
+        width = self._host.width() or self.viewport().width()
+        content = self._flow.heightForWidth(width) if width > 0 else self._ROW_HEIGHT
+        # The host always spans its full content height (so the scroll area can
+        # scroll when there are 3+ rows).
+        self._host.setMinimumHeight(content)
+        # The scroll area itself only grows up to the max-rows cap.
+        cap = self._ROW_HEIGHT * self._max_rows + 2
+        self.setFixedHeight(min(max(content, self._ROW_HEIGHT), cap))
+
+    def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        # Re-evaluate wrapping when the width changes (chips may wrap/unwrap).
+        self._sync_height()
 
     @staticmethod
     def _destroy(widget) -> None:
@@ -356,6 +380,3 @@ class WrappingTabBar(QScrollArea):
     def _apply_selection(self) -> None:
         for key, chip in self._chips.items():
             chip.set_selected(key is self._current_key or key == self._current_key)
-
-    def sizeHint(self) -> QSize:
-        return QSize(super().sizeHint().width(), 40)

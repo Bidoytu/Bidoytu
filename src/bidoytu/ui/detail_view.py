@@ -47,7 +47,7 @@ class DetailView(QWidget):
             lambda: self._current is not None,
         )
 
-        self._wrap_toggle = QCheckBox("Soft wrap")
+        self._wrap_toggle = QCheckBox("Wrap")
         self._wrap_toggle.setChecked(True)
         self._wrap_toggle.toggled.connect(self._on_wrap_toggled)
 
