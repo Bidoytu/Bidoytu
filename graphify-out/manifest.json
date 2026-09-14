@@ -1,10 +1,4 @@
 {
-  ".codex/hooks.json": {
-    "mtime": 1789400797.5568328,
-    "seen": 1789401311.8921912,
-    "ast_hash": "f5e0cf27d80f06648580a5b08efce356",
-    "semantic_hash": "f5e0cf27d80f06648580a5b08efce356"
-  },
   "pyproject.toml": {
     "mtime": 1789402182.721032,
     "seen": 1789402187.5268764,
