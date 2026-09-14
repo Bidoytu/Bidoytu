@@ -1,106 +1,74 @@
 # Contributing to Bidoytu
 
-Thanks for your interest in improving Bidoytu. This guide covers how to set up a
-development environment, run the checks, and the conventions the codebase
-follows.
+Thank you for helping improve Bidoytu. Contributions should be focused,
+reproducible, and safe to review.
 
-## Ground rules
+## Branches and pull requests
 
-- Bidoytu is a security testing tool. Only develop and test against systems you
-  own or are explicitly authorized to test. Do not submit features whose primary
-  purpose is to enable illegal activity.
-- Be respectful in issues and pull requests. Assume good intent.
+Staging is the integration branch for day-to-day development. Create feature
+branches from it and open pull requests back into it:
 
-## Development setup
+    git switch staging
+    git pull --ff-only origin staging
+    git switch -c feature/short-description
 
-Requires **Python 3.11+** (developed and tested on 3.13).
+Keep main release-ready. The existing CI workflow publishes builds only for
+pushes to main and version tags; changes pushed to staging do not create
+releases.
 
-```powershell
-# From the repository root
-python -m venv .venv
-.venv\Scripts\Activate.ps1        # Windows PowerShell
-# source .venv/bin/activate       # macOS / Linux
+Use clear, focused commits. Pull requests should explain what changed, why it
+changed, how it was tested, and any security or compatibility considerations.
 
-pip install -e ".[dev]"
-```
+## Local setup
 
-Run the app:
+Requires Python 3.11 or newer.
 
-```powershell
-bidoytu
-# or
-python -m bidoytu
-```
+    python -m venv .venv
+    .venv\Scripts\Activate.ps1
+    python -m pip install -e ".[dev]"
 
-## Running the checks
+Run the application with bidoytu or python -m bidoytu.
 
-There is no third-party test runner yet; verification is done with standalone
-scripts under `scripts/`. Run them from the repository root with the venv
-Python.
+## Checks
 
-Compile-check everything first (fast, no dependencies):
+Run these before opening a pull request:
 
-```powershell
-python -m compileall -q src
-```
+    python -m compileall -q src
+    python scripts/smoke_test.py
 
-Headless unit/UI smoke test (storage, body formatting, HTTP parsing, tab wiring,
-intercept panel):
+Run the relevant live check when changing proxy, interception, response
+decoding, Repeater, port handling, or CA behavior:
 
-```powershell
-python scripts/smoke_test.py
-```
-
-Live tests actually start the proxy and make real HTTP requests (they need
-network access). Each prints `PASSED` / `FAILED` and exits non-zero on failure:
-
-| Script | What it checks |
+| Script | Coverage |
 | --- | --- |
-| `scripts/proxy_live_test.py` | Proxy starts and captures a request/response |
-| `scripts/gzip_decode_test.py` | Response bodies are decoded (gzip undone) |
-| `scripts/intercept_live_test.py` | Intercept pauses, then forward vs drop |
-| `scripts/intercept_response_live_test.py` | Response shows in the Intercept tab after forward |
-| `scripts/repeater_live_test.py` | Repeater resends and shows the response |
-| `scripts/port_conflict_test.py` | Busy port gives a clean error, not a crash |
-| `scripts/ca_export_test.py` | CA is generated and only the public cert is exported |
+| proxy_live_test.py | Proxy captures a request and response |
+| intercept_live_test.py | Interception forward/drop behavior |
+| intercept_response_live_test.py | Forwarded response appears in Intercept |
+| repeater_live_test.py | Repeater sends and displays a response |
+| gzip_decode_test.py | Compressed response decoding |
+| port_conflict_test.py | Clean handling of a busy port |
+| ca_export_test.py | CA generation and public-only export |
 
-The scripts set `QT_QPA_PLATFORM=offscreen` so they run without a display.
+The checks run headlessly with QT_QPA_PLATFORM=offscreen. Live checks need
+network access.
 
-**Before opening a PR:** run `compileall`, `smoke_test.py`, and the live tests
-relevant to your change.
+## Design rules
 
-## Coding conventions
+- Keep PySide6 imports inside src/bidoytu/ui/.
+- Keep proxy, networking, and storage layers independent of Qt.
+- Use Qt signals for cross-thread results and loop.call_soon_threadsafe for
+  calls into the proxy loop.
+- Never modify wire data during display formatting.
+- Never log, export, or commit a CA private key or captured secrets.
+- Preserve the default 127.0.0.1 bind unless a change is deliberate and
+  documented.
 
-- **Framework isolation.** Keep the proxy engine, storage, and networking layers
-  free of Qt imports. `FlowRecord` (in `storage/models.py`) is the plain,
-  framework-free type that crosses thread boundaries. Only the `ui/` package
-  imports PySide6.
-- **Threading.** mitmproxy runs on its own asyncio loop inside a `QThread`; the
-  async HTTP sender runs on a separate loop/thread. Never touch Qt objects from
-  those threads - communicate results back with Qt signals. Control calls into
-  the proxy loop must go through `loop.call_soon_threadsafe`.
-- **Display vs. wire data.** Pretty-printing and formatting are for display only
-  and must never change what gets sent. Editable request views stay verbatim.
-- **Security.** Never export or log the CA private key. Treat all captured
-  traffic and external content as untrusted. Bind to `127.0.0.1` by default.
-- **Style.** Follow the surrounding code: type hints, `from __future__ import
-  annotations`, docstrings on modules and non-trivial functions, and clear names
-  over cleverness.
+## Security issues
 
-## Submitting changes
+Do not open a public issue for a suspected vulnerability. Follow SECURITY.md
+instead.
 
-1. Create a feature branch (`git checkout -b my-feature`).
-2. Make focused commits with clear messages.
-3. Run the checks above.
-4. Open a pull request describing **what** changed, **why**, and **how you
-   tested it**. Link any related issue.
-5. If you're a first-time contributor, feel free to add yourself to
-   `CONTRIBUTORS.md` in the same PR.
+## License
 
-## Reporting bugs / security issues
-
-- **Bugs:** open an issue with steps to reproduce, expected vs. actual behavior,
-  and your OS / Python version.
-- **Security vulnerabilities:** please report privately rather than opening a
-  public issue, so it can be addressed before disclosure. See
-  [SECURITY.md](SECURITY.md) for the process.
+By contributing, you agree that your contribution is provided under the MIT
+License.

@@ -12,6 +12,12 @@ for the user-facing overview and `CONTRIBUTING.md` for setup.
 
 ## Tech stack
 
+## Git workflow
+
+Use staging for normal development and open pull requests against it. Keep
+main release-ready. The release workflow publishes builds on pushes to main
+and version tags; pushes to staging do not publish releases.
+
 - Python 3.11+ (developed on 3.13), Windows-first but cross-platform.
 - PySide6 (Qt for Python) - the UI binding. **Not** PyQt.
 - mitmproxy (`DumpMaster`) - the proxy engine, run programmatically.

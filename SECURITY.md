@@ -32,9 +32,9 @@ fix before any public disclosure.
 
 ## Supported versions
 
-Bidoytu is pre-1.0 and under active development. Security fixes target the
-latest commit on the default branch. Pin a specific commit if you need
-stability, and update to pick up fixes.
+Bidoytu is under active development. Security fixes target the latest reviewed
+commit on main. Development changes are integrated through staging; pin a
+specific commit if you need reproducible behavior.
 
 ## Responsible and lawful use
 

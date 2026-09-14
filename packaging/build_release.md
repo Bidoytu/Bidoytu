@@ -15,6 +15,10 @@ Linux in parallel and publishes to GitHub Releases. There are two paths:
 
 You never build release artifacts by hand for distribution; the tag drives it.
 
+Development changes should land in staging first. The workflow does not
+publish releases for staging; promote only reviewed, release-ready changes
+to main.
+
 ## Cutting version 1.0.0
 
 1. Make sure `main` is green and the version is bumped:
