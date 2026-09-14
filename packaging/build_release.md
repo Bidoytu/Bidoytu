@@ -15,6 +15,10 @@ Linux in parallel and publishes to GitHub Releases. There are two paths:
 
 You never build release artifacts by hand for distribution; the tag drives it.
 
+Development changes should land in staging first. The workflow does not
+publish releases for staging; promote only reviewed, release-ready changes
+to main.
+
 ## Cutting version 1.0.0
 
 1. Make sure `main` is green and the version is bumped:
@@ -72,7 +76,10 @@ bundle the entire Qt stack, and the single biggest piece is **QtWebEngine**, a
 full embedded Chromium (~300 MB) that this app never uses. The spec instead
 excludes the Qt modules the app doesn't import (WebEngine, QML/Quick, 3D,
 Multimedia, Charts, SQL, PDF, OpenGL, plus stray `numpy`/`scipy`/`PIL`), since
-Bidoytu only uses `QtCore`, `QtGui`, and `QtWidgets`.
+Bidoytu only uses `QtCore`, `QtGui`, and `QtWidgets`. It also removes the
+unused Qt runtime libraries, plugins, and non-English translation catalogs that
+PySide6's hook may add automatically. This keeps the Windows and Linux
+bundles smaller while retaining the native platform plugin for each OS.
 
 If you add a feature that needs one of those modules (e.g. an embedded web
 view), remove the matching entry from the `excludes` list in

@@ -20,7 +20,7 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
-  workflow_dispatch: {}  # allow manual runs from the Actions tab
+  workflow_dispatch: {} # allow manual runs from the Actions tab
 
 # Only one release build per ref at a time; newer pushes cancel in-flight ones.
 concurrency:
@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write  # required to create/update GitHub Releases
+  contents: write # required to create/update GitHub Releases
 
 jobs:
   build:
@@ -51,6 +51,20 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+
+      # PyInstaller's analysis cache is OS-specific, so keep separate caches
+      # for Windows and Linux. The source/config hash prevents stale analysis
+      # from being reused after a build-relevant change.
+      - name: Cache PyInstaller analysis
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: ${{ runner.os }}-pyinstaller-${{ hashFiles('packaging/bidoytu.spec', 'pyproject.toml', 'requirements.txt', 'src/**/*.py', 'src/**/*.png', 'src/**/*.ico') }}
+          restore-keys: |
+            ${{ runner.os }}-pyinstaller-
 
       # PySide6 apps need X/GL system libraries present at build time so
       # PyInstaller can discover and bundle the Qt runtime dependencies.
@@ -66,8 +80,8 @@ jobs:
 
       - name: Install project + build tooling
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install --disable-pip-version-check --prefer-binary -e ".[dev]"
 
       # Use bash on every OS (Git Bash ships on the Windows runner). PowerShell
       # treats PyInstaller's INFO logging on stderr as a failure and exits 1
@@ -96,6 +110,9 @@ jobs:
           name: ${{ matrix.asset }}
           path: ${{ matrix.asset }}.zip
           retention-days: 7
+          # The release file is already compressed; skip a second compression
+          # pass when upload-artifact packages it for transfer.
+          compression-level: 0
 
   # Publishes a permanent release when a v* tag is pushed.
   release-tagged:

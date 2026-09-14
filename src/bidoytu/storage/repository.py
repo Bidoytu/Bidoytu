@@ -12,6 +12,7 @@ instance (SQLite handles cross-connection coordination via WAL + locking).
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -62,15 +63,75 @@ class FlowRepository:
 
     def __init__(self, db_path: Path) -> None:
         self._db_path = Path(db_path)
+        self.recovered_from: Optional[Path] = None
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._configure()
-        self._conn.executescript(_SCHEMA)
-        self._conn.commit()
+        self._conn = self._open_or_recover()
 
-    def _configure(self) -> None:
-        cur = self._conn.cursor()
+    def _open_or_recover(self) -> sqlite3.Connection:
+        """Open and validate the database, recovering from SQLite corruption.
+
+        A damaged database must not prevent the application from starting. The
+        original file is moved aside (rather than deleted) before a new empty
+        database is created, so it remains available for manual salvage.
+        """
+        conn: sqlite3.Connection | None = None
+        try:
+            conn = self._connect()
+            self._initialize(conn)
+            return conn
+        except sqlite3.DatabaseError:
+            # Close the failed connection before moving the database on
+            # Windows, where an open handle prevents rename/replace.
+            if conn is not None:
+                conn.close()
+
+            backup_path = self._quarantine_corrupt_database()
+            conn = self._connect()
+            self._initialize(conn)
+            # Keep this information available to callers/debuggers without
+            # making startup dependent on a logging configuration.
+            self.recovered_from = backup_path
+            return conn
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _initialize(self, conn: sqlite3.Connection) -> None:
+        self._configure(conn)
+        conn.executescript(_SCHEMA)
+        conn.commit()
+        result = conn.execute("PRAGMA quick_check").fetchone()
+        if result is None or result[0] != "ok":
+            raise sqlite3.DatabaseError(
+                f"SQLite integrity check failed: {result[0] if result else 'no result'}"
+            )
+
+    def _quarantine_corrupt_database(self) -> Path:
+        """Move the corrupt database and SQLite sidecars to a safe backup."""
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup = self._db_path.with_name(f"{self._db_path.name}.corrupt-{stamp}")
+        suffix = 1
+        while backup.exists():
+            backup = self._db_path.with_name(
+                f"{self._db_path.name}.corrupt-{stamp}-{suffix}"
+            )
+            suffix += 1
+
+        if self._db_path.exists():
+            self._db_path.replace(backup)
+        for sidecar in (
+            self._db_path.with_name(self._db_path.name + "-wal"),
+            self._db_path.with_name(self._db_path.name + "-shm"),
+        ):
+            if sidecar.exists():
+                sidecar.replace(backup.with_name(backup.name + sidecar.suffix))
+        return backup
+
+    @staticmethod
+    def _configure(conn: sqlite3.Connection) -> None:
+        cur = conn.cursor()
         cur.execute("PRAGMA journal_mode=WAL;")
         cur.execute("PRAGMA synchronous=NORMAL;")
         cur.execute("PRAGMA foreign_keys=ON;")

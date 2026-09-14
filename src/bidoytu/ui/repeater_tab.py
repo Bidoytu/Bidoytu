@@ -22,13 +22,11 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QHBoxLayout,
     QInputDialog,
     QMenu,
     QMessageBox,
-    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -82,23 +80,10 @@ class RepeaterTab(QWidget):
 
         self._stack = QStackedWidget()
 
-        new_btn = QPushButton("+ New")
-        new_btn.setToolTip("Open an empty request")
-        new_btn.setMaximumWidth(70)
-        new_btn.clicked.connect(lambda: self._new_session())
-
-        clear_btn = QPushButton("Clear all")
-        clear_btn.setToolTip("Close every request tab and remove all groups")
-        clear_btn.setMaximumWidth(80)
-        clear_btn.clicked.connect(self._clear_all)
-
-        top = QHBoxLayout()
-        top.addWidget(new_btn)
-        top.addWidget(clear_btn)
-        top.addWidget(self._bar, 1)
-
+        # "+ New" / "Clear all" now live centered in each session's controls
+        # row (Send ... Copy as cURL). The tab bar just shows the request chips.
         layout = QVBoxLayout(self)
-        layout.addLayout(top)
+        layout.addWidget(self._bar)
         layout.addWidget(self._stack, 1)
 
     # -- session management ---------------------------------------------------
@@ -117,6 +102,9 @@ class RepeaterTab(QWidget):
         )
         session.send_to_repeater.connect(self.send_to_repeater)
         session.send_to_intruder.connect(self.send_to_intruder)
+        # Container-level actions surfaced from the session's controls row.
+        session.new_requested.connect(lambda: self._new_session())
+        session.clear_all_requested.connect(self._clear_all)
         self._current = session
         self._rebuild_bar()
         self._stack.setCurrentWidget(session)
@@ -191,6 +179,11 @@ class RepeaterTab(QWidget):
                 self._stack.currentWidget()
                 if self._stack.count() else None
             )
+        # Closing the last request immediately spawns a fresh empty one so the
+        # Repeater never sits with no tabs and a blank pane.
+        if self._stack.count() == 0:
+            self._new_session()
+            return
         self._rebuild_bar()
 
     def _rename_session(self, session: RepeaterSession) -> None:
@@ -416,18 +409,30 @@ class RepeaterTab(QWidget):
             self._current = (
                 self._stack.currentWidget() if self._stack.count() else None
             )
+        # If that emptied the Repeater, leave a fresh empty request behind.
+        if self._stack.count() == 0:
+            self._new_session()
+            return
         self._rebuild_bar()
 
     def _clear_all(self) -> None:
-        """Close every request tab and remove all groups."""
+        """Close every request tab and remove all groups.
+
+        Always leaves one fresh, empty request behind so the Repeater never
+        shows a blank pane with no tabs. If the only tab is already an empty
+        default, there is nothing to clear.
+        """
         total = self._stack.count()
         if total == 0:
+            self._new_session()
             return
+        if self._only_empty_session() is not None:
+            return  # already a single blank tab; nothing to clear
         confirm = QMessageBox.question(
             self,
             "Clear all requests",
             f"Close all {total} request tab{'s' if total != 1 else ''} "
-            f"and remove every group? This cannot be undone.",
+            f"and remove every group? A single empty request will remain.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -441,7 +446,8 @@ class RepeaterTab(QWidget):
         self._membership.clear()
         self._base_titles.clear()
         self._current = None
-        self._rebuild_bar()
+        # Keep one dummy request on the tab at all times.
+        self._new_session()
 
     def _first_visible_session(self) -> RepeaterSession | None:
         for group in self._groups.values():
@@ -484,10 +490,39 @@ class RepeaterTab(QWidget):
 
     # -- public API (used by MainWindow) --------------------------------------
 
+    def ensure_default_session(self) -> None:
+        """Guarantee at least one (empty) session exists.
+
+        Called on startup after restoring persisted sessions so the Repeater
+        always shows a request/response frame by default, even on a fresh
+        install with nothing to restore.
+        """
+        if self._stack.count() == 0:
+            self._new_session()
+
     def load_from_record(self, record: FlowRecord) -> None:
-        """Open a new session tab populated from a captured flow."""
+        """Open a new session tab populated from a captured flow.
+
+        If the only open session is a pristine, empty default, reuse it instead
+        of stacking a second tab, so "Send to Repeater" loads into the frame
+        that is already showing.
+        """
+        empty = self._only_empty_session()
+        if empty is not None:
+            empty.load_from_record(record)
+            self._current = empty
+            self._stack.setCurrentWidget(empty)
+            self._rebuild_bar()
+            return
         session = self._new_session()
         session.load_from_record(record)
+
+    def _only_empty_session(self) -> RepeaterSession | None:
+        """Return the sole session iff it is a single, empty, ungrouped tab."""
+        if self._stack.count() != 1 or len(self._ungrouped) != 1:
+            return None
+        session = self._ungrouped[0]
+        return session if session.is_empty() else None
 
     # -- persistence ----------------------------------------------------------
 

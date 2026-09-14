@@ -25,4 +25,7 @@ def asset_path(name: str) -> Path:
 
 def logo_path() -> Path:
     """Absolute path to the application logo."""
-    return asset_path("logo.png")
+    # Windows uses the ICO so the shell can select the correct taskbar size.
+    # Keep the PNG fallback for source distributions and other platforms.
+    ico = asset_path("logo.ico")
+    return ico if ico.exists() else asset_path("logo.png")
