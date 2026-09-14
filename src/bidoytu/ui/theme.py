@@ -15,8 +15,9 @@ The palette aims for a soft, professional feel rather than harsh pure-black /
 pure-white contrast:
     - Dark mode uses a cool slate background (#1b1e24 family) with a muted
       indigo accent and gentle borders.
-    - Light mode uses an off-white "paper" background (#f6f7f9 family) with the
-      same indigo accent, so both modes feel like the same product.
+    - Light mode uses an off-white "paper" background (#fafafa) with soft
+      lavender-grey surfaces (#e4e5f1) and dark-indigo text (#484b6a), sharing
+      the same indigo accent so both modes feel like the same product.
 Controls get rounded corners, comfortable padding, and subtle hover/pressed
 states so the UI reads as calm and modern.
 """
@@ -80,17 +81,17 @@ _TOKENS = {
         "accent": ACCENT,
     },
     LIGHT: {
-        "window": "#f6f7f9",
+        "window": "#fafafa",
         "surface": "#ffffff",
-        "surface_alt": "#eef1f5",
+        "surface_alt": "#e4e5f1",
         "elevated": "#ffffff",
         "base": "#ffffff",
-        "base_alt": "#f4f6f8",
-        "border": "#d8dee6",
-        "border_soft": "#e5e9ef",
-        "text": "#1f2430",
-        "text_muted": "#5b6472",
-        "text_faint": "#98a1b0",
+        "base_alt": "#e4e5f1",
+        "border": "#d2d3db",
+        "border_soft": "#e4e5f1",
+        "text": "#484b6a",
+        "text_muted": "#484b6a",
+        "text_faint": "#484b6a",
         "accent": ACCENT,
     },
 }
@@ -370,6 +371,7 @@ def _build_qss(t: dict[str, str]) -> str:
     # the button fill (text_muted was too faint to see).
     chevron_down = _chevron_down_icon(t["text"])
     chevron_down_hi = _chevron_down_icon(t["accent"])
+    chevron_down_faint = _chevron_down_icon(t["text_faint"])
     chevron_up = _chevron_up_icon(t["text"])
     close_icon = _close_icon(t["text_muted"])
     close_icon_hover = _close_icon("#ffffff", bg="#d9534f")
@@ -508,7 +510,7 @@ QPushButton:pressed {{
 }}
 QPushButton:disabled {{
     color: {t['text_faint']};
-    background-color: {t['surface']};
+    background-color: {t['surface_alt']};
     border: 1px solid {t['border_soft']};
 }}
 QPushButton:default {{
@@ -635,12 +637,33 @@ QToolButton {{
     color: {t['text']};
     border: 1px solid {t['border']};
     border-radius: 7px;
-    padding: 6px 12px;
+    /* Extra right padding (~ the 18px menu-button width) so the label sits
+       optically centred over the whole button rather than being pushed left
+       by the dropdown arrow section. */
+    padding: 6px 30px 6px 12px;
     font-weight: 600;
 }}
 QToolButton:hover {{ background-color: {t['surface_alt']}; border: 1px solid {t['accent']}; }}
 QToolButton:pressed {{ background-color: {ACCENT_PRESSED}; color: #ffffff; }}
-QToolButton:disabled {{ color: {t['text_faint']}; border: 1px solid {t['border_soft']}; }}
+QToolButton:disabled {{ color: {t['text_faint']}; background-color: {t['surface_alt']}; border: 1px solid {t['border_soft']}; }}
+QToolButton::menu-button:disabled {{ background-color: {t['surface_alt']}; border-left: 1px solid {t['border_soft']}; }}
+QToolButton::menu-arrow:disabled {{ image: {chevron_down_faint}; }}
+/* Inactive Send button: visible but inert (no request yet). Painted with the
+   disabled cue while the widget stays enabled so its dropdown still opens. */
+QToolButton[inactive="true"] {{
+    color: {t['text_faint']};
+    background-color: {t['surface_alt']};
+    border: 1px solid {t['border_soft']};
+}}
+QToolButton[inactive="true"]:hover {{
+    background-color: {t['surface_alt']};
+    border: 1px solid {t['border_soft']};
+}}
+QToolButton[inactive="true"]::menu-button {{
+    background-color: {t['surface_alt']};
+    border-left: 1px solid {t['border_soft']};
+}}
+QToolButton[inactive="true"]::menu-arrow {{ image: {chevron_down_faint}; }}
 QToolButton::menu-button {{
     border-left: 1px solid {t['border_soft']};
     width: 18px;
@@ -699,8 +722,12 @@ QMenuBar::item {{
 QMenuBar::item:selected {{ background-color: {t['surface_alt']}; }}
 
 /* -- Splitter ------------------------------------------------------------ */
+/* Keep the handle invisible even on hover/press: no bright accent bar between
+   the request/response panes while dragging. The cursor already changes to the
+   resize arrow, so the handle stays discoverable without the blue highlight. */
 QSplitter::handle {{ background: transparent; }}
-QSplitter::handle:hover {{ background: {t['accent']}; }}
+QSplitter::handle:hover {{ background: transparent; }}
+QSplitter::handle:pressed {{ background: transparent; }}
 QSplitter::handle:horizontal {{ width: 6px; }}
 QSplitter::handle:vertical {{ height: 6px; }}
 

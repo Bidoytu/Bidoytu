@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 
-from PySide6.QtCore import QSize, Signal
+from PySide6.QtCore import QTimer, QSize, Signal
 from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -110,6 +110,7 @@ class ProxyTab(QWidget):
     """Container widget for everything under the top-level "Proxy" tab."""
 
     scope_changed = Signal(list, list)
+    clear_history_requested = Signal()  # emitted on confirmed Clear History
 
     def __init__(self, model: FlowTableModel, parent=None,
                  include_scope: list[str] | None = None,
@@ -148,17 +149,29 @@ class ProxyTab(QWidget):
         self._target_collapsed = False
         self.target_panel.setFixedWidth(self._target_panel_width)
 
+        # Clear HTTP History button, placed to the LEFT of Proxy Settings in
+        # the tab-bar corner. Requires a second click to confirm so history
+        # isn't wiped by accident (see _on_clear_history_clicked).
+        self.clear_history_btn = QPushButton("Clear History")
+        self.clear_history_btn.setToolTip("Clear all captured HTTP history")
+        self.clear_history_btn.setMinimumSize(120, 28)
+        self._clear_armed = False
+        self.clear_history_btn.clicked.connect(self._on_clear_history_clicked)
+
         # Proxy settings live in a popup opened from a button on the far right
         # of the tab bar (same row as the HTTP History / Intercept tabs).
         self._settings_menu = self._build_settings_menu()
         self.settings_btn = QPushButton("Proxy Settings")
         self.settings_btn.setToolTip("Listen address, start/stop, CA certificate")
         self.settings_btn.setMenu(self._settings_menu)
-        self.settings_btn.setMinimumSize(150, 32)
-        # Nudge the button up a few pixels so it sits slightly above the tab row.
+        self.settings_btn.setMinimumSize(150, 30)
+        # Corner holds [Clear History] [Proxy Settings]. A slightly larger top
+        # margin lowers the whole cluster so it no longer crowds the top edge.
         self._corner = QWidget()
-        corner_layout = QVBoxLayout(self._corner)
-        corner_layout.setContentsMargins(0, 0, 4, 6)
+        corner_layout = QHBoxLayout(self._corner)
+        corner_layout.setContentsMargins(4, 2, 4, 4)
+        corner_layout.setSpacing(6)
+        corner_layout.addWidget(self.clear_history_btn)
         corner_layout.addWidget(self.settings_btn)
         self.sub_tabs.setCornerWidget(self._corner)
 
@@ -290,6 +303,33 @@ class ProxyTab(QWidget):
         Exposed here so existing wiring (MainWindow) keeps working unchanged.
         """
         return self.intercept.clear_history_btn
+
+    # -- clear history (two-click confirm) ------------------------------------
+
+    def _on_clear_history_clicked(self) -> None:
+        """First click arms the button; a second click within 3s confirms.
+
+        This guards against wiping the whole capture history on a stray click.
+        """
+        if not self._clear_armed:
+            self._arm_clear()
+            return
+        self._disarm_clear()
+        self.clear_history_requested.emit()
+
+    def _arm_clear(self) -> None:
+        self._clear_armed = True
+        self.clear_history_btn.setText("Confirm Clear?")
+        self.clear_history_btn.setToolTip("Click again to clear all HTTP history")
+        # Auto-disarm if the user doesn't confirm shortly.
+        QTimer.singleShot(3000, self._disarm_clear)
+
+    def _disarm_clear(self) -> None:
+        if not self._clear_armed:
+            return
+        self._clear_armed = False
+        self.clear_history_btn.setText("Clear History")
+        self.clear_history_btn.setToolTip("Clear all captured HTTP history")
 
     # -- listen address -------------------------------------------------------
 
