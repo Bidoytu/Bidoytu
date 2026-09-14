@@ -32,10 +32,12 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMenu,
     QPushButton,
+    QSizePolicy,
     QSplitter,
     QToolButton,
     QVBoxLayout,
@@ -89,6 +91,8 @@ class RepeaterSession(QWidget):
     result_delivered = Signal(object)  # HttpResult, after on_result finishes
     send_to_repeater = Signal(object)  # FlowRecord (right-click)
     send_to_intruder = Signal(object)  # FlowRecord (right-click)
+    new_requested = Signal()  # "+ New" button: ask the container for a new tab
+    clear_all_requested = Signal()  # "Clear all" button: ask the container
     _result_ready = Signal(object)  # HttpResult, marshalled to the UI thread
 
     def __init__(self, sender: AsyncHttpSender, name: str = "Request",
@@ -125,7 +129,15 @@ class RepeaterSession(QWidget):
         self._send_btn.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self._send_btn.setPopupMode(QToolButton.MenuButtonPopup)
         self._send_btn.clicked.connect(self._on_send_or_cancel)
-        self._send_btn.setEnabled(False)
+        # Give Send a comfortable width so it doesn't look cramped next to the
+        # nav arrows, and reads as the primary action of the row.
+        self._send_btn.setMinimumWidth(96)
+        # Whether the editor currently holds a sendable request. When False the
+        # button stays visible (and its dropdown still opens to *show* the group
+        # options) but neither the button nor the menu options do anything, and
+        # it is styled with the disabled cue (surface_alt) via a dynamic prop.
+        self._has_request = False
+        self._apply_send_disabled_style()
         # Group-send menu; populated by the container via set_group_send_actions.
         # _active_send_mode: None => send current tab; else a callable to run.
         # _send_label: current text for the Send button (reflects the mode).
@@ -135,22 +147,38 @@ class RepeaterSession(QWidget):
         self._selected_send_label = "Send"
         self._update_send_menu()
 
-        self._prev_btn = QPushButton("\u25c0")  # left triangle
+        # History navigation. Plain ASCII chevrons render in every font (the
+        # earlier ◀/▶ triangle glyphs came up blank in some bundled fonts). A
+        # fixed width keeps them square; when disabled the stylesheet paints
+        # them with the surface_alt cue so it's clear they aren't clickable.
+        self._prev_btn = QPushButton("\u2039")  # single left angle quote: ‹
         self._prev_btn.setToolTip("Previous request in history")
-        self._prev_btn.setMaximumWidth(30)
+        self._prev_btn.setFixedWidth(34)
         self._prev_btn.clicked.connect(lambda: self._navigate_history(-1))
         self._prev_btn.setEnabled(False)
 
-        self._next_btn = QPushButton("\u25b6")  # right triangle
+        self._next_btn = QPushButton("\u203a")  # single right angle quote: ›
         self._next_btn.setToolTip("Next request in history")
-        self._next_btn.setMaximumWidth(30)
+        self._next_btn.setFixedWidth(34)
         self._next_btn.clicked.connect(lambda: self._navigate_history(1))
         self._next_btn.setEnabled(False)
 
         self._history_label = QLabel("")
         self._history_label.setStyleSheet("color: gray;")
 
-        self._target_label = QLabel("No request loaded")
+        # Status/target label. A long "Sending to <url>" string must never
+        # drive the layout width: an unconstrained QLabel reports its full text
+        # width as its minimum, which would push the whole window's minimum
+        # width to thousands of pixels (Qt then floods "Unable to set geometry"
+        # and the splitter panes collapse). We let it shrink freely and elide
+        # the middle of the text so the target stays readable at any width.
+        self._target_full_text = "No request loaded"
+        self._target_label = QLabel(self._target_full_text)
+        # Fixed width keeps the left cluster a stable size, so the centred
+        # "+ New / Clear all" pair stays put and the label never overruns them.
+        # Text is elided to fit; the full string is on the tooltip.
+        self._target_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+        self._target_label.setFixedWidth(220)
 
         self._follow_redirects = QCheckBox("Follow redirects")
         self._verify_tls = QCheckBox("Verify TLS")
@@ -158,17 +186,53 @@ class RepeaterSession(QWidget):
         self._curl_btn = QPushButton("Copy as cURL")
         self._curl_btn.clicked.connect(self._copy_as_curl)
 
-        controls = QHBoxLayout()
-        controls.addWidget(self._send_btn)
-        controls.addWidget(self._prev_btn)
-        controls.addWidget(self._next_btn)
-        controls.addWidget(self._history_label)
-        controls.addSpacing(12)
-        controls.addWidget(self._target_label)
-        controls.addStretch(1)
-        controls.addWidget(self._follow_redirects)
-        controls.addWidget(self._verify_tls)
-        controls.addWidget(self._curl_btn)
+        # Container-level actions, shown centered in this controls row. They
+        # don't act on this session directly; they ask the RepeaterTab to open
+        # a new tab / clear all tabs (wired up by the container).
+        self._new_btn = QPushButton("+ New")
+        self._new_btn.setToolTip("Open an empty request")
+        self._new_btn.setCursor(Qt.PointingHandCursor)
+        self._new_btn.clicked.connect(self.new_requested.emit)
+
+        self._clear_all_btn = QPushButton("Clear all")
+        self._clear_all_btn.setToolTip("Close every request tab and remove all groups")
+        self._clear_all_btn.setCursor(Qt.PointingHandCursor)
+        self._clear_all_btn.clicked.connect(self.clear_all_requested.emit)
+
+        # The controls row has three clusters. To keep "+ New / Clear all"
+        # centered with respect to the whole tab (not merely the gap between
+        # the left and right clusters), all three clusters share one grid cell:
+        # the left cluster is left-aligned, the right cluster right-aligned, and
+        # the center pair is aligned to the true horizontal centre of the full
+        # width. That decouples the centre from the differing side widths.
+        left = QWidget()
+        left_row = QHBoxLayout(left)
+        left_row.setContentsMargins(0, 0, 0, 0)
+        left_row.addWidget(self._send_btn)
+        left_row.addWidget(self._prev_btn)
+        left_row.addWidget(self._next_btn)
+        left_row.addWidget(self._history_label)
+        left_row.addSpacing(12)
+        left_row.addWidget(self._target_label)
+
+        center = QWidget()
+        center_row = QHBoxLayout(center)
+        center_row.setContentsMargins(0, 0, 0, 0)
+        center_row.addWidget(self._new_btn)
+        center_row.addWidget(self._clear_all_btn)
+
+        right = QWidget()
+        right_row = QHBoxLayout(right)
+        right_row.setContentsMargins(0, 0, 0, 0)
+        right_row.addWidget(self._follow_redirects)
+        right_row.addWidget(self._verify_tls)
+        right_row.addWidget(self._curl_btn)
+
+        controls = QGridLayout()
+        controls.setContentsMargins(0, 0, 0, 0)
+        controls.addWidget(left, 0, 0, Qt.AlignLeft)
+        controls.addWidget(center, 0, 0, Qt.AlignHCenter)
+        controls.addWidget(right, 0, 0, Qt.AlignRight)
 
         # Request pane.
         self._request_edit = MessageView(read_only=False)
@@ -213,6 +277,31 @@ class RepeaterSession(QWidget):
         layout.addLayout(controls)
         layout.addWidget(splitter, 1)
         layout.addLayout(meta)
+
+    def _set_target_text(self, text: str) -> None:
+        """Set the status/target label, eliding to fit the current width.
+
+        Stores the full text so it can be re-elided when the pane is resized,
+        and shown in full via tooltip.
+        """
+        self._target_full_text = text
+        self._target_label.setToolTip(text)
+        self._elide_target_text()
+
+    def _elide_target_text(self) -> None:
+        metrics = self._target_label.fontMetrics()
+        avail = max(0, self._target_label.width())
+        if avail <= 0:
+            # Not laid out yet; show the raw text (its Ignored size policy keeps
+            # it from forcing the window wider).
+            self._target_label.setText(self._target_full_text)
+            return
+        elided = metrics.elidedText(self._target_full_text, Qt.ElideMiddle, avail)
+        self._target_label.setText(elided)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        super().resizeEvent(event)
+        self._elide_target_text()
 
     def _request_pane_controls(self) -> QWidget:
         bar = QWidget()
@@ -306,8 +395,8 @@ class RepeaterSession(QWidget):
         )
         self._request_edit.setPlainText(text)
         self._response_view.clear_message()
-        self._target_label.setText(f"{self._scheme}://{self._host}:{self._port}")
-        self._send_btn.setEnabled(True)
+        self._set_target_text(f"{self._scheme}://{self._host}:{self._port}")
+        self._set_has_request(True)
         self._set_name_from_request()
 
     def load_state(self, state: SessionState) -> None:
@@ -319,8 +408,8 @@ class RepeaterSession(QWidget):
         self._follow_redirects.setChecked(state.follow_redirects)
         self._verify_tls.setChecked(state.verify_tls)
         self._response_view.clear_message()
-        self._target_label.setText(f"{self._scheme}://{self._host}:{self._port}")
-        self._send_btn.setEnabled(bool(state.request_text.strip()))
+        self._set_target_text(f"{self._scheme}://{self._host}:{self._port}")
+        self._set_has_request(bool(state.request_text.strip()))
         self.title_changed.emit(self._name)
 
     def to_state(self) -> SessionState:
@@ -337,6 +426,13 @@ class RepeaterSession(QWidget):
     def name(self) -> str:
         return self._name
 
+    def is_empty(self) -> bool:
+        """True if this is a pristine session: no request text and no history."""
+        return (
+            not self._request_edit.toPlainText().strip()
+            and not self._history
+        )
+
     def _set_name_from_request(self) -> None:
         parsed = parse_request_text(self._request_edit.toPlainText())
         path = parsed.path.split("?", 1)[0]
@@ -350,7 +446,7 @@ class RepeaterSession(QWidget):
     def _on_send_shortcut(self) -> None:
         # Ctrl+Space always sends the current tab, regardless of the selected
         # group-send mode (matches Burp).
-        if self._send_btn.isEnabled() and self._handle is None:
+        if self._has_request and self._handle is None:
             self._send()
 
     # -- group-send menu (driven by the container) ----------------------------
@@ -441,6 +537,45 @@ class RepeaterSession(QWidget):
     def _update_send_menu(self) -> None:
         # A QToolButton only shows the dropdown arrow when it has a menu.
         self._send_btn.setMenu(self._group_menu)
+        self._sync_menu_enabled()
+
+    def _set_has_request(self, has: bool) -> None:
+        """Enable/disable the Send action while keeping the button visible.
+
+        We deliberately do NOT call setEnabled(False): a disabled QToolButton
+        won't open its menu, and the request is for the dropdown to still show
+        its options. Instead we track the state ourselves, gate the actual send,
+        grey out the individual menu options, and paint the disabled cue.
+        """
+        self._has_request = bool(has)
+        self._apply_send_disabled_style()
+        self._sync_menu_enabled()
+
+    def _apply_send_disabled_style(self) -> None:
+        """Paint the Send button with the disabled cue when it has no request.
+
+        Uses a dynamic Qt property (``inactive``) that the stylesheet targets,
+        so the fill comes from the theme's ``surface_alt`` token (#e4e5f1 in
+        light mode, #252a33 in dark) rather than a hard-coded colour.
+        """
+        self._send_btn.setProperty("inactive", not self._has_request)
+        # Re-polish so the property change takes effect immediately.
+        self._send_btn.style().unpolish(self._send_btn)
+        self._send_btn.style().polish(self._send_btn)
+
+    def _sync_menu_enabled(self) -> None:
+        """Grey out the dropdown's options when there is no request to send."""
+        if self._group_menu is None:
+            return
+        for act in self._group_menu.actions():
+            if act.isSeparator():
+                continue
+            # Keep the non-interactive header greyed regardless; other options
+            # follow the request state.
+            if act.text() == "Group send options":
+                act.setEnabled(False)
+            else:
+                act.setEnabled(self._has_request)
 
     def send_now(self, fresh_client: bool = False) -> None:
         """Public entry point for the container to send this tab's request."""
@@ -454,7 +589,10 @@ class RepeaterSession(QWidget):
     def _on_send_or_cancel(self) -> None:
         if self._handle is not None:
             self._handle.cancel()
-            self._target_label.setText("Cancelling...")
+            self._set_target_text("Cancelling...")
+            return
+        # No sendable request yet: the button is a visible-but-inert cue.
+        if not self._has_request:
             return
         # If a group send mode is selected in the dropdown, run that; otherwise
         # send just this tab.
@@ -481,7 +619,7 @@ class RepeaterSession(QWidget):
 
         self._set_name_from_request()
         self._send_btn.setText("Cancel")
-        self._target_label.setText(f"Sending to {url} ...")
+        self._set_target_text(f"Sending to {url} ...")
         self._handle = self._sender.send(
             parsed.method, url, parsed.headers, parsed.body,
             lambda result: self._result_ready.emit(result),
@@ -494,15 +632,15 @@ class RepeaterSession(QWidget):
     def on_result(self, result: HttpResult) -> None:
         self._handle = None
         self._send_btn.setText(self._send_label)
-        self._send_btn.setEnabled(True)
+        self._set_has_request(True)
 
         if result.cancelled:
-            self._target_label.setText("Cancelled")
+            self._set_target_text("Cancelled")
             self._meta_status.setText("cancelled")
             self._meta_status.setStyleSheet("color: orange;")
         elif not result.ok:
             self._response_view.setPlainText(f"Error: {result.error}")
-            self._target_label.setText("Request failed")
+            self._set_target_text("Request failed")
             self._meta_status.setText("error")
             self._meta_status.setStyleSheet("color: #c0392b;")
             self._record_history(result, ok=False)
@@ -514,7 +652,7 @@ class RepeaterSession(QWidget):
                 status_line, result.headers_text, result.body, ct
             )
             self._update_meta(result)
-            self._target_label.setText(f"Done in {result.duration_ms:.0f} ms")
+            self._set_target_text(f"Done in {result.duration_ms:.0f} ms")
             self._record_history(result, ok=True)
 
         # Notify listeners (e.g. group sequential send) that this send finished.
@@ -644,7 +782,7 @@ class RepeaterSession(QWidget):
 
         command = " ".join(parts)
         QGuiApplication.clipboard().setText(command)
-        self._target_label.setText("Copied cURL to clipboard")
+        self._set_target_text("Copied cURL to clipboard")
 
     # -- find -----------------------------------------------------------------
 

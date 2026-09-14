@@ -89,6 +89,8 @@ class MainWindow(QMainWindow):
         self._load_history()
         # Restore any Repeater sessions from the previous run.
         self._repeater_tab.restore_sessions(self._config.repeater_sessions_path)
+        # Always show at least one (empty) request/response frame by default.
+        self._repeater_tab.ensure_default_session()
         # Restore the last Intruder attack configuration.
         self._intruder_tab.restore_state(self._config.intruder_attack_path)
         # Restore the Collaborator session (re-registers with the server).
@@ -145,6 +147,8 @@ class MainWindow(QMainWindow):
         # Proxy controls. One button toggles start/stop.
         self._proxy_tab.toggle_btn.clicked.connect(self._on_toggle_proxy)
         self._proxy_tab.clear_btn.clicked.connect(self._on_clear)
+        # Tab-bar Clear History button (two-click confirm before it fires).
+        self._proxy_tab.clear_history_requested.connect(self._on_clear)
         self._proxy_tab.ca_btn.clicked.connect(self._on_show_ca)
 
         # Engine signals.
