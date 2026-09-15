@@ -195,7 +195,7 @@ class MainWindow(QMainWindow):
         # Proxy controls. One button toggles start/stop.
         self._proxy_tab.toggle_btn.clicked.connect(self._on_toggle_proxy)
         self._proxy_tab.clear_btn.clicked.connect(self._on_clear)
-        # Tab-bar Clear History button (two-click confirm before it fires).
+        # Tab-bar Clear History button (popup confirmation before it fires).
         self._proxy_tab.clear_history_requested.connect(self._on_clear)
         self._proxy_tab.ca_btn.clicked.connect(self._on_show_ca)
         self._proxy_tab.browser_integration_requested.connect(self._on_show_browser_integration)

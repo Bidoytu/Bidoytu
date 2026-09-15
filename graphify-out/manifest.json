@@ -282,9 +282,9 @@
     "semantic_hash": ""
   },
   "src/bidoytu/ui/main_window.py": {
-    "mtime": 1789467810.1444778,
-    "seen": 1789467865.2794864,
-    "ast_hash": "cdbbaf0d9ac2a307fefd6336423f3e9b",
+    "mtime": 1789474490.501961,
+    "seen": 1789474537.7403624,
+    "ast_hash": "dcafc81eba210140d54b738780cf020e",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/marker_highlighter.py": {
@@ -306,9 +306,9 @@
     "semantic_hash": ""
   },
   "src/bidoytu/ui/proxy_tab.py": {
-    "mtime": 1789467186.2563343,
-    "seen": 1789467865.2794864,
-    "ast_hash": "6505deaac1b45e2d5ac7d752b6801f89",
+    "mtime": 1789474507.307586,
+    "seen": 1789474537.7403624,
+    "ast_hash": "d7c7d3c6086bef080aec06b849be6d8d",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/repeater_session.py": {
@@ -324,9 +324,9 @@
     "semantic_hash": ""
   },
   "src/bidoytu/ui/theme.py": {
-    "mtime": 1789454347.1169777,
-    "seen": 1789467865.2794864,
-    "ast_hash": "b9a3576d943b39168b0c74195c9451ca",
+    "mtime": 1789468652.434652,
+    "seen": 1789474537.7403624,
+    "ast_hash": "1e0362274aa55b61e17346318022abb8",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/wrapping_tab_bar.py": {
