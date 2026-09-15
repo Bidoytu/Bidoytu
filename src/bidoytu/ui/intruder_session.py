@@ -144,7 +144,7 @@ class IntruderSession(QWidget):
         self._tabs.addTab(self._build_results_tab(), "Results")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 4, 0, 0)
         layout.addLayout(self._build_top_controls())
         layout.addWidget(self._tabs, 1)
 
@@ -234,7 +234,7 @@ class IntruderSession(QWidget):
 
         template_pane = QWidget()
         tv = QVBoxLayout(template_pane)
-        tv.setContentsMargins(0, 0, 0, 0)
+        tv.setContentsMargins(0, 4, 0, 0)
         tv.addLayout(marker_row)
         tv.addWidget(self._template)
 

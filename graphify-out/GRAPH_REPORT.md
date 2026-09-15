@@ -1,17 +1,17 @@
 # Graph Report - Bidoytu  (2026-09-15)
 
 ## Corpus Check
-- 80 files · ~149,368 words
+- 82 files · ~151,173 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 4, .spec 1, .ico 1)
 
 ## Summary
-- 1535 nodes · 2928 edges · 103 communities (81 shown, 20 thin omitted)
-- Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 224 edges (avg confidence: 0.9)
+- 1587 nodes · 3019 edges · 104 communities (81 shown, 21 thin omitted)
+- Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 232 edges (avg confidence: 0.9)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `089ae12b`
+- Built from commit: `5b95603e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -37,27 +37,27 @@
 - advanced_history.py
 - AsyncHttpSender
 - collaborator_tab.py
-- body_format.py
-- _HTMLPretty
-- models.py
+- repeater_session.py
+- SecListsDialog
+- http_utils.py
 - InteractionsModel
 - IntruderTab
-- ._open_or_recover
+- QHBoxLayout
 - FlowRecord
 - parse_request_text
 - PayloadSetEditor
 - FlowLayout
 - WrappingTabBar
-- FilterSpec
-- history_view.py
+- app.py
+- HttpHighlighter
 - AttackRunner
 - Bidoytu documentation
-- ._show_raw
-- _Chip
+- Interaction
+- .mousePressEvent
 - RepeaterTab
 - Storage Layer (storage/)
-- GroupDialog
-- .restore_state
+- history_delegate.py
+- Path
 - intercept_response_live_test.py
 - _FlowHost
 - FlowRepository
@@ -78,12 +78,12 @@
 - ._current_as_record
 - Public CA Certificate Export
 - Release CI/CD Workflow
-- engine.py
-- main_window.py
+- proxy_live_test.py
+- WorkspaceManager
 - gzip_decode_test.py
 - Contributing to Bidoytu
 - ui/__init__.py
-- ca_export_test.py
+- QColor
 - bidoytu
 - browser_integration.py
 - httpx Async Client
@@ -99,24 +99,25 @@
 - graphify reference: incremental update and cluster-only
 - graphify reference: GitHub clone and cross-repo merge
 - graphify reference: transcribe video and audio
-- ensure_host_header
+- apply_theme
 - extraction-spec.md
-- deserialize_filter_spec
-- strip_markers
+- _SavedFilterDelegate
+- iter_jobs
 - Publishing to PyPI (`pip install bidoytu`)
-- ._update_group_send_menu
+- _NoFocusRectStyle
 - .closeEvent
-- config.py
+- main_window.py
 - ui_icon
 - Testing and development
 - CONTRIBUTORS.md
 - Getting started
 - How the application is put together
 - .__init__
-- repeater_session.py
-- wrap_selection
-- .cookies
+- SendHandle
+- _SavedFilterCombo
+- .keyPressEvent
 - .__init__
+- ._collaborator_payload
 
 ## God Nodes (most connected - your core abstractions)
 1. `FlowRecord` - 99 edges
@@ -145,51 +146,51 @@
 ## Import Cycles
 - None detected.
 
-## Communities (103 total, 20 thin omitted)
+## Communities (104 total, 21 thin omitted)
 
 ### Community 0 - "theme.py"
-Cohesion: 0.05
-Nodes (55): QColor, QPainter, QPalette, QPixmap, QProxyStyle, QSyntaxHighlighter, QTextCharFormat, _fmt() (+47 more)
+Cohesion: 0.15
+Nodes (21): QPainter, QPixmap, _blank_pixmap(), _build_qss(), _check_icon(), _chevron_down_icon(), _chevron_icon(), _chevron_up_icon() (+13 more)
 
 ### Community 1 - "InterceptView"
 Cohesion: 0.07
-Nodes (22): build_response_text(), Assemble a raw HTTP response string from parts., InterceptView, QWidget, Size the activity table so URL fills the leftover width, while every column…, Whenever a column is resized, compensate its immediate right neighbor (or left…, Reflow the URL column to absorb the viewport's leftover width. URL is the…, Forward every still-pending flow, then reset the panel. Called when… (+14 more)
+Nodes (21): build_request_text(), Assemble a raw HTTP request string from parts. When ``host`` is provided, a…, InterceptView, QWidget, Size the activity table so URL fills the leftover width, while every column…, Whenever a column is resized, compensate its immediate right neighbor (or left…, Reflow the URL column to absorb the viewport's leftover width. URL is the…, Forward every still-pending flow, then reset the panel. Called when… (+13 more)
 
 ### Community 2 - "MessageView"
 Cohesion: 0.06
 Nodes (17): DetailView, QWidget, Two MessageViews (request | response) with a shared soft-wrap toggle., hex_dump(), _LineNumberArea, MessageView, QPlainTextEdit, QRect (+9 more)
 
 ### Community 3 - "CollaboratorTab"
-Cohesion: 0.11
-Nodes (7): CollaboratorTab, QWidget, Build a titled pane (label + find bar + view), matching Repeater., Attach a note (e.g. the target tab) to the most recent payload., Generate a payload, tag it with ``note``, and return the hostname. Used by…, Register with an Interactsh server, hand out payloads, show callbacks., Stop polling and deregister on application close (best-effort).
+Cohesion: 0.09
+Nodes (11): CollaboratorTab, QWidget, Slot, Build a titled pane (label + find bar + view), matching Repeater., Render a raw HTTP message, pretty-printing its body by content-type. Splits…, Attach a note (e.g. the target tab) to the most recent payload., Generate a payload, tag it with ``note``, and return the hostname. Used by…, Register with an Interactsh server, hand out payloads, show callbacks. (+3 more)
 
 ### Community 4 - "HistoryView"
-Cohesion: 0.11
-Nodes (7): HistoryView, QWidget, Slot, Size columns so Path fills the leftover width initially, while every column…, Whenever a column is resized, compensate its immediate right neighbor (or left…, Reflow the Path column to absorb the viewport's leftover width. Path is the…, Traffic table + detail, with send-to context actions.
+Cohesion: 0.07
+Nodes (13): QGroupBox, QScrollArea, HistoryFilterDialog, QDialog, Edit a :class:`FilterSpec` without changing the table until Apply., HistoryView, QWidget, Slot (+5 more)
 
 ### Community 5 - "AppConfig"
 Cohesion: 0.09
 Nodes (16): AppConfig, _default_data_dir(), Path, Top-level runtime configuration. Attributes: data_dir: Root directory for all…, Return a per-user, per-OS data directory for Bidoytu., JSON file holding persisted Repeater sessions across restarts., JSON file holding the last Intruder attack config across restarts., JSON file holding the Target scope for this workspace. (+8 more)
 
 ### Community 6 - "IntruderSession"
-Cohesion: 0.07
-Nodes (11): GrepConfig, How to derive match/extract columns from each response., IntruderSession, Slot, Grow/shrink the payload-set tabs to exactly ``n`` (min 1)., Pitchfork/cluster bomb use one set per position; others use one., Return a JSON-serializable snapshot of this session., Restore this session from a snapshot produced by :meth:`to_state`. (+3 more)
+Cohesion: 0.09
+Nodes (8): IntruderSession, QWidget, Slot, Grow/shrink the payload-set tabs to exactly ``n`` (min 1)., Return a JSON-serializable snapshot of this session., Restore this session from a snapshot produced by :meth:`to_state`., Build a FlowRecord from the template (payload markers removed)., One Intruder attack: template + positions + payload sets + results.
 
 ### Community 7 - "InterceptActivityModel"
 Cohesion: 0.08
 Nodes (14): ActivityRow, InterceptActivityModel, Orientation, QAbstractTableModel, QModelIndex, Log a paused (pending) request. Returns its row index., Log a paused (pending) response. Returns its row index., True if the row is a still-pending request or response. (+6 more)
 
 ### Community 8 - "intruder_session.py"
-Cohesion: 0.11
-Nodes (31): count_jobs(), find_markers(), iter_jobs(), Marker, PayloadSet, Intruder attack model: markers, attack types, and request building. Qt-free so…, Insert ``values`` into ``clean_text`` at each marker (right-to-left). Working…, Best-effort total request count for a configured attack. (+23 more)
+Cohesion: 0.13
+Nodes (25): count_jobs(), PayloadSet, Intruder attack model: markers, attack types, and request building. Qt-free so…, Wrap the ``[sel_start, sel_end)`` span of ``text`` in ``§`` markers. Used by…, Best-effort total request count for a configured attack., A generator plus its processing rules (one Intruder payload set)., wrap_selection(), _apply_one() (+17 more)
 
 ### Community 9 - "InteractshClient"
-Cohesion: 0.10
-Nodes (13): Exception, InteractshClient, _cb(), _cb(), InteractshError, Raised for registration / polling / crypto failures., Register with, generate payloads for, and poll an Interactsh server. The client…, Generate a keypair and register against the first working server. ``servers``… (+5 more)
+Cohesion: 0.11
+Nodes (11): Exception, InteractshClient, _cb(), InteractshError, Raised for registration / polling / crypto failures., Register with, generate payloads for, and poll an Interactsh server. The client…, Generate a keypair and register against the first working server. ``servers``…, Return (ok, done). ``done`` short-circuits trying more servers. (+3 more)
 
 ### Community 10 - "RepeaterSession"
 Cohesion: 0.11
-Nodes (9): HttpResult, Slot, Set the status/target label, eliding to fit the current width. Stores the full…, True if this is a pristine session: no request text and no history., Enable/disable the Send action while keeping the button visible. We…, Paint the Send button with the disabled cue when it has no request. Uses a…, Public entry point for the container to send this tab's request., One request/response pane with full Repeater controls. (+1 more)
+Nodes (8): Slot, Set the status/target label, eliding to fit the current width. Stores the full…, True if this is a pristine session: no request text and no history., Enable/disable the Send action while keeping the button visible. We…, Paint the Send button with the disabled cue when it has no request. Uses a…, Public entry point for the container to send this tab's request., One request/response pane with full Repeater controls., RepeaterSession
 
 ### Community 11 - "IntruderResultsModel"
 Cohesion: 0.11
@@ -197,51 +198,51 @@ Nodes (10): One completed request in the results table., ResultRow, IntruderResu
 
 ### Community 12 - "ProxyEngine"
 Cohesion: 0.07
-Nodes (13): QThread, ProxyConfig, Listen and target-scope settings for the mitmproxy engine., ProxyEngine, Check the listen port is free before handing off to mitmproxy. Failing fast…, Update target scope immediately, including while the proxy runs., Toggle the global 'intercept responses' behavior., Arm a one-shot response intercept for a single flow. (+5 more)
+Nodes (14): QThread, ProxyConfig, Listen and target-scope settings for the mitmproxy engine., ProxyEngine, Check the listen port is free before handing off to mitmproxy. Failing fast…, Update target scope immediately, including while the proxy runs., Toggle the global 'intercept responses' behavior., Arm a one-shot response intercept for a single flow. (+6 more)
 
 ### Community 13 - "CaptureAddon"
-Cohesion: 0.12
-Nodes (13): HTTPFlow, CaptureAddon, _PendingFlow, Arm a one-shot response intercept for a single flow (Burp's "Response to this…, Apply a UI decision to a paused request. Runs on the proxy loop., Apply a UI decision to a paused response. Runs on the proxy loop., Rewrite a flow's request from edited raw text before forwarding., Rewrite a flow's response from edited raw text before forwarding. (+5 more)
+Cohesion: 0.10
+Nodes (15): FlowCallback, HTTPFlow, InterceptCallback, CaptureAddon, _PendingFlow, Arm a one-shot response intercept for a single flow (Burp's "Response to this…, Apply a UI decision to a paused request. Runs on the proxy loop., Apply a UI decision to a paused response. Runs on the proxy loop. (+7 more)
 
 ### Community 14 - "MainWindow"
-Cohesion: 0.12
-Nodes (5): QMainWindow, MainWindow, Slot, Return a fresh Collaborator payload host, or None if unavailable. Called by…, Load a file-backed request body inline so editors can show it.
+Cohesion: 0.13
+Nodes (4): QMainWindow, MainWindow, Slot, Load a file-backed request body inline so editors can show it.
 
 ### Community 15 - "BodyStore"
-Cohesion: 0.15
-Nodes (8): BodyStore, Path, On-disk store for large request/response bodies. Rather than storing large…, Content-addressed file store for body payloads. Files are sharded into…, Write ``data`` to the store and return its relative path. Identical content…, Read body content previously returned by :meth:`store`., Storage layer: SQLite persistence + on-disk body store., SQLite persistence for captured flows. Uses the stdlib ``sqlite3`` module…
+Cohesion: 0.25
+Nodes (5): BodyStore, Path, Content-addressed file store for body payloads. Files are sharded into…, Write ``data`` to the store and return its relative path. Identical content…, Read body content previously returned by :meth:`store`.
 
 ### Community 16 - "What You Must Do When Invoked"
 Cohesion: 0.08
 Nodes (24): For /graphify add and --watch, For /graphify query, For the commit hook and native CLAUDE.md integration, For --update and --cluster-only, /graphify, Honesty Rules, Interpreter guard for subcommands, Part A - Structural extraction for code files (+16 more)
 
 ### Community 17 - "ProxyTab"
-Cohesion: 0.05
-Nodes (26): FindFlags, QComboBox, QFrame, QHBoxLayout, QKeyEvent, QPushButton, FindBar, QPlainTextEdit (+18 more)
+Cohesion: 0.08
+Nodes (13): QFrame, ProxyTab, QWidget, Container widget for everything under the top-level "Proxy" tab., Collapse the Target panel to an arrow, or restore its full width., Use a painted arrow so the icon is stable across Qt styles., Show the settings panel as an in-window child widget., The Clear History button now lives in the Intercept control row. Exposed here… (+5 more)
 
 ### Community 18 - "advanced_history.py"
-Cohesion: 0.20
-Nodes (17): _body(), _compare(), curl_command(), export_records(), _field(), fingerprint(), _headers(), matches() (+9 more)
+Cohesion: 0.12
+Nodes (26): _body(), _compare(), curl_command(), deserialize_filter_spec(), export_records(), _field(), FilterSpec, fingerprint() (+18 more)
 
 ### Community 19 - "AsyncHttpSender"
 Cohesion: 0.15
 Nodes (6): ResultCallback, AsyncHttpSender, _schedule(), Schedule a request; ``callback`` is invoked on the sender thread. Returns a…, Owns a background event loop running httpx.AsyncClient instances., Networking helpers (async HTTP client for Repeater/Intruder).
 
 ### Community 20 - "collaborator_tab.py"
-Cohesion: 0.15
-Nodes (14): _encode_xid(), generate_xid(), Interaction, _now_iso(), Interactsh (OAST) client for the Collaborator feature. This is a small, Qt-free…, A single out-of-band interaction reported by the server., Everything needed to resume / persist a registered session., Return a 20-char XID string. XID layout: 4-byte time, 3-byte machine id, 2-byte… (+6 more)
+Cohesion: 0.20
+Nodes (11): _encode_xid(), generate_xid(), Interactsh (OAST) client for the Collaborator feature. This is a small, Qt-free…, Everything needed to resume / persist a registered session., Return a 20-char XID string. XID layout: 4-byte time, 3-byte machine id, 2-byte…, Encode 12 raw bytes into the 20-char XID base32 representation., SessionInfo, Table model + filter proxy for Collaborator (OAST) interactions.… (+3 more)
 
-### Community 21 - "body_format.py"
-Cohesion: 0.18
-Nodes (16): format_body(), _format_c_like(), _format_css(), _format_form(), _format_html(), _format_js(), _format_json(), _format_xml() (+8 more)
+### Community 21 - "repeater_session.py"
+Cohesion: 0.08
+Nodes (24): HTMLParser, format_body(), _format_c_like(), _format_css(), _format_form(), _format_html(), _format_js(), _format_json() (+16 more)
 
-### Community 22 - "_HTMLPretty"
-Cohesion: 0.22
-Nodes (4): HTMLParser, _HTMLPretty, Lenient HTML pretty-printer built on the stdlib parser. Emits nicely indented…, Close a preceding sibling with an optional end tag, if applicable.
+### Community 22 - "SecListsDialog"
+Cohesion: 0.07
+Nodes (24): QTreeWidgetItem, default_cache_dir(), Path, Browse and fetch wordlists from the SecLists project on demand. `SecLists…, Where a given repository path is (or would be) cached locally., Whether the wordlist at *path* already exists in the local cache., Return repo-relative paths of every wordlist already cached locally., Download the wordlist at *path* into the cache and return its path. If the file… (+16 more)
 
-### Community 23 - "models.py"
-Cohesion: 0.24
-Nodes (6): Plain data structures passed between the proxy engine, storage, and UI. These…, content_type_from_headers(), Extract the Content-Type value from a raw header block (case-insensitive)., Reusable side-by-side request/response viewer. Used by the Proxy history, the…, Table model for the Intercept tab's activity log. Each intercepted request…, Intercept panel: pause, edit, and forward/drop in-flight requests. When…
+### Community 23 - "http_utils.py"
+Cohesion: 0.10
+Nodes (18): absolute_url(), build_response_text(), ensure_host_header(), _headers_have(), parse_response_text(), ParsedResponse, Helpers for converting between raw HTTP text and structured parts. Used by…, Assemble a raw HTTP response string from parts. (+10 more)
 
 ### Community 24 - "InteractionsModel"
 Cohesion: 0.15
@@ -251,81 +252,73 @@ Nodes (9): InteractionRow, InteractionsModel, protocol_color(), QAbstractTableMo
 Cohesion: 0.15
 Nodes (8): IntruderTab, Path, QWidget, Close every Intruder tab., Open a new session tab populated from a captured flow., Write every open session to ``path`` as JSON (list of snapshots)., Recreate the sessions saved by :meth:`save_state`. Accepts both the multi-…, Holds multiple :class:`IntruderSession` instances in a tab strip.
 
-### Community 26 - "._open_or_recover"
-Cohesion: 0.29
-Nodes (4): Connection, Path, Move the corrupt database and SQLite sidecars to a safe backup., Open and validate the database, recovering from SQLite corruption. A damaged…
+### Community 26 - "QHBoxLayout"
+Cohesion: 0.18
+Nodes (10): FindFlags, QComboBox, QHBoxLayout, QPushButton, FindBar, QPlainTextEdit, QWidget, Incremental find controls bound to a target text edit. (+2 more)
 
 ### Community 27 - "FlowRecord"
-Cohesion: 0.09
-Nodes (12): SortOrder, FlowRecord, A single captured HTTP request/response exchange. Body payloads are represented…, The response content type without parameters (e.g. ``text/html``)., File extension derived from the request path (without the dot). The query…, FlowTableModel, Orientation, QAbstractTableModel (+4 more)
+Cohesion: 0.08
+Nodes (13): SortOrder, FlowRecord, Cookie names sent/received for this flow, comma-separated. Collects request…, A single captured HTTP request/response exchange. Body payloads are represented…, The response content type without parameters (e.g. ``text/html``)., File extension derived from the request path (without the dot). The query…, FlowTableModel, Orientation (+5 more)
 
 ### Community 28 - "parse_request_text"
-Cohesion: 0.17
-Nodes (11): absolute_url(), build_request_text(), host_from_headers_or_url(), parse_request_text(), ParsedRequest, Helpers for converting between raw HTTP text and structured parts. Used by…, Reconstruct an absolute URL from flow parts (path may be absolute)., Determine (scheme, host, port, path) for sending a parsed request. Prefers an… (+3 more)
+Cohesion: 0.28
+Nodes (5): host_from_headers_or_url(), parse_request_text(), ParsedRequest, Determine (scheme, host, port, path) for sending a parsed request. Prefers an…, Parse raw HTTP request text into a :class:`ParsedRequest`. Tolerant of both…
 
 ### Community 29 - "PayloadSetEditor"
-Cohesion: 0.16
-Nodes (5): PayloadSetEditor, ProcessingRuleDialog, QDialog, Edit one payload set: a generator plus a processing-rule pipeline., Configure a single :class:`ProcessingRule`.
+Cohesion: 0.14
+Nodes (6): PayloadSetEditor, ProcessingRuleDialog, QDialog, QWidget, Edit one payload set: a generator plus a processing-rule pipeline., Configure a single :class:`ProcessingRule`.
 
 ### Community 30 - "FlowLayout"
 Cohesion: 0.15
-Nodes (7): Orientations, QLayout, QLayoutItem, FlowLayout, QRect, QSize, QWidget
+Nodes (7): Orientations, QLayout, QLayoutItem, FlowLayout, QRect, QSize, A wrapping flow layout: children flow left-to-right and wrap to new rows. This…
 
 ### Community 31 - "WrappingTabBar"
-Cohesion: 0.27
-Nodes (4): Group-aware, wrapping tab bar composed of chip widgets., Rebuild the whole bar from the container's model. Args: order: list of keys…, Grow the bar to fit its rows, capped at ``_max_rows`` (then scroll)., WrappingTabBar
+Cohesion: 0.24
+Nodes (5): QResizeEvent, Group-aware, wrapping tab bar composed of chip widgets., Rebuild the whole bar from the container's model. Args: order: list of keys…, Grow the bar to fit its rows, capped at ``_max_rows`` (then scroll)., WrappingTabBar
 
-### Community 32 - "FilterSpec"
-Cohesion: 0.20
-Nodes (7): QGroupBox, QScrollArea, FilterSpec, HistoryFilterDialog, QDialog, Burp-style modal filter settings for HTTP History., Edit a :class:`FilterSpec` without changing the table until Apply.
+### Community 32 - "app.py"
+Cohesion: 0.16
+Nodes (15): main(), Application entry point. Creates the Qt application, builds the main window,…, Give Windows an explicit AppUserModelID so the taskbar uses our icon. Without…, _set_windows_app_id(), Bidoytu - an intercepting HTTP proxy tool. Base architecture: - Proxy/MITM…, Enables ``python -m bidoytu``., asset_path(), _assets_dir() (+7 more)
 
-### Community 33 - "history_view.py"
-Cohesion: 0.25
-Nodes (5): Persist the complete filter state in the saved-filter query column., serialize_filter_spec(), Custom QAbstractTableModel backing the traffic history view. We use a hand-…, HTTP history: the traffic table plus a request/response detail view. Emits a…, Proxy tab: Target scope, proxy controls, and HTTP History / Intercept tabs. The…
+### Community 33 - "HttpHighlighter"
+Cohesion: 0.17
+Nodes (10): QSyntaxHighlighter, HttpHighlighter, Lightweight syntax highlighting for raw HTTP messages. Uses…, Highlights HTTP start-lines and headers., Re-color for a new theme mode and re-highlight the document., MarkerHighlighter, Highlighter for the Intruder request template. A…, HTTP highlighting plus a highlighted background for ``§payload§`` spans. (+2 more)
 
 ### Community 34 - "AttackRunner"
 Cohesion: 0.16
-Nodes (9): Pattern, QObject, AttackJob, One request to send: the substituted text and the payloads used., AttackRunner, _compile(), Slot, Launch requests until we hit the concurrency cap or run out. (+1 more)
+Nodes (11): Pattern, QObject, HttpResult, AttackJob, One request to send: the substituted text and the payloads used., AttackRunner, _compile(), Slot (+3 more)
 
 ### Community 35 - "Bidoytu documentation"
 Cohesion: 0.18
 Nodes (11): At a glance, Bidoytu documentation, Configuration, Contents, Data and storage, First-run workflow, Packaging and releases, Repository map (+3 more)
 
-### Community 36 - "._show_raw"
-Cohesion: 0.22
-Nodes (5): Slot, Best-effort correlate an interaction back to a generated payload., Render a raw HTTP message, pretty-printing its body by content-type. Splits…, Split a raw HTTP message into (start_line, headers, body). Tolerant of both…, _split_http_message()
-
-### Community 37 - "_Chip"
-Cohesion: 0.26
-Nodes (3): QMouseEvent, _Chip, A single clickable tab chip with an optional close button.
+### Community 36 - "Interaction"
+Cohesion: 0.14
+Nodes (7): Interaction, _cb(), _now_iso(), A single out-of-band interaction reported by the server., Poll the server once. ``on_done(interactions, error)`` on sender thread., Best-effort correlate an interaction back to a generated payload., Restore a session saved by :meth:`save_state` and re-register it.
 
 ### Community 38 - "RepeaterTab"
-Cohesion: 0.12
-Nodes (13): Path, QWidget, Clone a session's request into a new tab, named ``base (n)``., Return ``base (n)`` with the smallest unused positive integer n., Delete a group along with all request tabs it contains., Close every request tab and remove all groups. Always leaves one fresh, empty…, Guarantee at least one (empty) session exists. Called on startup after…, Open a new session tab populated from a captured flow. If the only open session… (+5 more)
+Cohesion: 0.06
+Nodes (23): GroupDialog, QDialog, Dialog for adding Repeater request tabs to a named, colored group. Presents a…, Collect a group name, member tabs, and a color., Serializable snapshot of a session (for persistence)., SessionState, Group, Path (+15 more)
 
 ### Community 39 - "Storage Layer (storage/)"
 Cohesion: 0.20
 Nodes (10): Body Store (file-backed bodies), Capture Addon, Decode Bodies with content not raw_content, FlowRecord Plain Dataclass, asyncio.Event Pause/Forward/Drop, Architecture Layering Invariant, Content-Addressed Body Storage, HTTP History (+2 more)
 
-### Community 40 - "GroupDialog"
+### Community 40 - "history_delegate.py"
 Cohesion: 0.27
-Nodes (3): GroupDialog, QDialog, Collect a group name, member tabs, and a color.
-
-### Community 41 - ".restore_state"
-Cohesion: 0.22
-Nodes (3): Path, Persist the session, generated payloads, and interactions to JSON., Restore a session saved by :meth:`save_state` and re-register it.
+Nodes (8): HistoryItemDelegate, QStyledItemDelegate, Item delegate for the HTTP history table. This delegate paints every cell…, A soft, muted tint of the accent used to fill the selected row. Uses the shared…, Fully self-painted cells: soft row wash + slim accent bar, no style frame., _selection_fill(), highlight_bg(), selection_color()
 
 ### Community 42 - "intercept_response_live_test.py"
 Cohesion: 0.31
 Nodes (7): check_done(), do_forward(), finish(), on_intercepted(), on_started(), Live: intercept a request via the real MainWindow, forward it, and confirm the…, send()
 
 ### Community 43 - "_FlowHost"
-Cohesion: 0.36
-Nodes (4): QResizeEvent, _FlowHost, QWidget, Host widget whose height tracks its FlowLayout's height-for-width. A…
+Cohesion: 0.47
+Nodes (3): _FlowHost, QWidget, Host widget whose height tracks its FlowLayout's height-for-width. A…
 
 ### Community 44 - "FlowRepository"
-Cohesion: 0.11
-Nodes (8): Row, FlowRepository, Insert a new flow and return its assigned primary key., Update an existing flow (matched by ``flow_id``)., Insert if new, otherwise update. Returns the row id., Apply retention limits and reclaim SQLite space. Returns deleted rows., Link a request to the oldest identical request/response fingerprint., CRUD access to the ``flows`` table.
+Cohesion: 0.09
+Nodes (12): Connection, Row, FlowRepository, Path, Move the corrupt database and SQLite sidecars to a safe backup., Insert a new flow and return its assigned primary key., Update an existing flow (matched by ``flow_id``)., Insert if new, otherwise update. Returns the row id. (+4 more)
 
 ### Community 45 - "intercept_live_test.py"
 Cohesion: 0.36
@@ -387,21 +380,21 @@ Nodes (8): CA Private Key Protection, Focused Live Test Scripts, Public CA Certi
 Cohesion: 0.29
 Nodes (8): Staging-First Git Workflow, PyInstaller Build Step, Release CI/CD Workflow, Rolling latest Pre-Release, Versioned v* Tag Release, Nuitka Alternative Compiler, Desktop App Packaging, Qt Module Excludes (size reduction)
 
-### Community 62 - "engine.py"
-Cohesion: 0.17
-Nodes (6): Verify starting the proxy on an occupied port produces a clean error signal…, on_started(), Live end-to-end test: start the ProxyEngine thread and route a real request…, send_request(), Runs mitmproxy inside a dedicated QThread. Design: - mitmproxy is asyncio-…, Proxy engine package (mitmproxy running inside a QThread).
+### Community 62 - "proxy_live_test.py"
+Cohesion: 0.33
+Nodes (3): on_started(), Live end-to-end test: start the ProxyEngine thread and route a real request…, send_request()
 
-### Community 63 - "main_window.py"
-Cohesion: 0.07
-Nodes (33): main(), Application entry point. Creates the Qt application, builds the main window,…, Give Windows an explicit AppUserModelID so the taskbar uses our icon. Without…, _set_windows_app_id(), Bidoytu - an intercepting HTTP proxy tool. Base architecture: - Proxy/MITM…, Enables ``python -m bidoytu``., asset_path(), _assets_dir() (+25 more)
+### Community 63 - "WorkspaceManager"
+Cohesion: 0.10
+Nodes (17): QDialog, Startup picker for local Bidoytu workspaces., Choose, create, import, or export local workspaces before app startup., WorkspaceDialog, _now(), Path, Local, Burp-style workspace management. Each workspace owns its SQLite history,…, Remove every deletable workspace while keeping the legacy recovery one. (+9 more)
 
 ### Community 65 - "Contributing to Bidoytu"
 Cohesion: 0.29
 Nodes (7): Coding conventions, Contributing to Bidoytu, Development setup, Ground rules, Reporting bugs / security issues, Running the checks, Submitting changes
 
-### Community 67 - "ca_export_test.py"
-Cohesion: 0.67
-Nodes (3): finish(), poll_for_ca(), Verify the CA is generated in Bidoytu's confdir and can be exported. Starts the…
+### Community 67 - "QColor"
+Cohesion: 0.47
+Nodes (5): QColor, QTextCharFormat, _fmt(), _blend(), Blend ``fg`` over ``bg`` by ``alpha`` (0..1) and return a hex string. Used to…
 
 ### Community 69 - "browser_integration.py"
 Cohesion: 0.16
@@ -431,29 +424,33 @@ Nodes (3): For git commit hook, For native CLAUDE.md integration, graphify refer
 Cohesion: 0.50
 Nodes (3): For --cluster-only, For --update (incremental re-extraction), graphify reference: incremental update and cluster-only
 
-### Community 83 - "ensure_host_header"
-Cohesion: 0.40
-Nodes (4): ensure_host_header(), _headers_have(), Return True if the raw header block already contains ``name`` (case-…, Return the header block with a ``Host`` header guaranteed to be present. If…
+### Community 83 - "apply_theme"
+Cohesion: 0.53
+Nodes (6): QPalette, apply_theme(), _dark_palette(), _light_palette(), _palette_from_tokens(), Apply ``mode`` ('light' or 'dark') to the whole application.
 
-### Community 86 - "deserialize_filter_spec"
-Cohesion: 0.20
-Nodes (7): deserialize_filter_spec(), Load a saved filter, accepting legacy plain HTTPQL values., QStyledItemDelegate, Paint saved-filter names with a compact delete affordance., Populate the saved-filter picker without coupling the widget to SQLite., _SavedFilterCombo, _SavedFilterDelegate
+### Community 86 - "_SavedFilterDelegate"
+Cohesion: 0.67
+Nodes (3): QStyledItemDelegate, Paint saved-filter names with a compact delete affordance., _SavedFilterDelegate
 
-### Community 87 - "strip_markers"
-Cohesion: 0.33
-Nodes (3): Return the template with all ``§`` markers removed (defaults kept)., strip_markers(), Wrap each ``name=value`` value (query + body) in markers.
+### Community 87 - "iter_jobs"
+Cohesion: 0.12
+Nodes (14): find_markers(), iter_jobs(), Marker, Return the template with all ``§`` markers removed (defaults kept)., Insert ``values`` into ``clean_text`` at each marker (right-to-left). Working…, Yield an :class:`AttackJob` per request for the configured attack.…, A payload position: the span between a pair of ``§`` markers. ``start``/``end``…, Split a ``§``-marked template into (clean_text, markers). Markers come in… (+6 more)
 
 ### Community 89 - "Publishing to PyPI (`pip install bidoytu`)"
 Cohesion: 0.50
 Nodes (4): Build / check the package locally, One-time setup on PyPI, Publishing to PyPI (`pip install bidoytu`), Releasing a new version to PyPI
 
-### Community 92 - "config.py"
-Cohesion: 0.21
-Nodes (10): host_matches_scope(), matches(), _normalise_scope_entry(), Application configuration and filesystem paths. Everything the app writes…, Return a host-pattern suitable for scope matching. Scope entries are…, Return whether *host* is in the configured target scope. A host entry matches…, parse_response_text(), ParsedResponse (+2 more)
+### Community 90 - "_NoFocusRectStyle"
+Cohesion: 0.60
+Nodes (3): QProxyStyle, _NoFocusRectStyle, Application style that suppresses the item-view focus rectangle globally. The…
+
+### Community 92 - "main_window.py"
+Cohesion: 0.09
+Nodes (21): finish(), poll_for_ca(), Verify the CA is generated in Bidoytu's confdir and can be exported. Starts the…, Verify starting the proxy on an occupied port produces a clean error signal…, Live test: RepeaterTab.load_from_record + Send performs a real request., host_matches_scope(), matches(), _normalise_scope_entry() (+13 more)
 
 ### Community 93 - "ui_icon"
-Cohesion: 0.18
-Nodes (10): QIcon, A small find bar that searches within a QPlainTextEdit. Reusable over any…, A wrapping flow layout: children flow left-to-right and wrap to new rows. This…, current_mode(), Return the named color tokens for ``mode`` (falls back to dark)., Return a font-independent icon for compact UI controls., Return the theme mode currently applied to the application., tokens() (+2 more)
+Cohesion: 0.19
+Nodes (9): current_mode(), Return the named color tokens for ``mode`` (falls back to dark)., Return a font-independent icon for compact UI controls., Return the theme mode currently applied to the application., tokens(), ui_icon(), _Chip, A wrapping, group-aware tab bar built from individual chip widgets. Unlike… (+1 more)
 
 ### Community 94 - "Testing and development"
 Cohesion: 0.67
@@ -467,9 +464,13 @@ Nodes (3): Getting started, Install from source, Requirements
 Cohesion: 0.67
 Nodes (3): How the application is put together, Startup sequence, Threading model
 
-### Community 99 - "repeater_session.py"
-Cohesion: 0.09
-Nodes (15): AbstractEventLoop, Live test: RepeaterTab.load_from_record + Send performs a real request., Async HTTP sender for Repeater/Intruder. Runs an ``httpx.AsyncClient`` on a…, A cancellable handle to an in-flight request. The handle wraps the…, SendHandle, Dialog for adding Repeater request tabs to a named, colored group. Presents a…, HistoryEntry, A single Repeater session: one editable request + its response. Bundles the… (+7 more)
+### Community 98 - ".__init__"
+Cohesion: 0.20
+Nodes (4): QIcon, Reclassify existing rows when target scope rules change., Persist the chosen theme., save_theme()
+
+### Community 99 - "SendHandle"
+Cohesion: 0.25
+Nodes (4): AbstractEventLoop, A cancellable handle to an in-flight request. The handle wraps the…, SendHandle, Task
 
 ## Ambiguous Edges - Review These
 - `Qt Isolation to ui/` → `Safe Default Localhost Bind`  [AMBIGUOUS]
@@ -479,8 +480,8 @@ Nodes (15): AbstractEventLoop, Live test: RepeaterTab.load_from_record + Send pe
 
 ## Knowledge Gaps
 - **121 isolated node(s):** `bidoytu`, `Usage`, `What graphify is for`, `Step 0 - GitHub repos and multi-path merge (only if a URL or several paths)`, `Step 1 - Ensure graphify is installed` (+116 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 630 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **20 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 647 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **21 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -489,12 +490,12 @@ _Questions this graph is uniquely positioned to answer:_
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
 - **What is the exact relationship between `Public CA Certificate Export` and `CA Certificate Handling Policy`?**
   _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
-- **Why does `FlowRecord` connect `FlowRecord` to `InterceptView`, `MessageView`, `HistoryView`, `IntruderSession`, `InterceptActivityModel`, `intruder_session.py`, `RepeaterSession`, `ProxyEngine`, `CaptureAddon`, `MainWindow`, `BodyStore`, `advanced_history.py`, `AsyncHttpSender`, `models.py`, `IntruderTab`, `history_view.py`, `RepeaterTab`, `FlowRepository`, `smoke_test.py`, `._current_as_record`, `engine.py`, `main_window.py`, `ensure_host_header`, `config.py`, `repeater_session.py`, `.cookies`?**
-  _High betweenness centrality (0.192) - this node is a cross-community bridge._
-- **Why does `CollaboratorTab` connect `CollaboratorTab` to `MessageView`, `.__init__`, `._show_raw`, `InteractshClient`, `.restore_state`, `InteractionFilterProxy`, `MainWindow`, `ProxyTab`, `AsyncHttpSender`, `collaborator_tab.py`, `InteractionsModel`, `main_window.py`?**
-  _High betweenness centrality (0.072) - this node is a cross-community bridge._
-- **Why does `MainWindow` connect `MainWindow` to `.__init__`, `CollaboratorTab`, `MessageView`, `AppConfig`, `browser_integration.py`, `RepeaterTab`, `InteractshClient`, `.closeEvent`, `ProxyEngine`, `FlowRepository`, `BodyStore`, `smoke_test.py`, `ProxyTab`, `AsyncHttpSender`, `CaCertDialog`, `IntruderTab`, `FlowRecord`, `main_window.py`?**
-  _High betweenness centrality (0.071) - this node is a cross-community bridge._
+- **Why does `FlowRecord` connect `FlowRecord` to `InterceptView`, `MessageView`, `HistoryView`, `IntruderSession`, `InterceptActivityModel`, `intruder_session.py`, `RepeaterSession`, `ProxyEngine`, `CaptureAddon`, `MainWindow`, `advanced_history.py`, `AsyncHttpSender`, `repeater_session.py`, `http_utils.py`, `IntruderTab`, `RepeaterTab`, `FlowRepository`, `smoke_test.py`, `._current_as_record`, `main_window.py`?**
+  _High betweenness centrality (0.188) - this node is a cross-community bridge._
+- **Why does `AsyncHttpSender` connect `AsyncHttpSender` to `AttackRunner`, `CollaboratorTab`, `.__init__`, `IntruderSession`, `RepeaterTab`, `intruder_session.py`, `InteractshClient`, `RepeaterSession`, `InteractionFilterProxy`, `MainWindow`, `collaborator_tab.py`, `repeater_session.py`, `IntruderTab`, `QHBoxLayout`, `main_window.py`?**
+  _High betweenness centrality (0.079) - this node is a cross-community bridge._
+- **Why does `IntruderSession` connect `IntruderSession` to `HttpHighlighter`, `AttackRunner`, `MessageView`, `intruder_session.py`, `IntruderResultsModel`, `main_window.py`, `AsyncHttpSender`, `iter_jobs`, `IntruderTab`, `QHBoxLayout`, `FlowRecord`, `parse_request_text`, `PayloadSetEditor`?**
+  _High betweenness centrality (0.078) - this node is a cross-community bridge._
 - **Are the 28 inferred relationships involving `FlowRecord` (e.g. with `test_intercept_view()` and `test_qt_and_proxy_apis()`) actually correct?**
   _`FlowRecord` has 28 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 7 inferred relationships involving `RepeaterSession` (e.g. with `AsyncHttpSender` and `HttpResult`) actually correct?**
