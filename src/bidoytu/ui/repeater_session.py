@@ -202,6 +202,16 @@ class RepeaterSession(QWidget):
         self._clear_all_btn.setCursor(Qt.PointingHandCursor)
         self._clear_all_btn.clicked.connect(self.clear_all_requested.emit)
 
+        # Match every button in this controls row to the height of the
+        # prev/next nav arrows, so the row reads as one consistent band
+        # regardless of per-widget content (icon vs text vs tool button).
+        nav_height = self._prev_btn.sizeHint().height()
+        for _btn in (
+            self._send_btn, self._next_btn, self._curl_btn,
+            self._new_btn, self._clear_all_btn,
+        ):
+            _btn.setFixedHeight(nav_height)
+
         # The controls row has three clusters. To keep "+ New / Clear all"
         # centered with respect to the whole tab (not merely the gap between
         # the left and right clusters), all three clusters share one grid cell:

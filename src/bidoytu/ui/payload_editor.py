@@ -172,7 +172,7 @@ class PayloadSetEditor(QWidget):
         rule_btns.addWidget(down_rule)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(8, 4, 4, 4)
         gen_row = QHBoxLayout()
         gen_row.addWidget(QLabel("Type:"))
         gen_row.addWidget(self._gen_kind)
@@ -195,8 +195,17 @@ class PayloadSetEditor(QWidget):
         self._list_edit.setPlaceholderText("One payload per line...")
         load_btn = QPushButton("Load from file...")
         load_btn.clicked.connect(self._load_list_file)
+        seclists_btn = QPushButton("Load SecLists")
+        seclists_btn.setToolTip(
+            "Browse and download wordlists from the SecLists project"
+        )
+        seclists_btn.clicked.connect(self._load_seclists)
+        btn_row = QHBoxLayout()
+        btn_row.addWidget(load_btn)
+        btn_row.addWidget(seclists_btn)
+        btn_row.addStretch(1)
         v.addWidget(self._list_edit, 1)
-        v.addWidget(load_btn)
+        v.addLayout(btn_row)
         return page
 
     def _build_numbers_page(self) -> QWidget:
@@ -262,6 +271,20 @@ class PayloadSetEditor(QWidget):
                 content = fh.read()
         except OSError:
             return
+        existing = self._list_edit.toPlainText()
+        if existing.strip():
+            content = existing.rstrip("\n") + "\n" + content
+        self._list_edit.setPlainText(content)
+
+    def _load_seclists(self) -> None:
+        # Imported lazily so the editor doesn't pull in the dialog (or httpx)
+        # until the user actually browses SecLists.
+        from bidoytu.ui.seclists_dialog import SecListsDialog
+
+        dialog = SecListsDialog(parent=self)
+        if not dialog.exec() or dialog.selected_content is None:
+            return
+        content = dialog.selected_content
         existing = self._list_edit.toPlainText()
         if existing.strip():
             content = existing.rstrip("\n") + "\n" + content
