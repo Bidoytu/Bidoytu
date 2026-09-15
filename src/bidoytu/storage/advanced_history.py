@@ -19,6 +19,7 @@ from bidoytu.http_utils import ensure_host_header
 from bidoytu.storage.models import FlowRecord
 
 _TERM = re.compile(r'''(?:([^\s:<>!=]+)\s*(?:(>=|<=|!=|=|>|<|:)\s*("[^"]*"|'[^']*'|[^\s]+))|("[^"]*"|'[^']*'|[^\s]+))''')
+_ALL_STATUS_CLASSES = {"2xx", "3xx", "4xx", "5xx"}
 
 
 @dataclass
@@ -139,7 +140,11 @@ def matches(record: FlowRecord, spec: FilterSpec) -> bool:
         if bucket not in {item.lower() for item in spec.mime_types}:
             return False
     if spec.status_classes:
-        if record.status_code is None or f"{record.status_code // 100}xx" not in spec.status_classes:
+        # Selecting every status class is the explicit UI form of "all
+        # statuses". Keep pending requests (status_code=None) visible too,
+        # matching the historical empty-set behavior.
+        if (spec.status_classes != _ALL_STATUS_CLASSES and
+                (record.status_code is None or f"{record.status_code // 100}xx" not in spec.status_classes)):
             return False
     if spec.show_extensions and record.extension.lower() not in {
             item.strip().lower().lstrip(".") for item in spec.show_extensions.split(",") if item.strip()}:

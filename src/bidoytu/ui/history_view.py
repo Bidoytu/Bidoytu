@@ -439,8 +439,8 @@ class HistoryView(QWidget):
         if spec.search: active.append("search")
         if spec.query: active.append("HTTPQL")
         if spec.in_scope_only: active.append("scope")
-        if spec.mime_types: active.append("MIME")
-        if spec.status_classes: active.append("status")
+        if spec.mime_types and len(spec.mime_types) < 8: active.append("MIME")
+        if spec.status_classes and len(spec.status_classes) < 4: active.append("status")
         self._filter_summary.setText("All traffic" if not active else "Filters: " + ", ".join(active))
 
     def _quick_method_filter(self, value: str) -> None:

@@ -12,6 +12,8 @@ intercept panel.
 """
 from __future__ import annotations
 
+from dataclasses import replace
+
 from PySide6.QtCore import QTimer, Slot
 from PySide6.QtGui import QActionGroup, QIcon
 from PySide6.QtWidgets import (
@@ -77,6 +79,13 @@ class MainWindow(QMainWindow):
         self.resize(1300, 850)
 
         self._model = FlowTableModel(self)
+        # Scope-table edits can emit repeatedly while text is being changed.
+        # The proxy receives new rules immediately; history reclassification is
+        # coalesced so it cannot freeze the event loop on every keystroke.
+        self._scope_refresh_timer = QTimer(self)
+        self._scope_refresh_timer.setSingleShot(True)
+        self._scope_refresh_timer.setInterval(300)
+        self._scope_refresh_timer.timeout.connect(self._refresh_history_scope)
 
         # Top-level tabs.
         self._tabs = QTabWidget()
@@ -295,7 +304,7 @@ class MainWindow(QMainWindow):
         self._config.proxy.sitemaps = list(sitemaps)
         self._engine.set_scope(include_scope, exclude_scope, include_paths,
                                 exclude_paths, include_regex, exclude_regex)
-        self._refresh_history_scope()
+        self._scope_refresh_timer.start()
 
     def _on_stop(self) -> None:
         self._proxy_tab.set_status("Stopping proxy...")
@@ -361,8 +370,11 @@ class MainWindow(QMainWindow):
         if is_response:
             self._proxy_tab.intercept.on_response(record)
         self._persist(record)
-        self._model.upsert_record(record)
-        self._target_tab.add_record(record, defer=True)
+        # The table and site map never render bodies. Keep only metadata in
+        # their long-lived models; detail panes load the selected body lazily.
+        summary = replace(record, request_body_inline=None, response_body_inline=None)
+        self._model.upsert_record(summary)
+        self._target_tab.add_record(summary, defer=True)
 
     @Slot(object)
     def _on_flow_intercepted(self, record: FlowRecord) -> None:
@@ -393,7 +405,12 @@ class MainWindow(QMainWindow):
 
     def _refresh_history_scope(self) -> None:
         """Reclassify existing rows when target scope rules change."""
-        records = self._repo.list_all()
+        records = self._model.all_records()
+        if not records:
+            records = self._repo.list_summaries()
+            self._model.load_records(records)
+            self._target_tab.set_records(records)
+        changed = []
         for record in records:
             in_scope = host_matches_scope(
                 record.host,
@@ -405,9 +422,8 @@ class MainWindow(QMainWindow):
             )
             if record.scope != in_scope:
                 record.scope = in_scope
-                self._repo.update(record)
-        self._model.load_records(records)
-        self._target_tab.set_records(records)
+                changed.append(record)
+        self._repo.update_scopes(changed)
         if hasattr(self._proxy_tab, "history"):
             self._proxy_tab.history._apply_filters()
 
@@ -459,7 +475,7 @@ class MainWindow(QMainWindow):
             return inline
         if path and self._body_store.exists(path):
             return self._body_store.load(path)
-        return None
+        return self._repo.body(record.id, response) if record.id is not None else None
 
     # -- send-to actions ------------------------------------------------------
 
@@ -478,7 +494,7 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def _on_history_metadata_changed(self, record: FlowRecord) -> None:
-        self._repo.update(record)
+        self._repo.update_metadata(record)
         self._model.upsert_record(record)
 
     @Slot(str, str)
@@ -541,6 +557,8 @@ class MainWindow(QMainWindow):
         if record.request_body_inline is None and record.request_body_path:
             if self._body_store.exists(record.request_body_path):
                 record.request_body_inline = self._body_store.load(record.request_body_path)
+        elif record.request_body_inline is None and record.id is not None:
+            record.request_body_inline = self._repo.body(record.id, response=False)
 
     # -- shutdown -------------------------------------------------------------
 

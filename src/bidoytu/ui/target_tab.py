@@ -64,7 +64,26 @@ class _ScopeTable(QWidget):
         self.table.setHorizontalHeaderLabels(["Enabled", "Prefix", "Include subdomains"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        # Scope entries are short configuration lists; letting this table
+        # stretch across the entire window makes the page feel unnecessarily
+        # wide. Keep a compact, readable width while leaving the page itself
+        # free to resize.
+        self.table.setMinimumWidth(535)
+        self.table.setMaximumWidth(780)
+        self.table.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        header = self.table.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.Fixed)
+        # Let the editable Prefix column absorb the available width. This
+        # prevents the fixed state columns from pushing the table beyond its
+        # viewport (which otherwise creates a horizontal scrollbar as soon as
+        # a longer domain is entered).
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.Fixed)
+        header.resizeSection(0, 86)
+        header.resizeSection(1, 280)
+        header.resizeSection(2, 165)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.table.setMinimumHeight(175)
         self.table.itemChanged.connect(lambda _item: self.changed.emit())
         label = QLabel(title); label.setStyleSheet("font-weight: 600;")
@@ -77,7 +96,7 @@ class _ScopeTable(QWidget):
         buttons = QVBoxLayout()
         for button in (self.add_btn, self.edit_btn, self.remove_btn, self.paste_btn, self.load_btn): buttons.addWidget(button)
         buttons.addStretch(1)
-        row = QHBoxLayout(); row.addLayout(buttons); row.addWidget(self.table, 1)
+        row = QHBoxLayout(); row.addLayout(buttons); row.addWidget(self.table); row.addStretch(1)
         layout = QVBoxLayout(self); layout.addWidget(label); layout.addLayout(row)
 
     def values(self):
@@ -89,11 +108,23 @@ class _ScopeTable(QWidget):
         value = value.strip()
         if not value or value in self.values(): return
         row = self.table.rowCount(); self.table.insertRow(row)
-        enabled = QTableWidgetItem(); enabled.setCheckState(Qt.Checked)
         prefix = QTableWidgetItem(value)
-        subdomains = QTableWidgetItem(); subdomains.setCheckState(Qt.Checked)
-        self.table.setItem(row, 0, enabled); self.table.setItem(row, 1, prefix); self.table.setItem(row, 2, subdomains)
+        self.table.setCellWidget(row, 0, self._checkbox())
+        self.table.setItem(row, 1, prefix)
+        self.table.setCellWidget(row, 2, self._checkbox())
         if emit: self.changed.emit()
+
+    def _checkbox(self):
+        """Create a native checkbox consistent with the rest of the UI."""
+        check = QCheckBox(self.table)
+        check.setChecked(True)
+        check.stateChanged.connect(lambda _state: self.changed.emit())
+        container = QWidget(self.table)
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setAlignment(Qt.AlignCenter)
+        layout.addWidget(check)
+        return container
     def _selected_row(self):
         rows = self.table.selectionModel().selectedRows(); return rows[0].row() if rows else -1
     def _add(self):
@@ -175,6 +206,10 @@ class _SitemapPage(QWidget):
         else: self._refresh()
     def set_records(self, records):
         self._records_by_flow = {record.flow_id: record for record in records}
+        # Do not construct thousands of tree items while the Site map is not
+        # visible.  It will be built once when the user opens that page.
+        if not self._active:
+            return
         self._reset_tree()
         self._refresh()
     def _schedule_refresh(self):
@@ -274,7 +309,7 @@ class _SitemapPage(QWidget):
     def _show_filters(self):
         dialog = HistoryFilterDialog(self._spec, self); dialog.filter_applied.connect(self._apply_filters); dialog.exec()
     def _apply_filters(self, spec):
-        self._spec = spec; self._refresh(); self.filter_btn.setText("Advanced filters... (active)" if (spec.search or spec.query or spec.host or spec.path or spec.method or spec.status or spec.mime or spec.size or spec.time or spec.tool or spec.mime_types or spec.status_classes or spec.show_extensions or spec.hide_extensions) else "Advanced filters...")
+        self._spec = spec; self._refresh(); self.filter_btn.setText("Advanced filters... (active)" if (spec.search or spec.query or spec.host or spec.path or spec.method or spec.status or spec.mime or spec.size or spec.time or spec.tool or (spec.mime_types and len(spec.mime_types) < 8) or (spec.status_classes and len(spec.status_classes) < 4) or spec.show_extensions or spec.hide_extensions) else "Advanced filters...")
 
     def set_active(self, active):
         self._active = bool(active)
@@ -288,7 +323,9 @@ class TargetTab(QWidget):
         super().__init__(parent)
         self.scope_page = _ScopePage(include_scope, exclude_scope, include_paths, exclude_paths, include_regex, exclude_regex); self.sitemap_page = _SitemapPage(sitemaps)
         self.scope_page.changed.connect(self._emit); self.sitemap_page.changed.connect(self._emit)
+        self._active = False
         self.tabs = QTabWidget(); self.tabs.addTab(self.sitemap_page, "Site map"); self.tabs.addTab(self.scope_page, "Scope"); self.tabs.setCurrentWidget(self.scope_page)
+        self.tabs.currentChanged.connect(self._sync_sitemap_activity)
         layout = QVBoxLayout(self); layout.addWidget(self.tabs)
     def _emit(self): self.scope_changed.emit(self.include_scope(), self.exclude_scope(), self.include_paths(), self.exclude_paths(), self.include_regex(), self.exclude_regex(), self.sitemaps())
     def include_scope(self): return self.scope_page.include_scope()
@@ -301,4 +338,10 @@ class TargetTab(QWidget):
     def add_record(self, record, defer=False): self.sitemap_page.add_record(record, defer=defer)
     def set_records(self, records): self.sitemap_page.set_records(records)
     def set_body_provider(self, provider): self.sitemap_page.body_provider = provider
-    def set_active(self, active): self.sitemap_page.set_active(active)
+    def set_active(self, active):
+        self._active = bool(active)
+        self._sync_sitemap_activity()
+    def _sync_sitemap_activity(self, *_args):
+        self.sitemap_page.set_active(
+            self._active and self.tabs.currentWidget() is self.sitemap_page
+        )

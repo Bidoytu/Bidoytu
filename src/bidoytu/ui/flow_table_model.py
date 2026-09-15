@@ -32,6 +32,7 @@ class FlowTableModel(QAbstractTableModel):
         self._all_rows: list[FlowRecord] = []
         self._filter = FilterSpec()
         self._index_by_flow_id: dict[str, int] = {}
+        self._all_index_by_flow_id: dict[str, int] = {}
 
     # -- Qt model interface ---------------------------------------------------
 
@@ -99,18 +100,46 @@ class FlowTableModel(QAbstractTableModel):
 
         Called from the UI thread in response to proxy signals.
         """
-        source_index = next((i for i, r in enumerate(self._all_rows) if r.flow_id == record.flow_id), None)
+        source_index = self._all_index_by_flow_id.get(record.flow_id)
         if source_index is None:
+            self._all_index_by_flow_id[record.flow_id] = len(self._all_rows)
             self._all_rows.append(record)
-        else:
-            self._all_rows[source_index] = record
-        self.apply_filter(self._filter)
+            if matches(record, self._filter):
+                row = len(self._rows)
+                self.beginInsertRows(QModelIndex(), row, row)
+                self._rows.append(record)
+                self._index_by_flow_id[record.flow_id] = row
+                self.endInsertRows()
+            return
+
+        self._all_rows[source_index] = record
+        visible_index = self._index_by_flow_id.get(record.flow_id)
+        visible = matches(record, self._filter)
+        if visible_index is not None and visible:
+            self._rows[visible_index] = record
+            first = self.index(visible_index, 0)
+            last = self.index(visible_index, len(self.COLUMNS) - 1)
+            self.dataChanged.emit(first, last)
+        elif visible_index is not None:
+            self.beginRemoveRows(QModelIndex(), visible_index, visible_index)
+            self._rows.pop(visible_index)
+            self.endRemoveRows()
+            self._index_by_flow_id = {r.flow_id: i for i, r in enumerate(self._rows)}
+        elif visible:
+            row = len(self._rows)
+            self.beginInsertRows(QModelIndex(), row, row)
+            self._rows.append(record)
+            self._index_by_flow_id[record.flow_id] = row
+            self.endInsertRows()
 
     def load_records(self, records: list[FlowRecord]) -> None:
         """Replace all rows (e.g. when loading history from the database)."""
         self.beginResetModel()
         self._all_rows = list(records)
         self._rows = list(records)
+        self._all_index_by_flow_id = {
+            r.flow_id: i for i, r in enumerate(self._all_rows)
+        }
         self._index_by_flow_id = {
             r.flow_id: i for i, r in enumerate(self._rows)
         }
@@ -121,6 +150,7 @@ class FlowTableModel(QAbstractTableModel):
         self._rows.clear()
         self._all_rows.clear()
         self._index_by_flow_id.clear()
+        self._all_index_by_flow_id.clear()
         self.endResetModel()
 
     def apply_filter(self, spec: FilterSpec) -> None:
@@ -147,4 +177,5 @@ class FlowTableModel(QAbstractTableModel):
             value = getattr(record, key_name)
             return (value is None, value if value is not None else "")
         self._all_rows.sort(key=key, reverse=order == Qt.DescendingOrder)
+        self._all_index_by_flow_id = {r.flow_id: i for i, r in enumerate(self._all_rows)}
         self.apply_filter(self._filter)

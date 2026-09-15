@@ -12,7 +12,6 @@ instance (SQLite handles cross-connection coordination via WAL + locking).
 from __future__ import annotations
 
 import sqlite3
-import hashlib
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Optional
@@ -54,6 +53,8 @@ CREATE TABLE IF NOT EXISTS flows (
 CREATE INDEX IF NOT EXISTS idx_flows_host ON flows(host);
 CREATE INDEX IF NOT EXISTS idx_flows_started_at ON flows(started_at);
 CREATE INDEX IF NOT EXISTS idx_flows_duplicate ON flows(duplicate_of);
+CREATE INDEX IF NOT EXISTS idx_flows_duplicate_lookup
+    ON flows(method, host, path, request_body_size, response_body_size, id);
 CREATE TABLE IF NOT EXISTS saved_filters (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
@@ -188,12 +189,42 @@ class FlowRepository:
         )
         self._conn.commit()
 
+    def update_scopes(self, records: Iterable[FlowRecord]) -> None:
+        """Persist scope changes in one transaction.
+
+        Scope rules can affect thousands of captured flows.  Updating each
+        row through :meth:`update` used to commit once per record, which kept
+        the UI thread busy long after a user edited a scope rule.
+        """
+        values = [(int(record.scope), record.flow_id) for record in records]
+        if not values:
+            return
+        self._conn.executemany(
+            "UPDATE flows SET scope = ? WHERE flow_id = ?", values,
+        )
+        self._conn.commit()
+
+    def update_metadata(self, record: FlowRecord) -> None:
+        """Persist fields edited from the history UI without rewriting bodies."""
+        self._conn.execute(
+            "UPDATE flows SET tags = ?, notes = ?, bookmarked = ?, interesting = ?, "
+            "color = ? WHERE flow_id = ?",
+            (record.tags, record.notes, int(record.bookmarked),
+             int(record.interesting), record.color, record.flow_id),
+        )
+        self._conn.commit()
+
     def upsert(self, record: FlowRecord) -> int:
         """Insert if new, otherwise update. Returns the row id."""
-        existing = self.get_by_flow_id(record.flow_id)
+        # A response arrives as a second capture event for a request.  Looking
+        # up only its primary key avoids reading the prior request/response
+        # BLOBs merely to decide between INSERT and UPDATE.
+        existing = self._conn.execute(
+            "SELECT id FROM flows WHERE flow_id = ?", (record.flow_id,)
+        ).fetchone()
         if existing is None:
             return self.insert(record)
-        record.id = existing.id
+        record.id = int(existing["id"])
         self.update(record)
         return record.id
 
@@ -222,9 +253,6 @@ class FlowRepository:
 
     def mark_duplicate(self, record: FlowRecord) -> int | None:
         """Link a request to the oldest identical request/response fingerprint."""
-        fp = hashlib.sha256((record.method + "\n" + record.url + "\n" +
-                             record.request_headers + "\n" + record.response_headers + "\n" +
-                             str(record.request_body_size) + ":" + str(record.response_body_size)).encode()).hexdigest()
         row = self._conn.execute(
             "SELECT id FROM flows WHERE id != ? AND method = ? AND host = ? AND path = ? "
             "AND request_body_size = ? AND response_body_size = ? ORDER BY id LIMIT 1",
@@ -275,6 +303,32 @@ class FlowRepository:
             sql += f" LIMIT {int(limit)}"
         rows = self._conn.execute(sql).fetchall()
         return [self._row_to_record(r) for r in rows]
+
+    def list_summaries(self, limit: Optional[int] = None) -> list[FlowRecord]:
+        """Return history metadata without materializing request/response BLOBs.
+
+        The history and site-map tables only need metadata.  Bodies are loaded
+        on selection through :meth:`body`, avoiding a large startup/scope-edit
+        pause for workspaces containing many responses.
+        """
+        columns = ", ".join(
+            "NULL AS request_body_inline" if column == "request_body_inline" else
+            "NULL AS response_body_inline" if column == "response_body_inline" else
+            column
+            for column in ("id",) + _COLUMNS
+        )
+        sql = f"SELECT {columns} FROM flows ORDER BY id ASC"
+        if limit is not None:
+            sql += f" LIMIT {int(limit)}"
+        return [self._row_to_record(row) for row in self._conn.execute(sql)]
+
+    def body(self, row_id: int, response: bool) -> bytes | None:
+        """Load an inline body only when a detail view asks for it."""
+        column = "response_body_inline" if response else "request_body_inline"
+        row = self._conn.execute(
+            f"SELECT {column} AS body FROM flows WHERE id = ?", (row_id,)
+        ).fetchone()
+        return bytes(row["body"]) if row is not None and row["body"] is not None else None
 
     def iter_all(self) -> Iterable[FlowRecord]:
         for row in self._conn.execute("SELECT * FROM flows ORDER BY id ASC"):
