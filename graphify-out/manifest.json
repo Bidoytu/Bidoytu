@@ -1,8 +1,8 @@
 {
   "pyproject.toml": {
-    "mtime": 1789409124.8952045,
-    "seen": 1789411648.2164805,
-    "ast_hash": "1cc016bd6d59a7f2275a3ee5c80038a3",
+    "mtime": 1789413057.431303,
+    "seen": 1789413072.3428164,
+    "ast_hash": "2d959ecc79684c4bea46ada285f95e05",
     "semantic_hash": ""
   },
   "scripts/ca_export_test.py": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "scripts/smoke_test.py": {
-    "mtime": 1789408090.9835386,
-    "seen": 1789411648.2165086,
-    "ast_hash": "73602fb8803c49ff395578fa72b1579d",
+    "mtime": 1789412309.5347984,
+    "seen": 1789412312.0772183,
+    "ast_hash": "99aeee8fefe7eefc0ebe3d89517c282d",
     "semantic_hash": ""
   },
   "scripts/start_proxy_repro.py": {
@@ -60,9 +60,9 @@
     "semantic_hash": "028cb50b47e3a238c8dbfaf57b8f3249"
   },
   "src/bidoytu/__init__.py": {
-    "mtime": 1789402182.722536,
-    "seen": 1789411648.2165108,
-    "ast_hash": "c75eb3974cb17a8be088c2f971afa0b4",
+    "mtime": 1789413057.432309,
+    "seen": 1789413072.342869,
+    "ast_hash": "f8a7d8dcf3af2cf30ba9b5a9b829e93f",
     "semantic_hash": ""
   },
   "src/bidoytu/__main__.py": {
@@ -72,15 +72,15 @@
     "semantic_hash": ""
   },
   "src/bidoytu/app.py": {
-    "mtime": 1789409766.9530156,
-    "seen": 1789411648.216513,
-    "ast_hash": "2556e3c4f3b8ef4735904ce336f1e4c5",
+    "mtime": 1789412309.5363097,
+    "seen": 1789412312.0772243,
+    "ast_hash": "eb3af342ee2ef207f1a242a636488354",
     "semantic_hash": ""
   },
   "src/bidoytu/config.py": {
-    "mtime": 1789407104.5959642,
-    "seen": 1789411648.2165139,
-    "ast_hash": "63053e3837e1518aed3688576f3273d1",
+    "mtime": 1789412309.537323,
+    "seen": 1789412312.0772254,
+    "ast_hash": "4d95c3019fb1ae84b58e388306f7b50d",
     "semantic_hash": ""
   },
   "src/bidoytu/http_utils.py": {
@@ -126,21 +126,21 @@
     "semantic_hash": ""
   },
   "src/bidoytu/proxy/capture_addon.py": {
-    "mtime": 1789407105.34908,
-    "seen": 1789411648.216521,
-    "ast_hash": "ddc4bfb26863038992326b0a9be3275b",
+    "mtime": 1789412309.5393205,
+    "seen": 1789412312.0772371,
+    "ast_hash": "1643e40601a9531d47e656c521f6f066",
     "semantic_hash": ""
   },
   "src/bidoytu/proxy/engine.py": {
-    "mtime": 1789406868.2937555,
-    "seen": 1789411648.2165217,
-    "ast_hash": "07e8baf5aaed328146cd7812da06f850",
+    "mtime": 1789412309.5403216,
+    "seen": 1789412312.0772383,
+    "ast_hash": "9c4eb4de9ada9a4a7b9a6adeb3e99069",
     "semantic_hash": ""
   },
   "src/bidoytu/resources.py": {
-    "mtime": 1789409124.8883123,
-    "seen": 1789411648.2165227,
-    "ast_hash": "b3fdc7eaa9c2698c8a0ac0c87e7935ea",
+    "mtime": 1789412309.5413258,
+    "seen": 1789412312.0772393,
+    "ast_hash": "43427fe4c500d979b1f7d558e4c1b811",
     "semantic_hash": ""
   },
   "src/bidoytu/storage/__init__.py": {
@@ -162,9 +162,9 @@
     "semantic_hash": "48db506352525dbad7bd4b41e389309f"
   },
   "src/bidoytu/storage/repository.py": {
-    "mtime": 1789402879.0593288,
-    "seen": 1789411648.2165265,
-    "ast_hash": "874cf7950b07a25cf1185a730ba97744",
+    "mtime": 1789412309.5433187,
+    "seen": 1789412312.0772445,
+    "ast_hash": "b52d62867fa08006e887725ffce10bbe",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/__init__.py": {
@@ -204,8 +204,8 @@
     "semantic_hash": "109fbdc8d3e69bd8d185943af21fa929"
   },
   "src/bidoytu/ui/detail_view.py": {
-    "mtime": 1789411608.7745955,
-    "seen": 1789411648.2165322,
+    "mtime": 1789412309.5443182,
+    "seen": 1789412312.0772536,
     "ast_hash": "597fa2aee011f93c9768301c22f7c402",
     "semantic_hash": ""
   },
@@ -246,9 +246,9 @@
     "semantic_hash": "0ab9031555b086199708bc4ec2084304"
   },
   "src/bidoytu/ui/history_view.py": {
-    "mtime": 1789409145.4010289,
-    "seen": 1789411648.2165377,
-    "ast_hash": "19d617f72bf9a2952dde22d5d078a365",
+    "mtime": 1789412309.5453196,
+    "seen": 1789412312.0772622,
+    "ast_hash": "bf1d4f72a603a8c8e46f0f7fec0f5e13",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/intercept_activity_model.py": {
@@ -258,9 +258,9 @@
     "semantic_hash": "abaebdb5c0b028781cbf475d05c1d04c"
   },
   "src/bidoytu/ui/intercept_view.py": {
-    "mtime": 1789409124.9022005,
-    "seen": 1789411648.2165394,
-    "ast_hash": "08255856534060981a6107d0024b8eba",
+    "mtime": 1789412309.54732,
+    "seen": 1789412312.0772648,
+    "ast_hash": "1cbf7bb7af525200457fba858d59feaf",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/intruder_results_model.py": {
@@ -282,8 +282,8 @@
     "semantic_hash": "3dae693dd35d5f4a44b70918ade67e3b"
   },
   "src/bidoytu/ui/main_window.py": {
-    "mtime": 1789411608.777594,
-    "seen": 1789411648.2165425,
+    "mtime": 1789412309.5483198,
+    "seen": 1789412312.0772707,
     "ast_hash": "6450eadd93530cddba52f6647de72bf9",
     "semantic_hash": ""
   },
@@ -306,93 +306,75 @@
     "semantic_hash": "8940f9195ee7f1e502bf5218ff1a4493"
   },
   "src/bidoytu/ui/proxy_tab.py": {
-    "mtime": 1789411608.7785864,
-    "seen": 1789411648.2165458,
+    "mtime": 1789412309.5493302,
+    "seen": 1789412312.0772765,
     "ast_hash": "4a95ec05d5f4b73ee5617ec83eedcd6d",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/repeater_session.py": {
-    "mtime": 1789411608.7795985,
-    "seen": 1789411648.2165465,
+    "mtime": 1789412309.5503283,
+    "seen": 1789412312.0772772,
     "ast_hash": "285a8a7d768382fb50bd1ae3683ea2b4",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/repeater_tab.py": {
-    "mtime": 1789411608.7805882,
-    "seen": 1789411648.2165473,
+    "mtime": 1789412309.5513248,
+    "seen": 1789412312.0772784,
     "ast_hash": "3dca678358b6f55a41afb3b82c4f9df2",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/theme.py": {
-    "mtime": 1789411608.782593,
-    "seen": 1789411648.2165482,
+    "mtime": 1789412309.55233,
+    "seen": 1789412312.0772796,
     "ast_hash": "b062992976b210c1ee833ff05f2a1e88",
     "semantic_hash": ""
   },
   "src/bidoytu/ui/wrapping_tab_bar.py": {
-    "mtime": 1789411608.7855904,
-    "seen": 1789411648.2165496,
+    "mtime": 1789412309.5543318,
+    "seen": 1789412312.0772805,
     "ast_hash": "feef1157d96fa7469d5ace9423ff2fb2",
     "semantic_hash": ""
   },
   ".github/workflows/main.yml": {
-    "mtime": 1789410643.548116,
-    "seen": 1789411648.2165515,
-    "ast_hash": "44cb746dad16088ab89f67c67553f296",
-    "semantic_hash": ""
-  },
-  "AGENTS.md": {
-    "mtime": 1789400797.5529444,
-    "seen": 1789411648.2165608,
-    "ast_hash": "21ceb6533048be51308e69e7b74a35cf",
+    "mtime": 1789412309.492759,
+    "seen": 1789412312.0772815,
+    "ast_hash": "8e6edc3499eae932e47b9e42e2c15104",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1789402183.7345324,
-    "seen": 1789411648.2165613,
+    "mtime": 1789412309.5107577,
+    "seen": 1789412312.077283,
     "ast_hash": "e07ef153bafb88a7b879687eaea14c73",
     "semantic_hash": ""
   },
   "CONTRIBUTING.md": {
-    "mtime": 1789402183.7358415,
-    "seen": 1789411648.2165625,
+    "mtime": 1789412309.5127614,
+    "seen": 1789412312.0772836,
     "ast_hash": "51c7d246f824b3274e22c9a37323bace",
     "semantic_hash": ""
   },
-  "CONTRIBUTORS.md": {
-    "mtime": 1789401994.4160607,
-    "seen": 1789411648.2165637,
-    "ast_hash": "cbb9a4dbf465b5fa40841518111e789c",
-    "semantic_hash": ""
-  },
   "README.md": {
-    "mtime": 1789402183.7369356,
-    "seen": 1789411648.2165644,
+    "mtime": 1789412309.5157595,
+    "seen": 1789412312.0772848,
     "ast_hash": "7ca93856e9f1263bb0f3d7a7b34a9766",
     "semantic_hash": ""
   },
   "SECURITY.md": {
-    "mtime": 1789402183.7379513,
-    "seen": 1789411648.2165656,
+    "mtime": 1789412309.5167563,
+    "seen": 1789412312.077286,
     "ast_hash": "27ede0b8f2319148dca26ef9d4a53987",
     "semantic_hash": ""
   },
   "packaging/build_release.md": {
-    "mtime": 1789410920.2035885,
-    "seen": 1789411648.216566,
-    "ast_hash": "859c0b0aa5bcc032e096ee54b8399dce",
+    "mtime": 1789412309.533797,
+    "seen": 1789412312.0772874,
+    "ast_hash": "fedae548a0fd0bf75d197e95182cae2c",
     "semantic_hash": ""
   },
   "requirements.txt": {
     "mtime": 1789328940.4496808,
     "seen": 1789411648.2165668,
     "ast_hash": "f9eb113a9c0b305ad06c6550334f168f",
-    "semantic_hash": ""
-  },
-  "bidoytu-long.png": {
-    "mtime": 1789331772.1116867,
-    "seen": 1789411648.2165678,
-    "ast_hash": "b9b38fd43082a351a4fb399f863f39cc",
     "semantic_hash": ""
   },
   "logo.png": {
@@ -408,75 +390,93 @@
     "semantic_hash": ""
   },
   "src/bidoytu/ui/workspace_dialog.py": {
-    "mtime": 1789405776.7119384,
-    "seen": 1789411648.216549,
-    "ast_hash": "7b26af54d4e3d630dbf835fa7c2b924c",
+    "mtime": 1789412309.5533314,
+    "seen": 1789412781.4930062,
+    "ast_hash": "549708bc4ed3c6f030cc66758a417e14",
     "semantic_hash": ""
   },
   "src/bidoytu/workspace.py": {
-    "mtime": 1789405776.0025456,
-    "seen": 1789411648.2165506,
-    "ast_hash": "0853ebbdbdb19550d19e9cb2c85cc2ad",
+    "mtime": 1789412309.5563579,
+    "seen": 1789412781.493013,
+    "ast_hash": "131f609723fb7e9882c20ada530468cf",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/SKILL.md": {
-    "mtime": 1789411608.7515893,
-    "seen": 1789411648.2165523,
+    "mtime": 1789412309.4957545,
+    "seen": 1789412781.4930189,
     "ast_hash": "27332bcad618129dbd265b54d42b6ad7",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/add-watch.md": {
-    "mtime": 1789411608.75259,
-    "seen": 1789411648.216553,
+    "mtime": 1789412309.4967668,
+    "seen": 1789412781.493022,
     "ast_hash": "58c888b5ec0689a886543dd765c1acc9",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/exports.md": {
-    "mtime": 1789411608.7535918,
-    "seen": 1789411648.2165537,
+    "mtime": 1789412309.497757,
+    "seen": 1789412781.4930248,
     "ast_hash": "ecc0c36852fee4ba6280cdf2b9149039",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/extraction-spec.md": {
-    "mtime": 1789411608.7545893,
-    "seen": 1789411648.2165546,
+    "mtime": 1789412309.498755,
+    "seen": 1789412781.4930272,
     "ast_hash": "e36dd450e4a3a90f5fe9073f4198fabc",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/github-and-merge.md": {
-    "mtime": 1789411608.7555904,
-    "seen": 1789411648.2165556,
+    "mtime": 1789412309.5017917,
+    "seen": 1789412781.49303,
     "ast_hash": "aa0e7ef186392cad062e60483ca7dbbf",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/hooks.md": {
-    "mtime": 1789411608.7575922,
-    "seen": 1789411648.2165565,
+    "mtime": 1789412309.5027568,
+    "seen": 1789412781.4930325,
     "ast_hash": "0045c2f12c69bff3a641a8908a1ac057",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/query.md": {
-    "mtime": 1789411608.7586126,
-    "seen": 1789411648.2165573,
+    "mtime": 1789412309.504758,
+    "seen": 1789412781.4930348,
     "ast_hash": "852ef14334d60a75ae666ea103d4c4f0",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/transcribe.md": {
-    "mtime": 1789411608.7595878,
-    "seen": 1789411648.2165582,
+    "mtime": 1789412309.505758,
+    "seen": 1789412781.493037,
     "ast_hash": "5c6a9af05d12b5797b2fa8b9493dcc37",
     "semantic_hash": ""
   },
   ".kiro/skills/graphify/references/update.md": {
-    "mtime": 1789411608.7605958,
-    "seen": 1789411648.2165592,
+    "mtime": 1789412309.5067577,
+    "seen": 1789412781.4930396,
     "ast_hash": "07bf4293ea21b4e00a9655dd4e7f0af5",
     "semantic_hash": ""
   },
   ".kiro/steering/graphify.md": {
-    "mtime": 1789411608.763589,
-    "seen": 1789411648.2165601,
+    "mtime": 1789412309.5077562,
+    "seen": 1789412781.493042,
     "ast_hash": "81be1a4201e0893879433cddab9ffd20",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1789412309.5087569,
+    "seen": 1789412781.4930441,
+    "ast_hash": "21ceb6533048be51308e69e7b74a35cf",
+    "semantic_hash": ""
+  },
+  "CONTRIBUTORS.md": {
+    "mtime": 1789412309.513758,
+    "seen": 1789412781.4930534,
+    "ast_hash": "04c0f843a40553da1bfc457173fd0e38",
+    "semantic_hash": ""
+  },
+  "bidoytu-long.png": {
+    "mtime": 1789412309.5217974,
+    "seen": 1789412781.4930685,
+    "ast_hash": "b9b38fd43082a351a4fb399f863f39cc",
     "semantic_hash": ""
   }
 }
