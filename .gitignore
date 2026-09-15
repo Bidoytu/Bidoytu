@@ -13,6 +13,7 @@ env/
 .ruff_cache/
 .pytest_cache/
 .tox/
+.kiro/
 
 # Build artifacts
 build/

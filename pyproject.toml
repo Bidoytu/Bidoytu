@@ -1,10 +1,30 @@
 [project]
 name = "bidoytu"
-version = "1.0.0"
+version = "1.1.2"
 description = "An intercepting HTTP proxy tool built with PySide6 and mitmproxy."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
+authors = [
+    { name = "Bidoytu", email = "hello@swarnimbandekar.in" },
+]
+keywords = ["proxy", "mitm", "http", "security", "pentest", "pyside6", "mitmproxy"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: X11 Applications :: Qt",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: Proxy Servers",
+    "Topic :: Security",
+    "Topic :: Software Development :: Testing",
+]
 dependencies = [
     "PySide6>=6.6",
     "mitmproxy>=11.0",
@@ -12,10 +32,17 @@ dependencies = [
     "cryptography>=42.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/Bidoytu/Bidoytu"
+Repository = "https://github.com/Bidoytu/Bidoytu"
+Issues = "https://github.com/Bidoytu/Bidoytu/issues"
+
 [project.optional-dependencies]
 dev = [
     "pyinstaller>=6.0",
     "nuitka>=2.0",
+    "build>=1.0",
+    "twine>=5.0",
 ]
 
 [project.scripts]
