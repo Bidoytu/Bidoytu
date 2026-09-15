@@ -59,6 +59,12 @@ authorized to administer.
 Qt is intentionally isolated to ui/. The proxy, networking, and storage layers
 communicate through framework-independent models and thread-safe signals.
 
+## Documentation
+
+The complete application wiki is available at [`docs/index.md`](docs/index.md).
+It covers first-run setup, feature workflows, architecture, data flow,
+storage, testing, releases, and security guidance.
+
 ## Development workflow
 
 Development work is integrated through staging:
