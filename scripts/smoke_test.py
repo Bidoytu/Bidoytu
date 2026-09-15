@@ -159,6 +159,8 @@ def test_qt_and_proxy_apis(tmp: Path) -> None:
     sub_labels = [sub.tabText(i) for i in range(sub.count())]
     assert sub_labels == ["HTTP History", "Intercept"], sub_labels
     assert win._proxy_tab.scope_group.title() == "Scope"
+    assert win._proxy_tab.browser_btn.text() == "Open Browser..."
+    assert win._config.browser_profiles_dir.exists()
     assert win._proxy_tab.target_panel is not None
     target_toggle = win._proxy_tab.target_toggle_btn
     assert not target_toggle.icon().isNull()

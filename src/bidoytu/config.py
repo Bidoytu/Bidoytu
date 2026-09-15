@@ -30,6 +30,10 @@ class ProxyConfig:
     listen_host: str = "127.0.0.1"
     listen_port: int = 8080
     http2: bool = True
+    # Browser interception should remain usable with sites that publish an
+    # incomplete legacy chain. The setting is visible in Proxy Settings so
+    # strict upstream verification can be restored when required.
+    ssl_insecure: bool = True
     include_scope: list[str] = field(default_factory=list)
     exclude_scope: list[str] = field(default_factory=list)
 
@@ -126,6 +130,7 @@ class AppConfig:
     """
 
     data_dir: Path = field(default_factory=_default_data_dir)
+    ca_dir: Path | None = None
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
     collaborator: CollaboratorConfig = field(default_factory=CollaboratorConfig)
     body_inline_limit: int = 64 * 1024  # 64 KiB
@@ -172,7 +177,9 @@ class AppConfig:
         We keep it under Bidoytu's data dir (instead of the default
         ``~/.mitmproxy``) so the CA is predictable and easy to export.
         """
-        return self.data_dir / "ca"
+        # The CA belongs to the Bidoytu installation, not an individual
+        # workspace. This keeps browser trust stable across sessions.
+        return self.ca_dir or (self.data_dir / "ca")
 
     @property
     def ca_cert_pem(self) -> Path:
@@ -184,11 +191,17 @@ class AppConfig:
         """DER/.cer CA certificate (convenient for the Windows cert store)."""
         return self.confdir / "mitmproxy-ca-cert.cer"
 
+    @property
+    def browser_profiles_dir(self) -> Path:
+        """Profiles used by Browser Integration launches."""
+        return self.data_dir / "browser-profiles"
+
     def ensure_dirs(self) -> None:
         """Create the data, body, and CA directories if they do not exist."""
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.bodies_dir.mkdir(parents=True, exist_ok=True)
         self.confdir.mkdir(parents=True, exist_ok=True)
+        self.browser_profiles_dir.mkdir(parents=True, exist_ok=True)
 
     def load_proxy_scope(self) -> None:
         """Restore Target scope, tolerating files from older versions."""

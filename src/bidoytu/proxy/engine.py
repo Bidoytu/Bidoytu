@@ -72,14 +72,27 @@ class ProxyEngine(QThread):
         except BaseException as exc:  # noqa: BLE001 - keep the thread from crashing
             self.error.emit(str(exc) or exc.__class__.__name__)
         finally:
+            loop = self._loop
             try:
-                if self._loop is not None:
-                    self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+                if loop is not None:
+                    # DumpMaster closes its listener as run() returns, but the
+                    # asyncio accept task can still be pending on Windows.
+                    # Cancel and drain those tasks before closing the loop so
+                    # the socket is released before a subsequent start().
+                    pending = [task for task in asyncio.all_tasks(loop)
+                               if not task.done()]
+                    for task in pending:
+                        task.cancel()
+                    if pending:
+                        loop.run_until_complete(
+                            asyncio.gather(*pending, return_exceptions=True)
+                        )
+                    loop.run_until_complete(loop.shutdown_asyncgens())
             except Exception:
                 pass
             finally:
-                if self._loop is not None:
-                    self._loop.close()
+                if loop is not None:
+                    loop.close()
                 self._loop = None
                 self._master = None
                 self._addon = None
@@ -120,6 +133,7 @@ class ProxyEngine(QThread):
             listen_host=self._config.listen_host,
             listen_port=self._config.listen_port,
             http2=self._config.http2,
+            ssl_insecure=self._config.ssl_insecure,
         )
         if self._confdir:
             # Set where mitmproxy generates/reads its CA and leaf certs.
@@ -226,4 +240,7 @@ class ProxyEngine(QThread):
         loop, master = self._loop, self._master
         if loop is not None and master is not None:
             loop.call_soon_threadsafe(master.shutdown)
-        self.wait(5000)
+        # Do not return until the listener thread has completed its cleanup.
+        # This makes an immediate stop -> start on the same port safe.
+        if self.isRunning():
+            self.wait(10000)

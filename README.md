@@ -24,6 +24,8 @@ foundation in one PySide6 interface.
 - Repeater requests powered by an asynchronous httpx client.
 - Display-only formatting for JSON, XML/HTML, and URL-encoded bodies.
 - Public CA certificate export for HTTPS interception on machines you control.
+- Browser Integration discovers Firefox, Chrome, and Edge and launches them
+  through the active proxy with an isolated profile.
 - Windows and Linux packaging through GitHub Actions.
 
 ## Requirements
@@ -44,6 +46,28 @@ Start the proxy from the Proxy tab. The default listener is 127.0.0.1:8080.
 To inspect HTTPS traffic, start the proxy once, export the public CA
 certificate from the UI, and trust it only on a machine you own or are
 authorized to administer.
+
+Use Proxy Settings > Open Browser... to detect supported browsers and launch
+one through the active listener. The selected browser is not launched unless
+the public CA is installed successfully: Windows Chrome, Edge, and Firefox use
+the current-user Root store, while Linux/macOS browser profiles use NSS
+`certutil` when available.
+
+The CA is installation-wide and is shared by all Bidoytu workspaces and
+sessions. Existing workspace CA files are migrated to the shared CA directory
+on startup.
+
+Browsers launched through Browser Integration use isolated profiles named
+`Bidoytu Browser` and are closed automatically when Bidoytu exits. The browser
+vendor executable and its native window icon cannot be rebranded safely from an
+external launcher; custom executable branding would require shipping a
+separately built browser.
+
+Some sites publish a broken or incomplete certificate chain and otherwise
+return `502 Bad Gateway` with `Certificate verify failed` through the proxy.
+Bidoytu enables `Allow invalid upstream TLS certificates` by default for
+browser interception so these sites remain reachable. Disable it in Proxy
+Settings when strict upstream certificate verification is required.
 
 ## Architecture
 

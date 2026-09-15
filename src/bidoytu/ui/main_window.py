@@ -83,6 +83,7 @@ class MainWindow(QMainWindow):
             self._model,
             include_scope=config.proxy.include_scope,
             exclude_scope=config.proxy.exclude_scope,
+            ssl_insecure=config.proxy.ssl_insecure,
         )
         # Reflect the configured defaults in the address inputs.
         self._proxy_tab.host_edit.setText(config.proxy.listen_host)
@@ -195,6 +196,7 @@ class MainWindow(QMainWindow):
         # Tab-bar Clear History button (two-click confirm before it fires).
         self._proxy_tab.clear_history_requested.connect(self._on_clear)
         self._proxy_tab.ca_btn.clicked.connect(self._on_show_ca)
+        self._proxy_tab.browser_integration_requested.connect(self._on_show_browser_integration)
         self._proxy_tab.scope_changed.connect(self._on_scope_changed)
 
         # Engine signals.
@@ -254,10 +256,15 @@ class MainWindow(QMainWindow):
             self._on_start()
 
     def _on_start(self) -> None:
+        if self._engine.isRunning():
+            # A previous stop is still draining its asyncio listener.
+            self._proxy_tab.set_status("Stopping proxy; please wait...")
+            return
         # Apply the host/port chosen in the UI before starting. The engine
         # reads these fields when it binds, so updating them here is enough.
         self._config.proxy.listen_host = self._proxy_tab.listen_host()
         self._config.proxy.listen_port = self._proxy_tab.listen_port()
+        self._config.proxy.ssl_insecure = self._proxy_tab.ssl_insecure_check.isChecked()
         self._proxy_tab.set_status("Starting proxy...")
         # Disable the toggle until we hear back (started/error).
         self._proxy_tab.toggle_btn.setEnabled(False)
@@ -388,6 +395,32 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     @Slot()
+    def _on_show_browser_integration(self) -> None:
+        from bidoytu.ui.browser_dialog import BrowserIntegrationDialog
+
+        if not self._proxy_running:
+            QMessageBox.warning(
+                self, "Proxy is stopped",
+                "Start the proxy before launching a browser through Bidoytu.",
+            )
+            return
+        dialog = BrowserIntegrationDialog(
+            self._config.proxy.listen_host,
+            self._config.proxy.listen_port,
+            self._config.ca_cert_pem,
+            self._config.browser_profiles_dir,
+            self,
+        )
+        dialog.browser_launched.connect(self._track_browser_process)
+        dialog.exec()
+
+    @Slot(object)
+    def _track_browser_process(self, process) -> None:
+        if not hasattr(self, "_browser_processes"):
+            self._browser_processes = []
+        self._browser_processes.append(process)
+
+    @Slot()
     def _on_clear(self) -> None:
         self._repo.clear()
         self._model.clear()
@@ -508,6 +541,11 @@ class MainWindow(QMainWindow):
         if not discard:
             self._save_workspace_state()
         self._collaborator_tab.shutdown()
+        from bidoytu.browser_integration import stop_browser
+
+        for process in getattr(self, "_browser_processes", []):
+            stop_browser(process)
+        self._browser_processes = []
         if self._engine.isRunning():
             self._engine.stop()
         self._sender.stop()
