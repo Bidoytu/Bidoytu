@@ -118,6 +118,14 @@ class IntruderSession(QWidget):
     def name(self) -> str:
         return self._name
 
+    def is_empty(self) -> bool:
+        """Whether this is a pristine attack: no target and a blank template.
+
+        Used by the container so a "Send to Intruder" can reuse an untouched
+        default tab instead of stacking a second one.
+        """
+        return not self._host and not self._template.toPlainText().strip()
+
     def _wire_shortcuts(self) -> None:
         # Ctrl+R -> Send to Repeater, Ctrl+I -> Send to Intruder, matching the
         # send-to shortcuts used elsewhere in the app.

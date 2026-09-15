@@ -94,6 +94,9 @@ class IntruderTab(QWidget):
             return
         self._tabs.removeTab(index)
         widget.deleteLater()
+        # Intruder never sits with no tabs: leave a fresh empty attack behind.
+        if self._tabs.count() == 0:
+            self._new_session()
 
     def _rename_tab(self, index: int) -> None:
         if index < 0:
@@ -125,15 +128,45 @@ class IntruderTab(QWidget):
             self._tabs.removeTab(0)
             if widget is not None:
                 widget.deleteLater()
+        # Keep one empty attack on the strip at all times.
+        self._new_session()
 
     def _current_session(self) -> IntruderSession | None:
         widget = self._tabs.currentWidget()
         return widget if isinstance(widget, IntruderSession) else None
 
+    def _only_empty_session(self) -> IntruderSession | None:
+        """Return the sole session iff it is a single, pristine, empty tab."""
+        if self._tabs.count() != 1:
+            return None
+        widget = self._tabs.widget(0)
+        if isinstance(widget, IntruderSession) and widget.is_empty():
+            return widget
+        return None
+
     # -- public API (used by MainWindow) --------------------------------------
 
+    def ensure_default_session(self) -> None:
+        """Guarantee at least one (empty) attack tab exists.
+
+        Called on startup after restoring persisted sessions so the Intruder
+        always shows an attack frame by default, even on a fresh install.
+        """
+        if self._tabs.count() == 0:
+            self._new_session()
+
     def load_from_record(self, record: FlowRecord) -> None:
-        """Open a new session tab populated from a captured flow."""
+        """Open a session tab populated from a captured flow.
+
+        If the only open session is a pristine, empty default, reuse it instead
+        of stacking a second tab, so "Send to Intruder" loads into the frame
+        that is already showing.
+        """
+        empty = self._only_empty_session()
+        if empty is not None:
+            empty.load_from_record(record)
+            self._tabs.setCurrentWidget(empty)
+            return
         session = self._new_session()
         session.load_from_record(record)
 

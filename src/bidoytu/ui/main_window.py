@@ -115,6 +115,8 @@ class MainWindow(QMainWindow):
         self._repeater_tab.ensure_default_session()
         # Restore the last Intruder attack configuration.
         self._intruder_tab.restore_state(self._config.intruder_attack_path)
+        # Always show at least one (empty) attack frame by default.
+        self._intruder_tab.ensure_default_session()
         # Restore the Collaborator session (re-registers with the server).
         self._collaborator_tab.restore_state(self._config.collaborator_state_path)
 

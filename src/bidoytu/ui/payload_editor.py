@@ -14,7 +14,7 @@ The tab embeds one :class:`PayloadSetEditor` per position set.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from bidoytu.net.attack import PayloadSet
+from bidoytu.ui.theme import ui_icon
 from bidoytu.net.payloads import (
     GEN_BRUTE,
     GEN_LIST,
@@ -156,10 +157,16 @@ class PayloadSetEditor(QWidget):
         edit_rule.clicked.connect(self._edit_rule)
         del_rule = QPushButton("Remove")
         del_rule.clicked.connect(self._remove_rule)
-        up_rule = QPushButton("\u25b2")
+        up_rule = QPushButton()
+        up_rule.setIcon(ui_icon("up"))
+        up_rule.setIconSize(QSize(18, 18))
+        up_rule.setToolTip("Move rule up")
         up_rule.setMaximumWidth(30)
         up_rule.clicked.connect(lambda: self._move_rule(-1))
-        down_rule = QPushButton("\u25bc")
+        down_rule = QPushButton()
+        down_rule.setIcon(ui_icon("down"))
+        down_rule.setIconSize(QSize(18, 18))
+        down_rule.setToolTip("Move rule down")
         down_rule.setMaximumWidth(30)
         down_rule.clicked.connect(lambda: self._move_rule(1))
 
