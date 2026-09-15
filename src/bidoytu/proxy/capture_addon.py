@@ -50,7 +50,11 @@ class CaptureAddon:
     def __init__(self, on_flow: FlowCallback, on_intercept: InterceptCallback,
                  on_intercept_response: Optional[InterceptCallback] = None,
                  include_scope: tuple[str, ...] = (),
-                 exclude_scope: tuple[str, ...] = ()) -> None:
+                 exclude_scope: tuple[str, ...] = (),
+                 include_paths: tuple[str, ...] = (),
+                 exclude_paths: tuple[str, ...] = (),
+                 include_regex: tuple[str, ...] = (),
+                 exclude_regex: tuple[str, ...] = ()) -> None:
         self._on_flow = on_flow
         self._on_intercept = on_intercept
         # Separate callback for paused responses so the UI can distinguish them
@@ -62,6 +66,10 @@ class CaptureAddon:
         self._intercept_responses = False
         self._include_scope = include_scope
         self._exclude_scope = exclude_scope
+        self._include_paths = include_paths
+        self._exclude_paths = exclude_paths
+        self._include_regex = include_regex
+        self._exclude_regex = exclude_regex
         # Flow ids the user explicitly asked to intercept the response for
         # (Burp's "Response to this request"), even when the global toggle is
         # off. One-shot: consumed when the response is paused.
@@ -74,16 +82,28 @@ class CaptureAddon:
     # -- interception control (called on the proxy loop) ----------------------
 
     def set_scope(self, include_scope: tuple[str, ...],
-                  exclude_scope: tuple[str, ...]) -> None:
+                  exclude_scope: tuple[str, ...],
+                  include_paths: tuple[str, ...] = (),
+                  exclude_paths: tuple[str, ...] = (),
+                  include_regex: tuple[str, ...] = (),
+                  exclude_regex: tuple[str, ...] = ()) -> None:
         """Replace the active target scope on the proxy event loop."""
         self._include_scope = include_scope
         self._exclude_scope = exclude_scope
+        self._include_paths = include_paths
+        self._exclude_paths = exclude_paths
+        self._include_regex = include_regex
+        self._exclude_regex = exclude_regex
 
     def _flow_in_scope(self, flow: http.HTTPFlow) -> bool:
         host = getattr(flow.request, "pretty_host", "") or getattr(
             flow.request, "host", ""
         )
-        return host_matches_scope(host, self._include_scope, self._exclude_scope)
+        return host_matches_scope(
+            host, self._include_scope, self._exclude_scope,
+            getattr(flow.request, "path", "/"), self._include_paths,
+            self._exclude_paths, self._include_regex, self._exclude_regex,
+        )
 
     def set_intercept_enabled(self, enabled: bool) -> None:
         self._intercept_enabled = enabled

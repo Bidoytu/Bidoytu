@@ -81,6 +81,10 @@ The Proxy tab owns listener configuration, target scope, CA certificate export, 
 
 Implementation: [`proxy/engine.py`](../src/bidoytu/proxy/engine.py), [`proxy/capture_addon.py`](../src/bidoytu/proxy/capture_addon.py), and [`config.py`](../src/bidoytu/config.py).
 
+### Target
+
+Target configuration is a dedicated top-level workspace, separate from HTTP History. It supports include/exclude host rules, path prefixes, regular-expression rules, reusable presets, and a sitemap inventory. Rules are persisted per workspace and apply immediately to interception and history scope classification; exclusions take precedence.
+
 ### History
 
 History is the durable record of captured traffic. It supports filtering, saved filters, detail inspection, metadata such as tags/notes/bookmarks, duplicate marking, and sending requests to other tools.

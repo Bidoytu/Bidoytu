@@ -51,6 +51,8 @@ class ProxyEngine(QThread):
         self._intercept_responses = False
         self._include_scope = tuple(config.include_scope)
         self._exclude_scope = tuple(config.exclude_scope)
+        self._scope_options = tuple(getattr(config, name, ()) for name in (
+            "include_paths", "exclude_paths", "include_regex", "exclude_regex"))
 
     # -- QThread entry point --------------------------------------------------
 
@@ -145,6 +147,7 @@ class ProxyEngine(QThread):
             self._emit_response_intercept,
             self._include_scope,
             self._exclude_scope,
+            *self._scope_options,
         )
         # Apply any intercept state requested before the loop existed.
         self._addon.set_intercept_enabled(self._intercept_enabled)
@@ -184,14 +187,21 @@ class ProxyEngine(QThread):
         if loop is not None and addon is not None:
             loop.call_soon_threadsafe(addon.set_intercept_enabled, enabled)
 
-    def set_scope(self, include_scope: list[str], exclude_scope: list[str]) -> None:
+    def set_scope(self, include_scope: list[str], exclude_scope: list[str],
+                  include_paths: list[str] | None = None,
+                  exclude_paths: list[str] | None = None,
+                  include_regex: list[str] | None = None,
+                  exclude_regex: list[str] | None = None) -> None:
         """Update target scope immediately, including while the proxy runs."""
         self._include_scope = tuple(include_scope)
         self._exclude_scope = tuple(exclude_scope)
+        self._scope_options = tuple(tuple(values or ()) for values in (
+            include_paths, exclude_paths, include_regex, exclude_regex))
         loop, addon = self._loop, self._addon
         if loop is not None and addon is not None:
             loop.call_soon_threadsafe(
-                addon.set_scope, self._include_scope, self._exclude_scope
+                addon.set_scope, self._include_scope, self._exclude_scope,
+                *self._scope_options
             )
 
     def is_intercept_enabled(self) -> bool:

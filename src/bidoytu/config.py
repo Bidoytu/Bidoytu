@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -36,6 +37,11 @@ class ProxyConfig:
     ssl_insecure: bool = True
     include_scope: list[str] = field(default_factory=list)
     exclude_scope: list[str] = field(default_factory=list)
+    include_paths: list[str] = field(default_factory=list)
+    exclude_paths: list[str] = field(default_factory=list)
+    include_regex: list[str] = field(default_factory=list)
+    exclude_regex: list[str] = field(default_factory=list)
+    sitemaps: list[str] = field(default_factory=list)
 
 
 def _normalise_scope_entry(value: str) -> str:
@@ -62,7 +68,11 @@ def _normalise_scope_entry(value: str) -> str:
 
 def host_matches_scope(
     host: str, include_scope: list[str] | tuple[str, ...],
-    exclude_scope: list[str] | tuple[str, ...],
+    exclude_scope: list[str] | tuple[str, ...], path: str = "/",
+    include_paths: list[str] | tuple[str, ...] = (),
+    exclude_paths: list[str] | tuple[str, ...] = (),
+    include_regex: list[str] | tuple[str, ...] = (),
+    exclude_regex: list[str] | tuple[str, ...] = (),
 ) -> bool:
     """Return whether *host* is in the configured target scope.
 
@@ -84,7 +94,24 @@ def host_matches_scope(
     exclude_patterns = [pattern for pattern in exclude_scope if str(pattern).strip()]
     if any(matches(pattern) for pattern in exclude_patterns):
         return False
-    return not include_patterns or any(matches(pattern) for pattern in include_patterns)
+    if include_patterns and not any(matches(pattern) for pattern in include_patterns):
+        return False
+
+    request_path = path or "/"
+    if any(request_path.startswith(str(pattern).strip()) for pattern in exclude_paths if str(pattern).strip()):
+        return False
+    if include_paths and not any(request_path.startswith(str(pattern).strip()) for pattern in include_paths if str(pattern).strip()):
+        return False
+
+    def regex_matches(pattern: str) -> bool:
+        try:
+            return bool(re.search(pattern, f"{candidate}{request_path}", re.IGNORECASE))
+        except re.error:
+            return False
+
+    if any(regex_matches(pattern) for pattern in exclude_regex if str(pattern).strip()):
+        return False
+    return not include_regex or any(regex_matches(pattern) for pattern in include_regex if str(pattern).strip())
 
 
 # Free, public Interactsh servers operated by ProjectDiscovery. They are tried
@@ -211,7 +238,8 @@ class AppConfig:
             return
         if not isinstance(data, dict):
             return
-        for key in ("include_scope", "exclude_scope"):
+        for key in ("include_scope", "exclude_scope", "include_paths", "exclude_paths",
+                    "include_regex", "exclude_regex", "sitemaps"):
             values = data.get(key, [])
             if isinstance(values, list):
                 setattr(
@@ -227,6 +255,11 @@ class AppConfig:
                 {
                     "include_scope": self.proxy.include_scope,
                     "exclude_scope": self.proxy.exclude_scope,
+                    "include_paths": self.proxy.include_paths,
+                    "exclude_paths": self.proxy.exclude_paths,
+                    "include_regex": self.proxy.include_regex,
+                    "exclude_regex": self.proxy.exclude_regex,
+                    "sitemaps": self.proxy.sitemaps,
                 },
                 indent=2,
             ),

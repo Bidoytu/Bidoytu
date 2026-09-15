@@ -152,13 +152,6 @@ class ProxyTab(QWidget):
         self.sub_tabs.addTab(self.history, "HTTP History")
         self.sub_tabs.addTab(self.intercept, "Intercept")
 
-        # Burp-style Target panel.  It stays visible beside the proxy views so
-        # the active scope is always easy to inspect and edit.
-        self.target_panel = self._build_target_panel()
-        self._target_panel_width = 310
-        self._target_collapsed = False
-        self.target_panel.setFixedWidth(self._target_panel_width)
-
         # Clear HTTP History button, placed to the LEFT of Proxy Settings in
         # the tab-bar corner. Requires a second click to confirm so history
         # isn't wiped by accident (see _on_clear_history_clicked).
@@ -186,13 +179,7 @@ class ProxyTab(QWidget):
         self.sub_tabs.setCornerWidget(self._corner)
 
         layout = QVBoxLayout(self)
-        content = QHBoxLayout()
-        content.setSpacing(10)
-        content.addWidget(self.target_panel, 0)
-        content.addWidget(self.sub_tabs, 1)
-        layout.addLayout(content)
-
-        self.set_scope(include_scope or [], exclude_scope or [])
+        layout.addWidget(self.sub_tabs)
 
     def _build_target_panel(self) -> QWidget:
         panel = QWidget()
