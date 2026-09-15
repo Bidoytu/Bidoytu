@@ -54,6 +54,12 @@ class FlowRecord:
     # Convenience.
     tags: str = ""
     notes: str = ""
+    scope: bool = True
+    tool: str = "Proxy"
+    bookmarked: bool = False
+    interesting: bool = False
+    color: str = ""
+    duplicate_of: Optional[int] = None
 
     @property
     def url(self) -> str:

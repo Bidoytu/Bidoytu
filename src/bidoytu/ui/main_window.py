@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from bidoytu import __app_name__
 from bidoytu.config import AppConfig
+from bidoytu.config import host_matches_scope
 from bidoytu.resources import logo_path
 from bidoytu.net.async_sender import AsyncHttpSender
 from bidoytu.proxy.engine import ProxyEngine
@@ -55,6 +56,10 @@ class MainWindow(QMainWindow):
         self._config.load_proxy_scope()
 
         self._repo = FlowRepository(config.db_path)
+        self._repo.cleanup(
+            config.history_max_rows or None,
+            config.history_max_age_days or None,
+        )
         self._body_store = BodyStore(config.bodies_dir)
         self._engine = ProxyEngine(config.proxy, confdir=str(config.confdir))
         self._sender = AsyncHttpSender()
@@ -102,6 +107,7 @@ class MainWindow(QMainWindow):
         self._build_menu()
         self._wire()
         self._load_history()
+        self._proxy_tab.history.set_saved_filters(self._repo.list_saved_filters())
         # Restore any Repeater sessions from the previous run.
         self._repeater_tab.restore_sessions(self._config.repeater_sessions_path)
         # Always show at least one (empty) request/response frame by default.
@@ -203,6 +209,9 @@ class MainWindow(QMainWindow):
         self._proxy_tab.history.body_provider = self._body_of
         self._proxy_tab.history.send_to_repeater.connect(self._send_to_repeater)
         self._proxy_tab.history.send_to_intruder.connect(self._send_to_intruder)
+        self._proxy_tab.history.metadata_changed.connect(self._on_history_metadata_changed)
+        self._proxy_tab.history.save_filter_requested.connect(self._on_save_filter)
+        self._proxy_tab.history.delete_filter_requested.connect(self._on_delete_saved_filter)
 
         # Intercept panel callbacks.
         self._proxy_tab.intercept.on_toggle_intercept = self._engine.set_intercept_enabled
@@ -260,6 +269,7 @@ class MainWindow(QMainWindow):
         self._config.proxy.include_scope = list(include_scope)
         self._config.proxy.exclude_scope = list(exclude_scope)
         self._engine.set_scope(include_scope, exclude_scope)
+        self._refresh_history_scope()
 
     def _on_stop(self) -> None:
         self._proxy_tab.set_status("Stopping proxy...")
@@ -336,6 +346,9 @@ class MainWindow(QMainWindow):
         self._proxy_tab.intercept.enqueue_response(record)
 
     def _persist(self, record: FlowRecord) -> None:
+        record.scope = host_matches_scope(
+            record.host, self._config.proxy.include_scope, self._config.proxy.exclude_scope
+        )
         limit = self._config.body_inline_limit
         if record.request_body_inline and len(record.request_body_inline) > limit:
             record.request_body_path = self._body_store.store(record.request_body_inline)
@@ -344,9 +357,26 @@ class MainWindow(QMainWindow):
             record.response_body_path = self._body_store.store(record.response_body_inline)
             record.response_body_inline = None
         self._repo.upsert(record)
+        self._repo.mark_duplicate(record)
 
     def _load_history(self) -> None:
-        self._model.load_records(self._repo.list_all())
+        self._refresh_history_scope()
+
+    def _refresh_history_scope(self) -> None:
+        """Reclassify existing rows when target scope rules change."""
+        records = self._repo.list_all()
+        for record in records:
+            in_scope = host_matches_scope(
+                record.host,
+                self._config.proxy.include_scope,
+                self._config.proxy.exclude_scope,
+            )
+            if record.scope != in_scope:
+                record.scope = in_scope
+                self._repo.update(record)
+        self._model.load_records(records)
+        if hasattr(self._proxy_tab, "history"):
+            self._proxy_tab.history._apply_filters()
 
     @Slot()
     def _on_show_ca(self) -> None:
@@ -386,6 +416,21 @@ class MainWindow(QMainWindow):
         self._hydrate_request_body(record)
         self._intruder_tab.load_from_record(record)
         self._tabs.setCurrentWidget(self._intruder_tab)
+
+    @Slot(object)
+    def _on_history_metadata_changed(self, record: FlowRecord) -> None:
+        self._repo.update(record)
+        self._model.upsert_record(record)
+
+    @Slot(str, str)
+    def _on_save_filter(self, name: str, query: str) -> None:
+        self._repo.save_filter(name, query)
+        self._proxy_tab.history.set_saved_filters(self._repo.list_saved_filters())
+
+    @Slot(str)
+    def _on_delete_saved_filter(self, name: str) -> None:
+        self._repo.delete_saved_filter(name)
+        self._proxy_tab.history.set_saved_filters(self._repo.list_saved_filters())
 
     # -- collaborator ---------------------------------------------------------
 

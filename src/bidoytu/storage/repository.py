@@ -12,6 +12,7 @@ instance (SQLite handles cross-connection coordination via WAL + locking).
 from __future__ import annotations
 
 import sqlite3
+import hashlib
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Optional
@@ -42,10 +43,23 @@ CREATE TABLE IF NOT EXISTS flows (
     started_at           REAL NOT NULL DEFAULT 0,
     completed_at         REAL,
     tags                 TEXT NOT NULL DEFAULT '',
-    notes                TEXT NOT NULL DEFAULT ''
+    notes                TEXT NOT NULL DEFAULT '',
+    scope                INTEGER NOT NULL DEFAULT 1,
+    tool                 TEXT NOT NULL DEFAULT 'Proxy',
+    bookmarked           INTEGER NOT NULL DEFAULT 0,
+    interesting          INTEGER NOT NULL DEFAULT 0,
+    color                TEXT NOT NULL DEFAULT '',
+    duplicate_of         INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_flows_host ON flows(host);
 CREATE INDEX IF NOT EXISTS idx_flows_started_at ON flows(started_at);
+CREATE INDEX IF NOT EXISTS idx_flows_duplicate ON flows(duplicate_of);
+CREATE TABLE IF NOT EXISTS saved_filters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    query TEXT NOT NULL DEFAULT '',
+    created_at REAL NOT NULL DEFAULT (strftime('%s','now'))
+);
 """
 
 # Columns in a fixed order shared by insert/update/select mapping.
@@ -55,6 +69,7 @@ _COLUMNS = (
     "request_body_size", "status_code", "reason", "response_headers",
     "response_body_inline", "response_body_path", "response_body_size",
     "content_type", "started_at", "completed_at", "tags", "notes",
+    "scope", "tool", "bookmarked", "interesting", "color", "duplicate_of",
 )
 
 
@@ -101,6 +116,18 @@ class FlowRepository:
     def _initialize(self, conn: sqlite3.Connection) -> None:
         self._configure(conn)
         conn.executescript(_SCHEMA)
+        # Migrate databases created before advanced history existed.
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(flows)")}
+        for name, definition in (
+            ("scope", "INTEGER NOT NULL DEFAULT 1"),
+            ("tool", "TEXT NOT NULL DEFAULT 'Proxy'"),
+            ("bookmarked", "INTEGER NOT NULL DEFAULT 0"),
+            ("interesting", "INTEGER NOT NULL DEFAULT 0"),
+            ("color", "TEXT NOT NULL DEFAULT ''"),
+            ("duplicate_of", "INTEGER"),
+        ):
+            if name not in existing:
+                conn.execute(f"ALTER TABLE flows ADD COLUMN {name} {definition}")
         conn.commit()
         result = conn.execute("PRAGMA quick_check").fetchone()
         if result is None or result[0] != "ok":
@@ -174,6 +201,56 @@ class FlowRepository:
         self._conn.execute("DELETE FROM flows")
         self._conn.commit()
 
+    def cleanup(self, max_rows: int | None = None, max_age_days: int | None = None) -> int:
+        """Apply retention limits and reclaim SQLite space. Returns deleted rows."""
+        clauses, args = [], []
+        if max_age_days is not None and max_age_days > 0:
+            clauses.append("started_at < strftime('%s','now') - ? * 86400")
+            args.append(int(max_age_days))
+        if max_rows is not None and max_rows >= 0:
+            clauses.append("id NOT IN (SELECT id FROM flows ORDER BY id DESC LIMIT ?)")
+            args.append(int(max_rows))
+        deleted = 0
+        if not clauses:
+            return 0
+        cur = self._conn.execute("DELETE FROM flows WHERE " + " OR ".join(clauses), args)
+        deleted = cur.rowcount
+        self._conn.commit()
+        self._conn.execute("PRAGMA optimize")
+        self._conn.execute("VACUUM")
+        return max(0, deleted)
+
+    def mark_duplicate(self, record: FlowRecord) -> int | None:
+        """Link a request to the oldest identical request/response fingerprint."""
+        fp = hashlib.sha256((record.method + "\n" + record.url + "\n" +
+                             record.request_headers + "\n" + record.response_headers + "\n" +
+                             str(record.request_body_size) + ":" + str(record.response_body_size)).encode()).hexdigest()
+        row = self._conn.execute(
+            "SELECT id FROM flows WHERE id != ? AND method = ? AND host = ? AND path = ? "
+            "AND request_body_size = ? AND response_body_size = ? ORDER BY id LIMIT 1",
+            (record.id or -1, record.method, record.host, record.path,
+             record.request_body_size, record.response_body_size),
+        ).fetchone()
+        if row:
+            record.duplicate_of = int(row["id"])
+            self._conn.execute("UPDATE flows SET duplicate_of=? WHERE id=?", (record.duplicate_of, record.id))
+            self._conn.commit()
+            return record.duplicate_of
+        return None
+
+    def save_filter(self, name: str, query: str) -> None:
+        self._conn.execute("INSERT INTO saved_filters(name, query) VALUES(?, ?) "
+                           "ON CONFLICT(name) DO UPDATE SET query=excluded.query", (name, query))
+        self._conn.commit()
+
+    def list_saved_filters(self) -> list[tuple[str, str]]:
+        return [(r["name"], r["query"]) for r in self._conn.execute(
+            "SELECT name, query FROM saved_filters ORDER BY name")]
+
+    def delete_saved_filter(self, name: str) -> None:
+        self._conn.execute("DELETE FROM saved_filters WHERE name=?", (name,))
+        self._conn.commit()
+
     # -- reads ----------------------------------------------------------------
 
     def count(self) -> int:
@@ -231,6 +308,12 @@ class FlowRepository:
             completed_at=row["completed_at"],
             tags=row["tags"],
             notes=row["notes"],
+            scope=bool(row["scope"]),
+            tool=row["tool"],
+            bookmarked=bool(row["bookmarked"]),
+            interesting=bool(row["interesting"]),
+            color=row["color"],
+            duplicate_of=row["duplicate_of"],
         )
 
     def close(self) -> None:

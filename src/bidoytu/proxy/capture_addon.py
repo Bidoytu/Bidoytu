@@ -126,14 +126,13 @@ class CaptureAddon:
     # -- mitmproxy hooks ------------------------------------------------------
 
     async def request(self, flow: http.HTTPFlow) -> None:
-        # Scope is a capture/interception filter only; out-of-scope traffic is
-        # still forwarded by mitmproxy without touching the UI or history.
-        if not self._flow_in_scope(flow):
-            return
-        # Always surface the request to the history first.
+        # History keeps both in-scope and out-of-scope traffic so the History
+        # filter can distinguish them. Only in-scope traffic is eligible for
+        # interception and editing.
+        in_scope = self._flow_in_scope(flow)
         self._on_flow(self._record_from_request(flow), False)
 
-        if not self._intercept_enabled:
+        if not in_scope or not self._intercept_enabled:
             return
 
         pending = _PendingFlow(flow=flow)
@@ -154,12 +153,13 @@ class CaptureAddon:
     async def response(self, flow: http.HTTPFlow) -> None:
         armed = flow.id in self._response_watch
         self._response_watch.discard(flow.id)
-        if not self._flow_in_scope(flow):
-            return
+        in_scope = self._flow_in_scope(flow)
         # Decide whether this response should be paused: interception must be on
         # AND either the global response toggle is set or this flow was armed
         # via "intercept response to this request".
-        should_pause = self._intercept_enabled and (self._intercept_responses or armed)
+        should_pause = in_scope and self._intercept_enabled and (
+            self._intercept_responses or armed
+        )
 
         if should_pause:
             pending = _PendingFlow(flow=flow)
