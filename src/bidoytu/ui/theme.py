@@ -51,9 +51,9 @@ _current_mode = DARK
 _ICON_DIR: str | None = None
 
 # Shared accent used across both modes so the product feels cohesive.
-ACCENT = "#5b8def"        # soft indigo-blue
-ACCENT_HOVER = "#6f9cf2"
-ACCENT_PRESSED = "#4a7bd8"
+ACCENT = "#5865f2"        # blurple
+ACCENT_HOVER = "#4752c4"
+ACCENT_PRESSED = "#3c45a5"
 
 
 def current_mode() -> str:
@@ -67,17 +67,17 @@ def current_mode() -> str:
 # stylesheets, the tab bar chips, and the highlighter stay in sync.
 _TOKENS = {
     DARK: {
-        "window": "#1b1e24",
-        "surface": "#20242c",
-        "surface_alt": "#252a33",
-        "elevated": "#2a2f3a",
-        "base": "#181b21",
-        "base_alt": "#1e222a",
-        "border": "#333a45",
-        "border_soft": "#2a3039",
-        "text": "#e4e7ec",
-        "text_muted": "#9aa2b1",
-        "text_faint": "#6b7280",
+        "window":      "#202225",   # tertiary bg — sidebars, deepest layer
+        "surface":     "#2f3136",   # secondary bg — channel list, panels
+        "surface_alt": "#36393f",   # primary bg — main chat/content area
+        "elevated":    "#18191c",   # popouts, modals — Discord's darkest layer
+        "base":        "#40444b",   # message input / editor fields
+        "base_alt":    "#2f3136",
+        "border":      "#26282c",   # Discord barely uses visible borders
+        "border_soft": "#1e1f22",
+        "text":        "#dcddde",   # Discord's primary text (not pure white)
+        "text_muted":  "#96989d",   # secondary/muted text
+        "text_faint":  "#72767d",   # timestamps, faint labels
         "accent": ACCENT,
     },
     LIGHT: {
