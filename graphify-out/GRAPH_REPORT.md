@@ -1,7 +1,7 @@
 # Graph Report - Bidoytu  (2026-09-15)
 
 ## Corpus Check
-- 77 files · ~145,593 words
+- 77 files · ~145,619 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 4, .spec 1, .ico 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a29b3230`
+- Built from commit: `343ece05`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

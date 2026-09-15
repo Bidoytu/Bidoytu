@@ -157,8 +157,10 @@ class HistoryView(QWidget):
         self._table.setItemDelegate(HistoryItemDelegate(self._table))
         # No gridlines: cleaner look, and removes any per-column boundary ticks.
         self._table.setShowGrid(False)
-        # No focus rectangle regardless of platform style.
-        self._table.setFocusPolicy(Qt.NoFocus)
+        # The table must accept focus so Qt can deliver Up/Down navigation
+        # events to it.  The custom delegate paints the cells itself, so
+        # enabling focus does not add a platform-specific focus rectangle.
+        self._table.setFocusPolicy(Qt.StrongFocus)
         self._table.verticalHeader().setVisible(False)
         self._table.setContextMenuPolicy(Qt.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._on_context_menu)

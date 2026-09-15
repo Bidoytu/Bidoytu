@@ -4477,7 +4477,7 @@
       "file_type": "code",
       "norm_label": "._save_filter()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L451"
+      "source_location": "L453"
     },
     {
       "id": "src_bidoytu_net_interactsh_interaction_from_json",
@@ -6049,7 +6049,7 @@
       "file_type": "code",
       "norm_label": "._add_shortcut()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L332"
+      "source_location": "L334"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_configure_columns",
@@ -6061,7 +6061,7 @@
       "file_type": "code",
       "norm_label": "._configure_columns()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L189"
+      "source_location": "L191"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_init",
@@ -6865,7 +6865,7 @@
       "file_type": "code",
       "norm_label": "._apply_filters()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L414"
+      "source_location": "L416"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_clear_detail",
@@ -6877,7 +6877,7 @@
       "file_type": "code",
       "norm_label": ".clear_detail()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L510"
+      "source_location": "L512"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_confirm_delete_saved_filter",
@@ -6889,7 +6889,7 @@
       "file_type": "code",
       "norm_label": "._confirm_delete_saved_filter()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L474"
+      "source_location": "L476"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_emit_intruder",
@@ -6901,7 +6901,7 @@
       "file_type": "code",
       "norm_label": "._emit_intruder()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L505"
+      "source_location": "L507"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_emit_repeater",
@@ -6913,7 +6913,7 @@
       "file_type": "code",
       "norm_label": "._emit_repeater()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L500"
+      "source_location": "L502"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_export",
@@ -6925,7 +6925,7 @@
       "file_type": "code",
       "norm_label": "._export()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L486"
+      "source_location": "L488"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_fit_path_column",
@@ -6937,7 +6937,7 @@
       "file_type": "code",
       "norm_label": "._fit_path_column()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L296"
+      "source_location": "L298"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_get_body",
@@ -6949,7 +6949,7 @@
       "file_type": "code",
       "norm_label": "._get_body()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L354"
+      "source_location": "L356"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_load_saved_query",
@@ -6961,7 +6961,7 @@
       "file_type": "code",
       "norm_label": "._load_saved_query()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L483"
+      "source_location": "L485"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_on_context_menu",
@@ -6973,7 +6973,7 @@
       "file_type": "code",
       "norm_label": "._on_context_menu()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L360"
+      "source_location": "L362"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_on_section_resized",
@@ -6985,7 +6985,7 @@
       "file_type": "code",
       "norm_label": "._on_section_resized()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L247"
+      "source_location": "L249"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_on_selection",
@@ -6997,7 +6997,7 @@
       "file_type": "code",
       "norm_label": "._on_selection()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L345"
+      "source_location": "L347"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_open_filter_settings",
@@ -7009,7 +7009,7 @@
       "file_type": "code",
       "norm_label": "._open_filter_settings()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L417"
+      "source_location": "L419"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_quick_method_filter",
@@ -7021,7 +7021,7 @@
       "file_type": "code",
       "norm_label": "._quick_method_filter()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L443"
+      "source_location": "L445"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_quick_status_filter",
@@ -7033,7 +7033,7 @@
       "file_type": "code",
       "norm_label": "._quick_status_filter()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L447"
+      "source_location": "L449"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_resizeevent",
@@ -7045,7 +7045,7 @@
       "file_type": "code",
       "norm_label": ".resizeevent()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L326"
+      "source_location": "L328"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_selected_record",
@@ -7057,7 +7057,7 @@
       "file_type": "code",
       "norm_label": "._selected_record()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L338"
+      "source_location": "L340"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_set_filter",
@@ -7069,7 +7069,7 @@
       "file_type": "code",
       "norm_label": "._set_filter()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L423"
+      "source_location": "L425"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_set_saved_filters",
@@ -7081,7 +7081,7 @@
       "file_type": "code",
       "norm_label": ".set_saved_filters()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L456"
+      "source_location": "L458"
     },
     {
       "id": "src_bidoytu_ui_history_view_historyview_showevent",
@@ -7093,7 +7093,7 @@
       "file_type": "code",
       "norm_label": ".showevent()",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L322"
+      "source_location": "L324"
     },
     {
       "id": "src_bidoytu_ui_group_dialog_groupdialog_apply_swatch",
@@ -13003,7 +13003,7 @@
       "source_location": "L39"
     },
     {
-      "id": "src_bidoytu_ui_history_view_rationale_190",
+      "id": "src_bidoytu_ui_history_view_rationale_192",
       "label": "Size columns so Path fills the leftover width initially, while every column\u2026",
       "_origin": "ast",
       "community": 32,
@@ -13011,7 +13011,7 @@
       "file_type": "rationale",
       "norm_label": "size columns so path fills the leftover width initially, while every column...",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L190"
+      "source_location": "L192"
     },
     {
       "id": "src_bidoytu_ui_history_view_rationale_43",
@@ -13520,7 +13520,7 @@
       "source_location": ""
     },
     {
-      "id": "src_bidoytu_ui_history_view_rationale_248",
+      "id": "src_bidoytu_ui_history_view_rationale_250",
       "label": "Whenever a column is resized, compensate its immediate right neighbor (or left\u2026",
       "_origin": "ast",
       "community": 4,
@@ -13528,10 +13528,10 @@
       "file_type": "rationale",
       "norm_label": "whenever a column is resized, compensate its immediate right neighbor (or left...",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L248"
+      "source_location": "L250"
     },
     {
-      "id": "src_bidoytu_ui_history_view_rationale_297",
+      "id": "src_bidoytu_ui_history_view_rationale_299",
       "label": "Reflow the Path column to absorb the viewport's leftover width. Path is the\u2026",
       "_origin": "ast",
       "community": 4,
@@ -13539,10 +13539,10 @@
       "file_type": "rationale",
       "norm_label": "reflow the path column to absorb the viewport's leftover width. path is the...",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L297"
+      "source_location": "L299"
     },
     {
-      "id": "src_bidoytu_ui_history_view_rationale_457",
+      "id": "src_bidoytu_ui_history_view_rationale_459",
       "label": "Populate the saved-filter picker without coupling the widget to SQLite.",
       "_origin": "ast",
       "community": 4,
@@ -13550,7 +13550,7 @@
       "file_type": "rationale",
       "norm_label": "populate the saved-filter picker without coupling the widget to sqlite.",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L457"
+      "source_location": "L459"
     },
     {
       "id": "src_bidoytu_ui_history_view_rationale_95",
@@ -20741,7 +20741,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L506",
+      "source_location": "L508",
       "weight": 1.0
     },
     {
@@ -20753,7 +20753,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L501",
+      "source_location": "L503",
       "weight": 1.0
     },
     {
@@ -20765,7 +20765,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L494",
+      "source_location": "L496",
       "weight": 1.0
     },
     {
@@ -20825,7 +20825,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L165",
+      "source_location": "L167",
       "weight": 1.0
     },
     {
@@ -20837,7 +20837,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L167",
+      "source_location": "L169",
       "weight": 1.0
     },
     {
@@ -20849,7 +20849,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L186",
+      "source_location": "L188",
       "weight": 1.0
     },
     {
@@ -20861,7 +20861,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L484",
+      "source_location": "L486",
       "weight": 1.0
     },
     {
@@ -20873,7 +20873,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L484",
+      "source_location": "L486",
       "weight": 1.0
     },
     {
@@ -20885,7 +20885,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L361",
+      "source_location": "L363",
       "weight": 1.0
     },
     {
@@ -20897,7 +20897,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L412",
+      "source_location": "L414",
       "weight": 1.0
     },
     {
@@ -20909,7 +20909,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L346",
+      "source_location": "L348",
       "weight": 1.0
     },
     {
@@ -20921,7 +20921,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L349",
+      "source_location": "L351",
       "weight": 1.0
     },
     {
@@ -20933,7 +20933,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L418",
+      "source_location": "L420",
       "weight": 1.0
     },
     {
@@ -20945,7 +20945,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L421",
+      "source_location": "L423",
       "weight": 1.0
     },
     {
@@ -20957,7 +20957,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L445",
+      "source_location": "L447",
       "weight": 1.0
     },
     {
@@ -20969,7 +20969,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L449",
+      "source_location": "L451",
       "weight": 1.0
     },
     {
@@ -20981,7 +20981,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L327",
+      "source_location": "L329",
       "weight": 1.0
     },
     {
@@ -20993,7 +20993,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L330",
+      "source_location": "L332",
       "weight": 1.0
     },
     {
@@ -21005,7 +21005,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L454",
+      "source_location": "L456",
       "weight": 1.0
     },
     {
@@ -21017,7 +21017,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L462",
+      "source_location": "L464",
       "weight": 1.0
     },
     {
@@ -21029,7 +21029,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L467",
+      "source_location": "L469",
       "weight": 1.0
     },
     {
@@ -21041,7 +21041,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L323",
+      "source_location": "L325",
       "weight": 1.0
     },
     {
@@ -21053,7 +21053,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L324",
+      "source_location": "L326",
       "weight": 1.0
     },
     {
@@ -26513,7 +26513,7 @@
       "confidence_score": 1.0,
       "context": "decorator",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L344",
+      "source_location": "L346",
       "weight": 1.0
     },
     {
@@ -31613,7 +31613,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L354",
+      "source_location": "L356",
       "weight": 1.0
     },
     {
@@ -31637,7 +31637,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L423",
+      "source_location": "L425",
       "weight": 1.0
     },
     {
@@ -32825,7 +32825,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L338",
+      "source_location": "L340",
       "weight": 1.0
     },
     {
@@ -39444,7 +39444,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L189",
+      "source_location": "L191",
       "weight": 1.0
     },
     {
@@ -39455,7 +39455,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L247",
+      "source_location": "L249",
       "weight": 1.0
     },
     {
@@ -39466,7 +39466,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L296",
+      "source_location": "L298",
       "weight": 1.0
     },
     {
@@ -39477,7 +39477,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L322",
+      "source_location": "L324",
       "weight": 1.0
     },
     {
@@ -39488,7 +39488,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L326",
+      "source_location": "L328",
       "weight": 1.0
     },
     {
@@ -39499,7 +39499,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L332",
+      "source_location": "L334",
       "weight": 1.0
     },
     {
@@ -39510,7 +39510,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L338",
+      "source_location": "L340",
       "weight": 1.0
     },
     {
@@ -39521,7 +39521,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L345",
+      "source_location": "L347",
       "weight": 1.0
     },
     {
@@ -39532,7 +39532,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L354",
+      "source_location": "L356",
       "weight": 1.0
     },
     {
@@ -39543,7 +39543,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L360",
+      "source_location": "L362",
       "weight": 1.0
     },
     {
@@ -39554,7 +39554,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L414",
+      "source_location": "L416",
       "weight": 1.0
     },
     {
@@ -39565,7 +39565,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L417",
+      "source_location": "L419",
       "weight": 1.0
     },
     {
@@ -39576,7 +39576,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L423",
+      "source_location": "L425",
       "weight": 1.0
     },
     {
@@ -39587,7 +39587,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L443",
+      "source_location": "L445",
       "weight": 1.0
     },
     {
@@ -39598,7 +39598,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L447",
+      "source_location": "L449",
       "weight": 1.0
     },
     {
@@ -39609,7 +39609,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L451",
+      "source_location": "L453",
       "weight": 1.0
     },
     {
@@ -39620,7 +39620,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L456",
+      "source_location": "L458",
       "weight": 1.0
     },
     {
@@ -39631,7 +39631,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L474",
+      "source_location": "L476",
       "weight": 1.0
     },
     {
@@ -39642,7 +39642,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L483",
+      "source_location": "L485",
       "weight": 1.0
     },
     {
@@ -39653,7 +39653,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L486",
+      "source_location": "L488",
       "weight": 1.0
     },
     {
@@ -39664,7 +39664,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L500",
+      "source_location": "L502",
       "weight": 1.0
     },
     {
@@ -39675,7 +39675,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L505",
+      "source_location": "L507",
       "weight": 1.0
     },
     {
@@ -39686,7 +39686,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L510",
+      "source_location": "L512",
       "weight": 1.0
     },
     {
@@ -45377,36 +45377,36 @@
       "weight": 1.0
     },
     {
-      "source": "src_bidoytu_ui_history_view_rationale_190",
+      "source": "src_bidoytu_ui_history_view_rationale_192",
       "target": "src_bidoytu_ui_history_view_historyview_configure_columns",
       "relation": "rationale_for",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L190",
+      "source_location": "L192",
       "weight": 1.0
     },
     {
-      "source": "src_bidoytu_ui_history_view_rationale_248",
+      "source": "src_bidoytu_ui_history_view_rationale_250",
       "target": "src_bidoytu_ui_history_view_historyview_on_section_resized",
       "relation": "rationale_for",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L248",
+      "source_location": "L250",
       "weight": 1.0
     },
     {
-      "source": "src_bidoytu_ui_history_view_rationale_297",
+      "source": "src_bidoytu_ui_history_view_rationale_299",
       "target": "src_bidoytu_ui_history_view_historyview_fit_path_column",
       "relation": "rationale_for",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L297",
+      "source_location": "L299",
       "weight": 1.0
     },
     {
@@ -45421,14 +45421,14 @@
       "weight": 1.0
     },
     {
-      "source": "src_bidoytu_ui_history_view_rationale_457",
+      "source": "src_bidoytu_ui_history_view_rationale_459",
       "target": "src_bidoytu_ui_history_view_historyview_set_saved_filters",
       "relation": "rationale_for",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L457",
+      "source_location": "L459",
       "weight": 1.0
     },
     {
@@ -47511,7 +47511,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L368",
+      "source_location": "L370",
       "weight": 1.0
     },
     {
@@ -47523,7 +47523,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L401",
+      "source_location": "L403",
       "weight": 1.0
     },
     {
@@ -48800,7 +48800,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.95,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L167",
+      "source_location": "L169",
       "weight": 0.8
     },
     {
@@ -48811,7 +48811,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.95,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L338",
+      "source_location": "L340",
       "weight": 0.8
     },
     {
@@ -48822,7 +48822,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.95,
       "source_file": "src/bidoytu/ui/history_view.py",
-      "source_location": "L418",
+      "source_location": "L420",
       "weight": 0.8
     },
     {
@@ -50224,5 +50224,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "a29b3230e77b8e56eab21438f95859991199882e"
+  "built_at_commit": "343ece057f7988b6362b8bb8ec2c09d7c31d0002"
 }
