@@ -157,8 +157,10 @@ class HistoryView(QWidget):
         self._table.setItemDelegate(HistoryItemDelegate(self._table))
         # No gridlines: cleaner look, and removes any per-column boundary ticks.
         self._table.setShowGrid(False)
-        # No focus rectangle regardless of platform style.
-        self._table.setFocusPolicy(Qt.NoFocus)
+        # The table must accept focus so Qt can deliver Up/Down navigation
+        # events to it.  The custom delegate paints the cells itself, so
+        # enabling focus does not add a platform-specific focus rectangle.
+        self._table.setFocusPolicy(Qt.StrongFocus)
         self._table.verticalHeader().setVisible(False)
         self._table.setContextMenuPolicy(Qt.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._on_context_menu)
@@ -176,7 +178,8 @@ class HistoryView(QWidget):
         splitter.setSizes([350, 450])
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 6, 0, 0)
+        layout.setSpacing(6)
         layout.addLayout(controls)
         layout.addWidget(splitter)
 
@@ -436,8 +439,8 @@ class HistoryView(QWidget):
         if spec.search: active.append("search")
         if spec.query: active.append("HTTPQL")
         if spec.in_scope_only: active.append("scope")
-        if spec.mime_types: active.append("MIME")
-        if spec.status_classes: active.append("status")
+        if spec.mime_types and len(spec.mime_types) < 8: active.append("MIME")
+        if spec.status_classes and len(spec.status_classes) < 4: active.append("status")
         self._filter_summary.setText("All traffic" if not active else "Filters: " + ", ".join(active))
 
     def _quick_method_filter(self, value: str) -> None:

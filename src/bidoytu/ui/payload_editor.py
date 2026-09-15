@@ -14,7 +14,7 @@ The tab embeds one :class:`PayloadSetEditor` per position set.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from bidoytu.net.attack import PayloadSet
+from bidoytu.ui.theme import ui_icon
 from bidoytu.net.payloads import (
     GEN_BRUTE,
     GEN_LIST,
@@ -156,10 +157,16 @@ class PayloadSetEditor(QWidget):
         edit_rule.clicked.connect(self._edit_rule)
         del_rule = QPushButton("Remove")
         del_rule.clicked.connect(self._remove_rule)
-        up_rule = QPushButton("\u25b2")
+        up_rule = QPushButton()
+        up_rule.setIcon(ui_icon("up"))
+        up_rule.setIconSize(QSize(18, 18))
+        up_rule.setToolTip("Move rule up")
         up_rule.setMaximumWidth(30)
         up_rule.clicked.connect(lambda: self._move_rule(-1))
-        down_rule = QPushButton("\u25bc")
+        down_rule = QPushButton()
+        down_rule.setIcon(ui_icon("down"))
+        down_rule.setIconSize(QSize(18, 18))
+        down_rule.setToolTip("Move rule down")
         down_rule.setMaximumWidth(30)
         down_rule.clicked.connect(lambda: self._move_rule(1))
 
@@ -172,7 +179,7 @@ class PayloadSetEditor(QWidget):
         rule_btns.addWidget(down_rule)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(8, 4, 4, 4)
         gen_row = QHBoxLayout()
         gen_row.addWidget(QLabel("Type:"))
         gen_row.addWidget(self._gen_kind)
@@ -195,8 +202,17 @@ class PayloadSetEditor(QWidget):
         self._list_edit.setPlaceholderText("One payload per line...")
         load_btn = QPushButton("Load from file...")
         load_btn.clicked.connect(self._load_list_file)
+        seclists_btn = QPushButton("Load SecLists")
+        seclists_btn.setToolTip(
+            "Browse and download wordlists from the SecLists project"
+        )
+        seclists_btn.clicked.connect(self._load_seclists)
+        btn_row = QHBoxLayout()
+        btn_row.addWidget(load_btn)
+        btn_row.addWidget(seclists_btn)
+        btn_row.addStretch(1)
         v.addWidget(self._list_edit, 1)
-        v.addWidget(load_btn)
+        v.addLayout(btn_row)
         return page
 
     def _build_numbers_page(self) -> QWidget:
@@ -262,6 +278,20 @@ class PayloadSetEditor(QWidget):
                 content = fh.read()
         except OSError:
             return
+        existing = self._list_edit.toPlainText()
+        if existing.strip():
+            content = existing.rstrip("\n") + "\n" + content
+        self._list_edit.setPlainText(content)
+
+    def _load_seclists(self) -> None:
+        # Imported lazily so the editor doesn't pull in the dialog (or httpx)
+        # until the user actually browses SecLists.
+        from bidoytu.ui.seclists_dialog import SecListsDialog
+
+        dialog = SecListsDialog(parent=self)
+        if not dialog.exec() or dialog.selected_content is None:
+            return
+        content = dialog.selected_content
         existing = self._list_edit.toPlainText()
         if existing.strip():
             content = existing.rstrip("\n") + "\n" + content

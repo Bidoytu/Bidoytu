@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -30,8 +31,17 @@ class ProxyConfig:
     listen_host: str = "127.0.0.1"
     listen_port: int = 8080
     http2: bool = True
+    # Browser interception should remain usable with sites that publish an
+    # incomplete legacy chain. The setting is visible in Proxy Settings so
+    # strict upstream verification can be restored when required.
+    ssl_insecure: bool = True
     include_scope: list[str] = field(default_factory=list)
     exclude_scope: list[str] = field(default_factory=list)
+    include_paths: list[str] = field(default_factory=list)
+    exclude_paths: list[str] = field(default_factory=list)
+    include_regex: list[str] = field(default_factory=list)
+    exclude_regex: list[str] = field(default_factory=list)
+    sitemaps: list[str] = field(default_factory=list)
 
 
 def _normalise_scope_entry(value: str) -> str:
@@ -58,7 +68,11 @@ def _normalise_scope_entry(value: str) -> str:
 
 def host_matches_scope(
     host: str, include_scope: list[str] | tuple[str, ...],
-    exclude_scope: list[str] | tuple[str, ...],
+    exclude_scope: list[str] | tuple[str, ...], path: str = "/",
+    include_paths: list[str] | tuple[str, ...] = (),
+    exclude_paths: list[str] | tuple[str, ...] = (),
+    include_regex: list[str] | tuple[str, ...] = (),
+    exclude_regex: list[str] | tuple[str, ...] = (),
 ) -> bool:
     """Return whether *host* is in the configured target scope.
 
@@ -80,7 +94,24 @@ def host_matches_scope(
     exclude_patterns = [pattern for pattern in exclude_scope if str(pattern).strip()]
     if any(matches(pattern) for pattern in exclude_patterns):
         return False
-    return not include_patterns or any(matches(pattern) for pattern in include_patterns)
+    if include_patterns and not any(matches(pattern) for pattern in include_patterns):
+        return False
+
+    request_path = path or "/"
+    if any(request_path.startswith(str(pattern).strip()) for pattern in exclude_paths if str(pattern).strip()):
+        return False
+    if include_paths and not any(request_path.startswith(str(pattern).strip()) for pattern in include_paths if str(pattern).strip()):
+        return False
+
+    def regex_matches(pattern: str) -> bool:
+        try:
+            return bool(re.search(pattern, f"{candidate}{request_path}", re.IGNORECASE))
+        except re.error:
+            return False
+
+    if any(regex_matches(pattern) for pattern in exclude_regex if str(pattern).strip()):
+        return False
+    return not include_regex or any(regex_matches(pattern) for pattern in include_regex if str(pattern).strip())
 
 
 # Free, public Interactsh servers operated by ProjectDiscovery. They are tried
@@ -126,6 +157,7 @@ class AppConfig:
     """
 
     data_dir: Path = field(default_factory=_default_data_dir)
+    ca_dir: Path | None = None
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
     collaborator: CollaboratorConfig = field(default_factory=CollaboratorConfig)
     body_inline_limit: int = 64 * 1024  # 64 KiB
@@ -172,7 +204,9 @@ class AppConfig:
         We keep it under Bidoytu's data dir (instead of the default
         ``~/.mitmproxy``) so the CA is predictable and easy to export.
         """
-        return self.data_dir / "ca"
+        # The CA belongs to the Bidoytu installation, not an individual
+        # workspace. This keeps browser trust stable across sessions.
+        return self.ca_dir or (self.data_dir / "ca")
 
     @property
     def ca_cert_pem(self) -> Path:
@@ -184,11 +218,17 @@ class AppConfig:
         """DER/.cer CA certificate (convenient for the Windows cert store)."""
         return self.confdir / "mitmproxy-ca-cert.cer"
 
+    @property
+    def browser_profiles_dir(self) -> Path:
+        """Profiles used by Browser Integration launches."""
+        return self.data_dir / "browser-profiles"
+
     def ensure_dirs(self) -> None:
         """Create the data, body, and CA directories if they do not exist."""
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.bodies_dir.mkdir(parents=True, exist_ok=True)
         self.confdir.mkdir(parents=True, exist_ok=True)
+        self.browser_profiles_dir.mkdir(parents=True, exist_ok=True)
 
     def load_proxy_scope(self) -> None:
         """Restore Target scope, tolerating files from older versions."""
@@ -198,7 +238,8 @@ class AppConfig:
             return
         if not isinstance(data, dict):
             return
-        for key in ("include_scope", "exclude_scope"):
+        for key in ("include_scope", "exclude_scope", "include_paths", "exclude_paths",
+                    "include_regex", "exclude_regex", "sitemaps"):
             values = data.get(key, [])
             if isinstance(values, list):
                 setattr(
@@ -214,6 +255,11 @@ class AppConfig:
                 {
                     "include_scope": self.proxy.include_scope,
                     "exclude_scope": self.proxy.exclude_scope,
+                    "include_paths": self.proxy.include_paths,
+                    "exclude_paths": self.proxy.exclude_paths,
+                    "include_regex": self.proxy.include_regex,
+                    "exclude_regex": self.proxy.exclude_regex,
+                    "sitemaps": self.proxy.sitemaps,
                 },
                 indent=2,
             ),

@@ -163,7 +163,7 @@ class InterceptView(QWidget):
     def _pane(title: str, widget: QWidget) -> QWidget:
         container = QWidget()
         v = QVBoxLayout(container)
-        v.setContentsMargins(0, 0, 0, 0)
+        v.setContentsMargins(0, 4, 0, 0)
         label = QLabel(title)
         label.setStyleSheet("font-weight: bold; padding: 4px;")
         v.addWidget(label)

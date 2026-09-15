@@ -152,22 +152,17 @@ def test_qt_and_proxy_apis(tmp: Path) -> None:
     # Top-level tabs present in order.
     tabs: QTabWidget = win._tabs
     labels = [tabs.tabText(i) for i in range(tabs.count())]
-    assert labels == ["Proxy", "Repeater", "Intruder", "Collaborator"], labels
+    assert labels == ["Proxy", "Target", "Repeater", "Intruder", "Collaborator"], labels
 
     # Proxy sub-tabs.
     sub = win._proxy_tab.sub_tabs
     sub_labels = [sub.tabText(i) for i in range(sub.count())]
     assert sub_labels == ["HTTP History", "Intercept"], sub_labels
-    assert win._proxy_tab.scope_group.title() == "Scope"
-    assert win._proxy_tab.target_panel is not None
-    target_toggle = win._proxy_tab.target_toggle_btn
-    assert not target_toggle.icon().isNull()
-    target_toggle.click()
-    assert not target_toggle.icon().isNull()
-    assert win._proxy_tab.target_panel.width() == 36
-    target_toggle.click()
-    assert not target_toggle.icon().isNull()
-    assert win._proxy_tab.target_panel.width() == 310
+    assert win._proxy_tab.browser_btn.text() == "Open Browser..."
+    assert win._config.browser_profiles_dir.exists()
+    assert win._target_tab.tabs.tabText(0) == "Site map"
+    assert win._target_tab.tabs.tabText(1) == "Scope"
+    assert win._target_tab.tabs.currentWidget() is win._target_tab.scope_page
 
     # Soft wrap defaults on in the history detail views.
     assert win._proxy_tab.history._detail.request_view.soft_wrap_enabled()
@@ -196,8 +191,7 @@ def test_qt_and_proxy_apis(tmp: Path) -> None:
     assert win._proxy_tab.host_edit.text() == cfg.proxy.listen_host
     assert win._proxy_tab.listen_port() == cfg.proxy.listen_port
 
-    win._proxy_tab.include_scope_list.entry_edit.setText("example.com")
-    win._proxy_tab.include_scope_list.add_btn.click()
+    win._target_tab.scope_page.include._insert("example.com")
     assert cfg.proxy.include_scope == ["example.com"]
 
     # Editing the inputs and starting applies them to the engine config.

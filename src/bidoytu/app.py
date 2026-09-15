@@ -7,6 +7,7 @@ already in use, the window prompts the user to change the port or retry.
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 
 from PySide6.QtGui import QIcon
@@ -67,7 +68,21 @@ def main() -> int:
         return 0
 
     workspace = picker.workspace
-    config = AppConfig(data_dir=manager.path_for(workspace))
+    # CA material is installation-wide, while history and tool state remain
+    # workspace-specific. Migrate a legacy workspace CA once if it exists.
+    shared_ca = base_config.confdir
+    legacy_ca = manager.path_for(workspace) / "ca"
+    if not (shared_ca / "mitmproxy-ca-cert.pem").exists():
+        try:
+            if (legacy_ca / "mitmproxy-ca-cert.pem").exists():
+                shared_ca.mkdir(parents=True, exist_ok=True)
+                for source in legacy_ca.iterdir():
+                    if source.is_file():
+                        shutil.copy2(source, shared_ca / source.name)
+        except OSError:
+            # Normal startup will report a useful CA-generation error later.
+            pass
+    config = AppConfig(data_dir=manager.path_for(workspace), ca_dir=shared_ca)
     window = MainWindow(config, workspace=workspace, workspace_manager=manager)
     window.show()
 

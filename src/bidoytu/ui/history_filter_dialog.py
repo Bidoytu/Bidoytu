@@ -9,6 +9,8 @@ from PySide6.QtWidgets import (
 
 from bidoytu.storage.advanced_history import FilterSpec
 
+_DEFAULT_MIME_SELECTION = {"html", "css", "other text", "flash", "other binary"}
+
 
 class HistoryFilterDialog(QDialog):
     """Edit a :class:`FilterSpec` without changing the table until Apply."""
@@ -137,8 +139,16 @@ class HistoryFilterDialog(QDialog):
 
     def _load(self, spec: FilterSpec) -> None:
         for key, check in self._request._items.items(): check.setChecked(getattr(spec, key))
-        for key, check in self._mime._items.items(): check.setChecked(key in spec.mime_types)
-        for key, check in self._status._items.items(): check.setChecked(key in spec.status_classes)
+        # An empty category set means "all" to the matcher.  Show that state
+        # explicitly in the dialog so users can untick one category directly.
+        # A non-empty set still restores exactly the categories in the active
+        # filter.
+        status_keys = set(self._status._items)
+        selected_mime = (_DEFAULT_MIME_SELECTION if not spec.mime_types
+                         else set(spec.mime_types))
+        selected_status = status_keys if not spec.status_classes else set(spec.status_classes)
+        for key, check in self._mime._items.items(): check.setChecked(key in selected_mime)
+        for key, check in self._status._items.items(): check.setChecked(key in selected_status)
         self.search.setText(spec.search); self.regex.setChecked(spec.regex); self.case_sensitive.setChecked(spec.case_sensitive)
         self.negative.setChecked(spec.negative_search); self.show_ext.setText(spec.show_extensions); self.hide_ext.setText(spec.hide_extensions)
         self.notes_only.setChecked(spec.notes_only); self.highlighted_only.setChecked(spec.highlighted_only)

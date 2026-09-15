@@ -51,6 +51,8 @@ class ProxyEngine(QThread):
         self._intercept_responses = False
         self._include_scope = tuple(config.include_scope)
         self._exclude_scope = tuple(config.exclude_scope)
+        self._scope_options = tuple(getattr(config, name, ()) for name in (
+            "include_paths", "exclude_paths", "include_regex", "exclude_regex"))
 
     # -- QThread entry point --------------------------------------------------
 
@@ -72,14 +74,27 @@ class ProxyEngine(QThread):
         except BaseException as exc:  # noqa: BLE001 - keep the thread from crashing
             self.error.emit(str(exc) or exc.__class__.__name__)
         finally:
+            loop = self._loop
             try:
-                if self._loop is not None:
-                    self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+                if loop is not None:
+                    # DumpMaster closes its listener as run() returns, but the
+                    # asyncio accept task can still be pending on Windows.
+                    # Cancel and drain those tasks before closing the loop so
+                    # the socket is released before a subsequent start().
+                    pending = [task for task in asyncio.all_tasks(loop)
+                               if not task.done()]
+                    for task in pending:
+                        task.cancel()
+                    if pending:
+                        loop.run_until_complete(
+                            asyncio.gather(*pending, return_exceptions=True)
+                        )
+                    loop.run_until_complete(loop.shutdown_asyncgens())
             except Exception:
                 pass
             finally:
-                if self._loop is not None:
-                    self._loop.close()
+                if loop is not None:
+                    loop.close()
                 self._loop = None
                 self._master = None
                 self._addon = None
@@ -120,6 +135,7 @@ class ProxyEngine(QThread):
             listen_host=self._config.listen_host,
             listen_port=self._config.listen_port,
             http2=self._config.http2,
+            ssl_insecure=self._config.ssl_insecure,
         )
         if self._confdir:
             # Set where mitmproxy generates/reads its CA and leaf certs.
@@ -131,6 +147,7 @@ class ProxyEngine(QThread):
             self._emit_response_intercept,
             self._include_scope,
             self._exclude_scope,
+            *self._scope_options,
         )
         # Apply any intercept state requested before the loop existed.
         self._addon.set_intercept_enabled(self._intercept_enabled)
@@ -170,14 +187,21 @@ class ProxyEngine(QThread):
         if loop is not None and addon is not None:
             loop.call_soon_threadsafe(addon.set_intercept_enabled, enabled)
 
-    def set_scope(self, include_scope: list[str], exclude_scope: list[str]) -> None:
+    def set_scope(self, include_scope: list[str], exclude_scope: list[str],
+                  include_paths: list[str] | None = None,
+                  exclude_paths: list[str] | None = None,
+                  include_regex: list[str] | None = None,
+                  exclude_regex: list[str] | None = None) -> None:
         """Update target scope immediately, including while the proxy runs."""
         self._include_scope = tuple(include_scope)
         self._exclude_scope = tuple(exclude_scope)
+        self._scope_options = tuple(tuple(values or ()) for values in (
+            include_paths, exclude_paths, include_regex, exclude_regex))
         loop, addon = self._loop, self._addon
         if loop is not None and addon is not None:
             loop.call_soon_threadsafe(
-                addon.set_scope, self._include_scope, self._exclude_scope
+                addon.set_scope, self._include_scope, self._exclude_scope,
+                *self._scope_options
             )
 
     def is_intercept_enabled(self) -> bool:
@@ -226,4 +250,7 @@ class ProxyEngine(QThread):
         loop, master = self._loop, self._master
         if loop is not None and master is not None:
             loop.call_soon_threadsafe(master.shutdown)
-        self.wait(5000)
+        # Do not return until the listener thread has completed its cleanup.
+        # This makes an immediate stop -> start on the same port safe.
+        if self.isRunning():
+            self.wait(10000)
