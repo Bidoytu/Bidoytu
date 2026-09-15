@@ -178,7 +178,8 @@ class HistoryView(QWidget):
         splitter.setSizes([350, 450])
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 6, 0, 0)
+        layout.setSpacing(6)
         layout.addLayout(controls)
         layout.addWidget(splitter)
 
