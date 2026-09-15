@@ -16,7 +16,7 @@ Ordering rule for display:
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QSize, Signal
 from PySide6.QtGui import QColor, QMouseEvent, QResizeEvent
 from PySide6.QtWidgets import (
     QLabel,
@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from bidoytu.ui.flow_layout import FlowLayout
-from bidoytu.ui.theme import current_mode, tokens
+from bidoytu.ui.theme import current_mode, tokens, ui_icon
 
 
 class _FlowHost(QWidget):
@@ -85,7 +85,9 @@ class _Chip(QWidget):
 
         self._close_btn = None
         if closable:
-            self._close_btn = QPushButton("\u00d7")  # multiplication sign: cleaner "x"
+            self._close_btn = QPushButton()
+            self._close_btn.setIcon(ui_icon("close"))
+            self._close_btn.setIconSize(QSize(14, 14))
             self._close_btn.setObjectName("chipclose")
             self._close_btn.setFixedSize(16, 16)
             self._close_btn.setFlat(True)
@@ -198,7 +200,9 @@ class _GroupHeaderChip(QWidget):
         self._refresh()
 
     def _refresh(self) -> None:
-        self._arrow.setText("\u25b8" if self._collapsed else "\u25be")  # ▸ / ▾
+        self._arrow.setPixmap(
+            ui_icon("right" if self._collapsed else "down").pixmap(QSize(14, 14))
+        )
         # Readable text color against the group color.
         fg = self._contrast(self._color)
         border = tokens(current_mode())["border"]

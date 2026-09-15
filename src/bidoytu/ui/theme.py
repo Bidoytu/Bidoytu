@@ -28,7 +28,7 @@ import os
 import tempfile
 
 from PySide6.QtCore import QBuffer, QByteArray, QPointF, QSettings, Qt
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPalette, QPen, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QProxyStyle,
@@ -363,6 +363,47 @@ def _close_icon(color: str, bg: str | None = None) -> str:
     return _pixmap_uri(px)
 
 
+def ui_icon(name: str, color: str | None = None) -> QIcon:
+    """Return a font-independent icon for compact UI controls."""
+    t = tokens(current_mode())
+    normal = color or t["text"]
+    active = t["accent"]
+    disabled = t["text_faint"]
+
+    def make(stroke: str) -> QPixmap:
+        size = 18
+        px = _blank_pixmap(size, size)
+        p = QPainter(px)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.scale(_ICON_SCALE, _ICON_SCALE)
+        pen = QPen(QColor(stroke))
+        pen.setWidthF(1.8)
+        pen.setCapStyle(Qt.RoundCap)
+        pen.setJoinStyle(Qt.RoundJoin)
+        p.setPen(pen)
+        lines = {
+            "left": ((11.5, 3.5, 5.5, 9), (5.5, 9, 11.5, 14.5)),
+            "right": ((6.5, 3.5, 12.5, 9), (12.5, 9, 6.5, 14.5)),
+            "up": ((3.5, 11.5, 9, 5.5), (9, 5.5, 14.5, 11.5)),
+            "down": ((3.5, 6.5, 9, 12.5), (9, 12.5, 14.5, 6.5)),
+            "close": ((5, 5, 13, 13), (13, 5, 5, 13)),
+        }
+        try:
+            icon_lines = lines[name]
+        except KeyError as exc:
+            raise ValueError(f"Unknown UI icon: {name}") from exc
+        for x1, y1, x2, y2 in icon_lines:
+            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+        p.end()
+        return px
+
+    result = QIcon()
+    result.addPixmap(make(normal), QIcon.Normal, QIcon.Off)
+    result.addPixmap(make(active), QIcon.Active, QIcon.Off)
+    result.addPixmap(make(disabled), QIcon.Disabled, QIcon.Off)
+    return result
+
+
 def _build_qss(t: dict[str, str]) -> str:
     """Compose a stylesheet from a mode's token set."""
     check = _check_icon(ACCENT)
@@ -499,6 +540,15 @@ QPushButton {{
     border-radius: 7px;
     font-weight: 600;
 }}
+QPushButton::menu-indicator {{
+    image: {chevron_down};
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+    width: 12px;
+    height: 12px;
+    right: 7px;
+}}
+QPushButton::menu-indicator:pressed {{ image: {chevron_down_hi}; }}
 QPushButton:hover {{
     background-color: {t['surface_alt']};
     border: 1px solid {t['accent']};

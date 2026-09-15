@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from shlex import quote
 
-from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtCore import Qt, QSize, Signal, Slot
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -54,6 +54,7 @@ from bidoytu.storage.models import FlowRecord
 from bidoytu.ui.body_format import content_type_from_headers
 from bidoytu.ui.find_bar import FindBar
 from bidoytu.ui.message_view import RENDER_MODES, MessageView
+from bidoytu.ui.theme import ui_icon
 
 
 @dataclass(slots=True)
@@ -147,17 +148,19 @@ class RepeaterSession(QWidget):
         self._selected_send_label = "Send"
         self._update_send_menu()
 
-        # History navigation. Plain ASCII chevrons render in every font (the
-        # earlier ◀/▶ triangle glyphs came up blank in some bundled fonts). A
-        # fixed width keeps them square; when disabled the stylesheet paints
-        # them with the surface_alt cue so it's clear they aren't clickable.
-        self._prev_btn = QPushButton("\u2039")  # single left angle quote: ‹
+        # History navigation uses painted icons rather than font glyphs. A
+        # fixed width keeps the controls square in every build.
+        self._prev_btn = QPushButton()
+        self._prev_btn.setIcon(ui_icon("left"))
+        self._prev_btn.setIconSize(QSize(18, 18))
         self._prev_btn.setToolTip("Previous request in history")
         self._prev_btn.setFixedWidth(34)
         self._prev_btn.clicked.connect(lambda: self._navigate_history(-1))
         self._prev_btn.setEnabled(False)
 
-        self._next_btn = QPushButton("\u203a")  # single right angle quote: ›
+        self._next_btn = QPushButton()
+        self._next_btn.setIcon(ui_icon("right"))
+        self._next_btn.setIconSize(QSize(18, 18))
         self._next_btn.setToolTip("Next request in history")
         self._next_btn.setFixedWidth(34)
         self._next_btn.clicked.connect(lambda: self._navigate_history(1))

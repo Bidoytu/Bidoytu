@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 from bidoytu.ui.flow_table_model import FlowTableModel
 from bidoytu.ui.history_view import HistoryView
 from bidoytu.ui.intercept_view import InterceptView
+from bidoytu.ui.theme import ui_icon
 
 
 class _ScopeList(QWidget):
@@ -254,10 +255,9 @@ class ProxyTab(QWidget):
             self.target_toggle_btn.setAccessibleName("Minimize Target panel")
 
     def _set_target_toggle_icon(self, standard_icon: QStyle.StandardPixmap) -> None:
-        """Use Qt's native arrow icon so the control does not depend on fonts."""
-        self.target_toggle_btn.setIcon(
-            self.target_toggle_btn.style().standardIcon(standard_icon)
-        )
+        """Use a painted arrow so the icon is stable across Qt styles."""
+        name = "right" if standard_icon == QStyle.SP_ArrowRight else "left"
+        self.target_toggle_btn.setIcon(ui_icon(name))
 
     def _emit_scope_changed(self) -> None:
         self.scope_changed.emit(self.include_scope(), self.exclude_scope())
