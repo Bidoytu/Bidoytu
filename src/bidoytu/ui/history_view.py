@@ -5,15 +5,27 @@ exposes a context menu with "Send to Repeater/Intruder" actions.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QModelIndex, Qt, Signal, Slot
-from PySide6.QtGui import QAction, QKeySequence
+from dataclasses import replace
+
+from PySide6.QtCore import QEvent, QModelIndex, QTimer, Qt, Signal, Slot
+from PySide6.QtGui import QAction, QKeySequence, QColor, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
     QMenu,
+    QComboBox,
+    QFileDialog,
+    QColorDialog,
+    QInputDialog,
+    QListView,
+    QPushButton,
+    QHBoxLayout,
     QSplitter,
+    QStyle,
+    QStyleOptionViewItem,
     QTableView,
     QVBoxLayout,
+    QStyledItemDelegate,
     QWidget,
 )
 
@@ -21,6 +33,62 @@ from bidoytu.storage.models import FlowRecord
 from bidoytu.ui.detail_view import DetailView
 from bidoytu.ui.flow_table_model import FlowTableModel
 from bidoytu.ui.history_delegate import HistoryItemDelegate
+from bidoytu.storage.advanced_history import (
+    FilterSpec, deserialize_filter_spec, export_records, serialize_filter_spec,
+)
+from bidoytu.ui.history_filter_dialog import HistoryFilterDialog
+
+
+class _SavedFilterDelegate(QStyledItemDelegate):
+    """Paint saved-filter names with a compact delete affordance."""
+
+    def paint(self, painter: QPainter, option, index) -> None:
+        active = bool(option.state & (QStyle.State_Selected | QStyle.State_MouseOver))
+        if active:
+            painter.save()
+            painter.fillRect(option.rect, option.palette.highlight())
+            painter.restore()
+        item_option = QStyleOptionViewItem(option)
+        if index.row() > 0:
+            item_option.rect = option.rect.adjusted(6, 0, -28, 0)
+        super().paint(painter, item_option, index)
+        if index.row() > 0:
+            painter.save()
+            color = (option.palette.highlightedText().color()
+                     if active else option.palette.mid().color())
+            painter.setPen(color)
+            painter.drawText(
+                option.rect.adjusted(option.rect.width() - 28, 0, -6, 0),
+                int(Qt.AlignCenter), "×",
+            )
+            painter.restore()
+
+
+class _SavedFilterCombo(QComboBox):
+    delete_requested = Signal(str)
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        view = QListView()
+        view.setItemDelegate(_SavedFilterDelegate(view))
+        view.setMouseTracking(True)
+        view.viewport().installEventFilter(self)
+        self.setView(view)
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802 (Qt override)
+        if watched is self.view().viewport() and event.type() == QEvent.MouseButtonPress:
+            position = event.position().toPoint()
+            index = self.view().indexAt(position)
+            rect = self.view().visualRect(index)
+            if index.isValid() and index.row() > 0 and position.x() >= rect.right() - 30:
+                self.hidePopup()
+                name = str(index.data(Qt.DisplayRole))
+                # Let the combo finish closing its popup before opening the
+                # modal confirmation. Otherwise the popup can consume the
+                # first click and the dialog appears only after another click.
+                QTimer.singleShot(0, lambda: self.delete_requested.emit(name))
+                return True
+        return super().eventFilter(watched, event)
 
 
 class HistoryView(QWidget):
@@ -28,17 +96,58 @@ class HistoryView(QWidget):
 
     send_to_repeater = Signal(object)  # FlowRecord
     send_to_intruder = Signal(object)  # FlowRecord
+    send_to_scanner = Signal(object)
+    send_to_compare = Signal(object)
+    send_to_findings = Signal(object)
+    metadata_changed = Signal(object)
+    save_filter_requested = Signal(str, str)
+    delete_filter_requested = Signal(str)
+    load_filters_requested = Signal()
     body_provider = None  # set by owner: callable(record, response: bool) -> bytes|None
 
     def __init__(self, model: FlowTableModel, parent=None) -> None:
         super().__init__(parent)
         self._model = model
+        self._spec = FilterSpec()
         # Re-entrancy guard: our own resizeSection() calls emit sectionResized
         # again, which would recurse into the handler. Set while we adjust Path.
         self._resizing_guard = False
 
+        controls = QHBoxLayout()
+        self._filter_btn = QPushButton("Filter settings…")
+        self._filter_btn.setToolTip("Open HTTP history filter settings")
+        self._filter_btn.setFixedWidth(125)
+        self._filter_btn.clicked.connect(self._open_filter_settings)
+        controls.addWidget(self._filter_btn)
+        self._filter_summary = QPushButton("All traffic")
+        self._filter_summary.setEnabled(False)
+        self._filter_summary.setMinimumWidth(110)
+        controls.addWidget(self._filter_summary, 1)
+        self._method_combo = QComboBox()
+        self._method_combo.setToolTip("Filter by HTTP method")
+        self._method_combo.addItems(["All methods", "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
+        self._method_combo.setFixedWidth(165)
+        self._method_combo.currentTextChanged.connect(self._quick_method_filter)
+        self._status_combo = QComboBox()
+        self._status_combo.setToolTip("Filter by response status")
+        self._status_combo.addItems(["All statuses", "2xx", "3xx", "4xx", "5xx"])
+        self._status_combo.setFixedWidth(145)
+        self._status_combo.currentTextChanged.connect(self._quick_status_filter)
+        self._save_btn = QPushButton("Save filter")
+        self._save_btn.setFixedWidth(105)
+        self._save_btn.clicked.connect(self._save_filter)
+        self._export_btn = QPushButton("Export")
+        self._export_btn.setFixedWidth(80)
+        self._export_btn.clicked.connect(self._export)
+        controls.addWidget(self._method_combo)
+        controls.addWidget(self._status_combo)
+        controls.addWidget(self._save_btn)
+        controls.addWidget(self._export_btn)
+
         self._table = QTableView()
         self._table.setModel(model)
+        self._table.setSortingEnabled(True)
+        self._table.horizontalHeader().setSortIndicatorShown(True)
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SingleSelection)
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -68,6 +177,7 @@ class HistoryView(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(controls)
         layout.addWidget(splitter)
 
         self._table.selectionModel().selectionChanged.connect(self._on_selection)
@@ -256,13 +366,136 @@ class HistoryView(QWidget):
         if record is None:
             return
         menu = QMenu(self)
+        act_bookmark = menu.addAction("★ Toggle bookmark")
+        act_interesting = menu.addAction("Flag as interesting")
+        act_tag = menu.addAction("Add tag…")
+        act_note = menu.addAction("Edit note…")
+        act_color = menu.addAction("Set color…")
+        menu.addSeparator()
         act_rep = menu.addAction("Send to Repeater\tCtrl+R")
         act_int = menu.addAction("Send to Intruder\tCtrl+I")
+        act_scan = menu.addAction("Send to Scanner")
+        act_compare = menu.addAction("Send to Compare")
+        act_findings = menu.addAction("Send to Findings")
+        menu.addSeparator()
+        export_menu = menu.addMenu("Export selected as")
+        export_actions = {export_menu.addAction(label): fmt for label, fmt in
+                          (("Raw HTTP", "raw"), ("cURL", "curl"), ("HAR", "har"),
+                           ("JSON", "json"), ("CSV", "csv"))}
         chosen = menu.exec(self._table.viewport().mapToGlobal(pos))
-        if chosen == act_rep:
+        if chosen == act_bookmark:
+            record.bookmarked = not record.bookmarked; self.metadata_changed.emit(record)
+        elif chosen == act_interesting:
+            record.interesting = not record.interesting; self.metadata_changed.emit(record)
+        elif chosen == act_tag:
+            tag, ok = QInputDialog.getText(self, "Add tag", "Tag:")
+            if ok and tag.strip():
+                tags = [t.strip() for t in record.tags.split(",") if t.strip()]
+                if tag.strip() not in tags: tags.append(tag.strip())
+                record.tags = ", ".join(tags); self.metadata_changed.emit(record)
+        elif chosen == act_note:
+            note, ok = QInputDialog.getMultiLineText(self, "Edit note", "Note:", record.notes)
+            if ok:
+                record.notes = note; self.metadata_changed.emit(record)
+        elif chosen == act_color:
+            color = QColorDialog.getColor(QColor(record.color or "#000000"), self, "History row color")
+            if color.isValid():
+                record.color = color.name(); self.metadata_changed.emit(record)
+        elif chosen == act_rep:
             self.send_to_repeater.emit(record)
         elif chosen == act_int:
             self.send_to_intruder.emit(record)
+        elif chosen == act_scan: self.send_to_scanner.emit(record)
+        elif chosen == act_compare: self.send_to_compare.emit(record)
+        elif chosen == act_findings: self.send_to_findings.emit(record)
+        elif chosen in export_actions:
+            self._export(fmt=export_actions[chosen], records=[record])
+
+    def _apply_filters(self) -> None:
+        self._model.apply_filter(self._spec)
+
+    def _open_filter_settings(self) -> None:
+        dialog = HistoryFilterDialog(self._spec, self)
+        dialog.filter_applied.connect(self._set_filter)
+        if dialog.exec() == dialog.Accepted:
+            self._set_filter(dialog.applied_spec())
+
+    def _set_filter(self, spec: FilterSpec) -> None:
+        self._spec = spec
+        self._model.apply_filter(spec)
+        self._method_combo.blockSignals(True)
+        method_index = self._method_combo.findText(spec.method or "All methods")
+        self._method_combo.setCurrentIndex(max(0, method_index))
+        self._method_combo.blockSignals(False)
+        self._status_combo.blockSignals(True)
+        status_value = next(iter(spec.status_classes), "") if len(spec.status_classes) == 1 else ""
+        status_index = self._status_combo.findText(status_value or "All statuses")
+        self._status_combo.setCurrentIndex(max(0, status_index))
+        self._status_combo.blockSignals(False)
+        active = []
+        if spec.search: active.append("search")
+        if spec.query: active.append("HTTPQL")
+        if spec.in_scope_only: active.append("scope")
+        if spec.mime_types: active.append("MIME")
+        if spec.status_classes: active.append("status")
+        self._filter_summary.setText("All traffic" if not active else "Filters: " + ", ".join(active))
+
+    def _quick_method_filter(self, value: str) -> None:
+        method = "" if value == "All methods" else value
+        self._set_filter(replace(self._spec, method=method))
+
+    def _quick_status_filter(self, value: str) -> None:
+        classes = set() if value == "All statuses" else {value}
+        self._set_filter(replace(self._spec, status="", status_classes=classes))
+
+    def _save_filter(self) -> None:
+        name, ok = QInputDialog.getText(self, "Save filter", "Name:")
+        if ok and name.strip():
+            self.save_filter_requested.emit(name.strip(), serialize_filter_spec(self._spec))
+
+    def set_saved_filters(self, filters: list[tuple[str, str]]) -> None:
+        """Populate the saved-filter picker without coupling the widget to SQLite."""
+        toolbar = self.layout().itemAt(0).layout()
+        if hasattr(self, "_saved_filter_container"):
+            toolbar.removeWidget(self._saved_filter_container)
+            self._saved_filter_container.deleteLater()
+        combo = _SavedFilterCombo(self)
+        combo.addItem("Saved filters…", "")
+        for name, query in filters:
+            combo.addItem(name, query)
+        combo.currentIndexChanged.connect(
+            lambda index: self._load_saved_query(combo.itemData(index))
+        )
+        combo.delete_requested.connect(self._confirm_delete_saved_filter)
+        self._saved_filters = combo
+        self._saved_filter_container = combo
+        toolbar.insertWidget(0, combo)
+
+    def _confirm_delete_saved_filter(self, name: str) -> None:
+        from PySide6.QtWidgets import QMessageBox
+        answer = QMessageBox.question(
+            self, "Delete saved filter", f"Delete '{name}'?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if answer == QMessageBox.Yes:
+            self.delete_filter_requested.emit(name)
+
+    def _load_saved_query(self, query: str) -> None:
+        self._set_filter(deserialize_filter_spec(str(query)))
+
+    def _export(self, fmt: str | None = None, records=None) -> None:
+        if fmt is None:
+            fmt, ok = QInputDialog.getItem(self, "Export history", "Format:",
+                ["raw", "curl", "har", "json", "csv"], 0, False)
+            if not ok: return
+        path, _ = QFileDialog.getSaveFileName(self, "Export HTTP history", f"history.{fmt}")
+        if not path: return
+        try:
+            text = export_records(records or self._model.visible_records(), fmt, self.body_provider)
+            with open(path, "w", encoding="utf-8", newline="") as handle: handle.write(text)
+        except (OSError, ValueError) as exc:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Export failed", str(exc))
 
     def _emit_repeater(self) -> None:
         record = self._selected_record()

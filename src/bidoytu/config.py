@@ -129,6 +129,8 @@ class AppConfig:
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
     collaborator: CollaboratorConfig = field(default_factory=CollaboratorConfig)
     body_inline_limit: int = 64 * 1024  # 64 KiB
+    history_max_rows: int = 0  # 0 means unlimited
+    history_max_age_days: int = 0  # 0 means unlimited
 
     @property
     def db_path(self) -> Path:

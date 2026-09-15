@@ -14,8 +14,10 @@ from __future__ import annotations
 from typing import Optional
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtGui import QColor
 
 from bidoytu.storage.models import FlowRecord
+from bidoytu.storage.advanced_history import FilterSpec, matches
 
 
 class FlowTableModel(QAbstractTableModel):
@@ -27,6 +29,8 @@ class FlowTableModel(QAbstractTableModel):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._rows: list[FlowRecord] = []
+        self._all_rows: list[FlowRecord] = []
+        self._filter = FilterSpec()
         self._index_by_flow_id: dict[str, int] = {}
 
     # -- Qt model interface ---------------------------------------------------
@@ -50,13 +54,18 @@ class FlowTableModel(QAbstractTableModel):
         record = self._rows[index.row()]
         if role == Qt.DisplayRole:
             return self._display(record, index.column())
+        if role == Qt.BackgroundRole and record.color:
+            color = QColor(record.color)
+            color.setAlpha(55)
+            return color
         if role == Qt.TextAlignmentRole and index.column() in (0, 5, 7, 9):
             return int(Qt.AlignRight | Qt.AlignVCenter)
         return None
 
     def _display(self, r: FlowRecord, col: int) -> str:
         if col == 0:
-            return str(r.id if r.id is not None else "")
+            marker = "★ " if r.bookmarked else ("! " if r.interesting else "")
+            return marker + str(r.id if r.id is not None else "")
         if col == 1:
             return r.method
         if col == 2:
@@ -90,22 +99,17 @@ class FlowTableModel(QAbstractTableModel):
 
         Called from the UI thread in response to proxy signals.
         """
-        existing_row = self._index_by_flow_id.get(record.flow_id)
-        if existing_row is None:
-            row = len(self._rows)
-            self.beginInsertRows(QModelIndex(), row, row)
-            self._rows.append(record)
-            self._index_by_flow_id[record.flow_id] = row
-            self.endInsertRows()
+        source_index = next((i for i, r in enumerate(self._all_rows) if r.flow_id == record.flow_id), None)
+        if source_index is None:
+            self._all_rows.append(record)
         else:
-            self._rows[existing_row] = record
-            top = self.index(existing_row, 0)
-            bottom = self.index(existing_row, self.columnCount() - 1)
-            self.dataChanged.emit(top, bottom)
+            self._all_rows[source_index] = record
+        self.apply_filter(self._filter)
 
     def load_records(self, records: list[FlowRecord]) -> None:
         """Replace all rows (e.g. when loading history from the database)."""
         self.beginResetModel()
+        self._all_rows = list(records)
         self._rows = list(records)
         self._index_by_flow_id = {
             r.flow_id: i for i, r in enumerate(self._rows)
@@ -115,5 +119,32 @@ class FlowTableModel(QAbstractTableModel):
     def clear(self) -> None:
         self.beginResetModel()
         self._rows.clear()
+        self._all_rows.clear()
         self._index_by_flow_id.clear()
         self.endResetModel()
+
+    def apply_filter(self, spec: FilterSpec) -> None:
+        self._filter = spec
+        self.beginResetModel()
+        self._rows = [r for r in self._all_rows if matches(r, spec)]
+        self._index_by_flow_id = {r.flow_id: i for i, r in enumerate(self._rows)}
+        self.endResetModel()
+
+    def all_records(self) -> list[FlowRecord]:
+        return list(self._all_rows)
+
+    def visible_records(self) -> list[FlowRecord]:
+        return list(self._rows)
+
+    def sort(self, column: int, order: Qt.SortOrder = Qt.AscendingOrder) -> None:
+        """Sort the source rows while keeping the active History filter applied."""
+        key_names = ("id", "method", "host", "path", "extension", "status_code",
+                     "mime_type", "response_body_size", "cookies", "duration_ms")
+        if not 0 <= column < len(key_names):
+            return
+        key_name = key_names[column]
+        def key(record: FlowRecord):
+            value = getattr(record, key_name)
+            return (value is None, value if value is not None else "")
+        self._all_rows.sort(key=key, reverse=order == Qt.DescendingOrder)
+        self.apply_filter(self._filter)

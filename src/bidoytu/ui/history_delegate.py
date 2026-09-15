@@ -48,6 +48,9 @@ class HistoryItemDelegate(QStyledItemDelegate):
 
         # 1) Base background. The view already fills the viewport with the
         #    base/alt-base colours, so we only add the soft wash on selection.
+        row_bg = index.data(Qt.BackgroundRole)
+        if row_bg and not selected:
+            painter.fillRect(rect, row_bg)
         if selected:
             painter.fillRect(rect, _selection_fill(mode))
 

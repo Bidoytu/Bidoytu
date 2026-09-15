@@ -7,7 +7,7 @@ its input via :meth:`activate`.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QKeyEvent, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QWidget,
 )
+from bidoytu.ui.theme import ui_icon
 
 
 class FindBar(QWidget):
@@ -39,17 +40,23 @@ class FindBar(QWidget):
         self._status = QLabel("")
         self._status.setStyleSheet("color: gray;")
 
-        prev_btn = QPushButton("\u25b2")  # up triangle
+        prev_btn = QPushButton()
+        prev_btn.setIcon(ui_icon("up"))
+        prev_btn.setIconSize(QSize(18, 18))
         prev_btn.setToolTip("Previous (Shift+Enter)")
         prev_btn.setMaximumWidth(28)
         prev_btn.clicked.connect(lambda: self._find(forward=False))
 
-        next_btn = QPushButton("\u25bc")  # down triangle
+        next_btn = QPushButton()
+        next_btn.setIcon(ui_icon("down"))
+        next_btn.setIconSize(QSize(18, 18))
         next_btn.setToolTip("Next (Enter)")
         next_btn.setMaximumWidth(28)
         next_btn.clicked.connect(lambda: self._find(forward=True))
 
-        close_btn = QPushButton("\u2715")  # x
+        close_btn = QPushButton()
+        close_btn.setIcon(ui_icon("close"))
+        close_btn.setIconSize(QSize(18, 18))
         close_btn.setMaximumWidth(28)
         close_btn.clicked.connect(self.hide)
 
