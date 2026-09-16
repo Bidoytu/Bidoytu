@@ -142,6 +142,8 @@ class CollaboratorConfig:
     servers: list[str] = field(default_factory=lambda: list(DEFAULT_OAST_SERVERS))
     token: str = ""
     poll_interval_secs: int = 10
+    allow_http_fallback: bool = False
+    max_interactions: int = 10000
 
 
 @dataclass(slots=True)

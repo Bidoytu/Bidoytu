@@ -3,11 +3,13 @@
 Bidoytu's equivalent of Burp Collaborator, backed by free public Interactsh
 servers (or a self-hosted one). Workflow:
 
-1. Pick a server and click **Register** (done automatically on first use).
-2. Click **Copy payload** to get a unique hostname; paste it into a request
+1. Pick a server and click **Register**. A unique payload is immediately shown
+   and copied to the clipboard.
+2. Paste the payload into a request
    (SSRF target, XSS sink, XXE SYSTEM url, log4shell ``${jndi:ldap://...}``,
    blind SQLi ``, etc.). Each payload is unique and correlates back here.
-3. Bidoytu polls the server on an interval; any DNS / HTTP / SMTP callback the
+3. Click **New payload** whenever a fresh hostname is needed. Bidoytu polls the
+   server on an interval; any DNS / HTTP / SMTP callback the
    target makes to a payload shows up in the interactions table with the raw
    request, source IP and timestamp.
 
@@ -19,14 +21,20 @@ before touching any widget - the same idiom Repeater uses.
 """
 from __future__ import annotations
 
+import base64
+import ctypes
+import hashlib
 import json
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, Signal, Slot
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QCheckBox,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
@@ -39,6 +47,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QSplitter,
     QTableView,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -72,6 +81,7 @@ class CollaboratorTab(QWidget):
     # Private signals used to marshal sender-thread callbacks to the UI thread.
     _register_ready = Signal(bool, str)          # ok, server
     _poll_ready = Signal(object, str)            # list[Interaction], error
+    _keepalive_ready = Signal(bool, str)
 
     def __init__(self, sender: AsyncHttpSender,
                  config: CollaboratorConfig, parent=None) -> None:
@@ -84,6 +94,9 @@ class CollaboratorTab(QWidget):
         self._payloads: list[dict] = []  # {"host":..., "note":...}
         self._seen_ids: set[str] = set()  # de-dupe interactions by unique-id
         self._auto_poll = False
+        self._poll_in_flight = False
+        self._keepalive_in_flight = False
+        self._last_poll_at = ""
 
         self._model = InteractionsModel(self)
         self._proxy = InteractionFilterProxy(self)
@@ -91,9 +104,13 @@ class CollaboratorTab(QWidget):
 
         self._register_ready.connect(self._on_registered)
         self._poll_ready.connect(self._on_polled)
+        self._keepalive_ready.connect(self._on_keepalive_result)
 
         self._poll_timer = QTimer(self)
         self._poll_timer.timeout.connect(self._do_poll)
+        self._keepalive_timer = QTimer(self)
+        self._keepalive_timer.setInterval(45 * 1000)
+        self._keepalive_timer.timeout.connect(self._do_keepalive)
 
         self._build_ui()
         self._refresh_controls()
@@ -112,8 +129,27 @@ class CollaboratorTab(QWidget):
 
         self._token_edit = QLineEdit()
         self._token_edit.setPlaceholderText("Auth token (optional)")
+        self._token_edit.setEchoMode(QLineEdit.Password)
         self._token_edit.setText(self._config.token)
         self._token_edit.setMaximumWidth(180)
+        self._token_show_btn = QToolButton()
+        self._token_show_btn.setCheckable(True)
+        self._token_show_btn.setToolTip("Show or hide the authentication token")
+        self._token_show_btn.setAccessibleName("Show or hide authentication token")
+        self._token_show_btn.toggled.connect(
+            self._set_token_visibility
+        )
+        self._set_token_visibility(False)
+
+        self._http_fallback_check = QCheckBox("Allow HTTP fallback")
+        self._http_fallback_check.setChecked(self._config.allow_http_fallback)
+        self._http_fallback_check.setToolTip(
+            "Allow insecure HTTP registration when HTTPS is unavailable. "
+            "Use only with a trusted self-hosted server."
+        )
+        self._http_fallback_check.toggled.connect(
+            lambda value: setattr(self._config, "allow_http_fallback", value)
+        )
 
         self._register_btn = QPushButton("Register")
         self._register_btn.clicked.connect(self._on_register_clicked)
@@ -125,6 +161,8 @@ class CollaboratorTab(QWidget):
         row1.addWidget(QLabel("Server:"))
         row1.addWidget(self._server_combo, 1)
         row1.addWidget(self._token_edit)
+        row1.addWidget(self._token_show_btn)
+        row1.addWidget(self._http_fallback_check)
         row1.addWidget(self._register_btn)
         row1.addWidget(self._status_label, 1)
 
@@ -134,28 +172,29 @@ class CollaboratorTab(QWidget):
         self._payload_edit.setPlaceholderText(
             "Register, then generate a payload to paste into a target"
         )
+        self._payload_history = QComboBox()
+        self._payload_history.setMinimumWidth(240)
+        self._payload_history.setToolTip("Previously generated payloads")
+        self._payload_history.currentTextChanged.connect(self._payload_edit.setText)
 
-        self._generate_btn = QPushButton("Generate payload")
+        self._generate_btn = QPushButton("New payload")
         self._generate_btn.clicked.connect(self._on_generate)
         self._copy_btn = QPushButton("Copy")
         self._copy_btn.setToolTip("Copy the payload to the clipboard")
         self._copy_btn.clicked.connect(self._on_copy)
-
-        self._count_spin = QSpinBox()
-        self._count_spin.setRange(1, 500)
-        self._count_spin.setValue(1)
-        self._count_spin.setToolTip("How many payloads to generate at once")
-        self._generate_n_btn = QPushButton("Generate N")
-        self._generate_n_btn.setToolTip("Generate several payloads and copy them all")
-        self._generate_n_btn.clicked.connect(self._on_generate_n)
+        self._clear_payloads_btn = QPushButton("Clear payloads")
+        self._clear_payloads_btn.setToolTip(
+            "Remove all locally saved payloads from the history"
+        )
+        self._clear_payloads_btn.clicked.connect(self._on_clear_payloads)
 
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("Payload:"))
         row2.addWidget(self._payload_edit, 1)
+        row2.addWidget(self._payload_history)
         row2.addWidget(self._copy_btn)
+        row2.addWidget(self._clear_payloads_btn)
         row2.addWidget(self._generate_btn)
-        row2.addWidget(self._count_spin)
-        row2.addWidget(self._generate_n_btn)
 
         # Row 3: polling controls + filter + export/clear.
         self._poll_btn = QPushButton("Start polling")
@@ -173,7 +212,9 @@ class CollaboratorTab(QWidget):
         self._interval_spin.valueChanged.connect(self._on_interval_changed)
 
         self._proto_filter = QComboBox()
-        self._proto_filter.addItems(["All", "DNS", "HTTP", "SMTP", "LDAP", "FTP"])
+        self._proto_filter.addItems([
+            "All", "DNS", "HTTP", "SMTP", "LDAP", "FTP", "SMB", "Responder"
+        ])
         self._proto_filter.currentTextChanged.connect(self._on_proto_filter)
 
         self._search_edit = QLineEdit()
@@ -214,6 +255,10 @@ class CollaboratorTab(QWidget):
         header = self._table.horizontalHeader()
         header.setStretchLastSection(True)
         header.setSectionResizeMode(QHeaderView.Interactive)
+        for column, width in {
+            0: 45, 1: 95, 2: 85, 3: 360, 4: 140, 5: 90,
+        }.items():
+            self._table.setColumnWidth(column, width)
         self._table.sortByColumn(COL_INDEX, Qt.AscendingOrder)
         sel = self._table.selectionModel()
         sel.currentRowChanged.connect(self._on_row_selected)
@@ -278,16 +323,20 @@ class CollaboratorTab(QWidget):
                 servers.append(s)
         token = self._token_edit.text().strip()
         self._config.token = token
+        if chosen and chosen not in self._config.servers:
+            self._config.servers.insert(0, chosen)
         self._status_label.setText("Registering...")
         self._status_label.setStyleSheet("color: orange;")
         self._register_btn.setEnabled(False)
         self._client.register(
             servers, token,
             lambda ok, server: self._register_ready.emit(ok, server),
+            allow_http_fallback=self._config.allow_http_fallback,
         )
 
     def _deregister(self) -> None:
         self._stop_polling()
+        self._keepalive_timer.stop()
         self._client.deregister()
         self._status_label.setText("Not registered")
         self._status_label.setStyleSheet("color: gray;")
@@ -304,6 +353,7 @@ class CollaboratorTab(QWidget):
             if self._server_combo.currentText().strip() != netloc:
                 self._server_combo.setEditText(netloc)
             # Begin polling automatically once registered.
+            self._create_payload(copy_to_clipboard=True)
             self._start_polling()
         else:
             msg = server or "registration failed"
@@ -323,42 +373,69 @@ class CollaboratorTab(QWidget):
         return False
 
     def _on_generate(self) -> None:
+        self._create_payload(copy_to_clipboard=True)
+
+    def _create_payload(self, *, copy_to_clipboard: bool = False,
+                        note: str = "") -> str | None:
         if not self._ensure_registered():
-            return
+            return None
         try:
             host = self._client.new_payload()
         except InteractshError as exc:
             QMessageBox.warning(self, "Payload error", str(exc))
-            return
-        self._payloads.append({"host": host, "note": ""})
+            return None
+        self._payloads.append({"host": host, "note": note})
+        self._payload_history.addItem(host)
+        self._payload_history.setCurrentText(host)
         self._payload_edit.setText(host)
-        self._copy_to_clipboard(host)
+        self._clear_payloads_btn.setEnabled(True)
+        if copy_to_clipboard:
+            self._copy_to_clipboard(host)
+        return host
 
     def _on_copy(self) -> None:
         text = self._payload_edit.text().strip()
         if text:
             self._copy_to_clipboard(text)
 
-    def _on_generate_n(self) -> None:
-        if not self._ensure_registered():
+    def _set_token_visibility(self, visible: bool) -> None:
+        self._token_edit.setEchoMode(
+            QLineEdit.Normal if visible else QLineEdit.Password
+        )
+        icon_name = "view-hidden" if visible else "view-visible"
+        icon = QIcon.fromTheme(icon_name)
+        if icon.isNull():
+            # Windows commonly has no freedesktop icon theme. Use clear,
+            # professional text rather than an ambiguous decorative glyph.
+            self._token_show_btn.setIcon(QIcon())
+            self._token_show_btn.setText("Hide" if visible else "Show")
+        else:
+            self._token_show_btn.setText("")
+            self._token_show_btn.setIcon(icon)
+        self._token_show_btn.setToolTip(
+            "Hide authentication token" if visible else "Show authentication token"
+        )
+
+    def _on_clear_payloads(self) -> None:
+        if not self._payloads:
             return
-        n = self._count_spin.value()
-        hosts: list[str] = []
-        try:
-            for _ in range(n):
-                host = self._client.new_payload()
-                hosts.append(host)
-                self._payloads.append({"host": host, "note": ""})
-        except InteractshError as exc:
-            QMessageBox.warning(self, "Payload error", str(exc))
+        choice = QMessageBox.question(
+            self,
+            "Clear payloads",
+            "Remove all locally saved payloads from the history?\n\n"
+            "Existing payloads may still receive callbacks, but they will no "
+            "longer be labelled here.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if choice != QMessageBox.Yes:
             return
-        if hosts:
-            self._payload_edit.setText(hosts[-1])
-            self._copy_to_clipboard("\n".join(hosts))
-            self._status_label.setText(
-                f"Generated {len(hosts)} payloads (copied to clipboard)"
-            )
-            self._status_label.setStyleSheet("color: #2ecc71;")
+        self._payloads.clear()
+        self._payload_history.clear()
+        self._payload_edit.clear()
+        self._clear_payloads_btn.setEnabled(False)
+        self._status_label.setText("Payload history cleared")
+        self._status_label.setStyleSheet("color: #3498db;")
 
     def _copy_to_clipboard(self, text: str) -> None:
         clip = QGuiApplication.clipboard()
@@ -382,6 +459,7 @@ class CollaboratorTab(QWidget):
         self._poll_btn.setChecked(True)
         self._poll_btn.setText("Stop polling")
         self._poll_timer.start(self._interval_spin.value() * 1000)
+        self._keepalive_timer.start()
         self._do_poll()
 
     def _stop_polling(self) -> None:
@@ -396,14 +474,40 @@ class CollaboratorTab(QWidget):
             self._poll_timer.start(value * 1000)
 
     def _do_poll(self) -> None:
-        if not self._client.registered:
+        if not self._client.registered or self._poll_in_flight:
             return
+        self._poll_in_flight = True
+        self._poll_now_btn.setEnabled(False)
+        self._status_label.setText("Polling…")
+        self._status_label.setStyleSheet("color: #3498db;")
         self._client.poll(
             lambda interactions, error: self._poll_ready.emit(interactions, error)
         )
 
+    def _do_keepalive(self) -> None:
+        if not self._client.registered or self._keepalive_in_flight:
+            return
+        self._keepalive_in_flight = True
+        self._client.keep_alive(
+            lambda ok, error: self._keepalive_ready.emit(ok, error)
+        )
+
+    def _on_keepalive_result(self, ok: bool, error: str) -> None:
+        self._keepalive_in_flight = False
+        if not ok:
+            if not self._client.registered and self._auto_poll:
+                self._stop_polling()
+                self._status_label.setText("Session expired; re-registering…")
+                self._register()
+                return
+            self._status_label.setText(f"Session keep-alive failed: {error}")
+            self._status_label.setStyleSheet("color: #e67e22;")
+
     @Slot(object, str)
     def _on_polled(self, interactions: list, error: str) -> None:
+        self._poll_in_flight = False
+        self._poll_now_btn.setEnabled(self._client.registered)
+        self._last_poll_at = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
         if error:
             # Keep polling but surface transient errors quietly in the status.
             self._status_label.setText(f"Poll error: {error}")
@@ -411,14 +515,18 @@ class CollaboratorTab(QWidget):
             return
         new_count = 0
         for interaction in interactions:
-            uid = interaction.unique_id or interaction.full_id
-            if uid and uid in self._seen_ids:
+            uid = _interaction_key(interaction)
+            if uid in self._seen_ids:
                 continue
-            if uid:
-                self._seen_ids.add(uid)
+            self._seen_ids.add(uid)
             label = self._label_for(interaction)
             self._model.add_interaction(interaction, payload_label=label)
             new_count += 1
+        removed = self._model.trim_to(self._config.max_interactions)
+        if removed:
+            self._seen_ids = {
+                _interaction_key(row.interaction) for row in self._model.all_rows()
+            }
         if new_count:
             self._table.scrollToBottom()
             server = self._client.server.split("://", 1)[-1]
@@ -427,12 +535,20 @@ class CollaboratorTab(QWidget):
             )
             self._status_label.setStyleSheet("color: #2ecc71;")
             self.interactions_received.emit(new_count)
+        else:
+            server = self._client.server.split("://", 1)[-1]
+            self._status_label.setText(
+                f"Polling @ {server} - no new interactions (last poll {self._last_poll_at})"
+            )
+            self._status_label.setStyleSheet("color: #2ecc71;")
 
     def _label_for(self, interaction: Interaction) -> str:
         """Best-effort correlate an interaction back to a generated payload."""
         full = (interaction.full_id or "").lower()
         for entry in self._payloads:
-            host = entry["host"].lower()
+            if not isinstance(entry, dict):
+                continue
+            host = str(entry.get("host", "")).lower()
             # full_id is the host that was hit; match on the unique nonce part.
             nonce = host.split(".", 1)[0]
             if nonce and nonce in full:
@@ -538,6 +654,11 @@ class CollaboratorTab(QWidget):
         self._proxy.set_protocol("" if text == "All" else text)
 
     def _on_clear(self) -> None:
+        if self._model.rowCount() and QMessageBox.question(
+            self, "Clear interactions", "Clear all captured interactions?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        ) != QMessageBox.Yes:
+            return
         self._model.clear()
         self._seen_ids.clear()
         self._clear_detail()
@@ -566,7 +687,12 @@ class CollaboratorTab(QWidget):
 
     @staticmethod
     def _export_json(path: Path, rows) -> None:
-        data = [r.interaction.to_dict() for r in rows]
+        data = []
+        for r in rows:
+            item = r.interaction.to_dict()
+            item["payload_label"] = r.payload_label
+            item["note"] = r.note
+            data.append(item)
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     @staticmethod
@@ -576,25 +702,28 @@ class CollaboratorTab(QWidget):
         with path.open("w", newline="", encoding="utf-8") as fh:
             writer = csv.writer(fh)
             writer.writerow(
-                ["#", "timestamp", "protocol", "full-id", "source", "q-type"]
+                ["#", "timestamp", "protocol", "full-id", "source", "q-type",
+                 "payload", "note", "raw-request", "raw-response"]
             )
             for r in rows:
                 it = r.interaction
                 writer.writerow([
                     r.index + 1, it.timestamp, it.protocol,
                     it.full_id, it.remote_address, it.q_type,
+                    r.payload_label, r.note, it.raw_request, it.raw_response,
                 ])
 
     def _refresh_controls(self) -> None:
         registered = self._client.registered
         self._register_btn.setText("Deregister" if registered else "Register")
         self._generate_btn.setEnabled(registered)
-        self._generate_n_btn.setEnabled(registered)
         self._copy_btn.setEnabled(registered)
         self._poll_btn.setEnabled(registered)
         self._poll_now_btn.setEnabled(registered)
         self._server_combo.setEnabled(not registered)
         self._token_edit.setEnabled(not registered)
+        self._http_fallback_check.setEnabled(not registered)
+        self._clear_payloads_btn.setEnabled(bool(self._payloads))
 
     # -- annotate a payload (used when inserting into Repeater/Intruder) ------
 
@@ -611,9 +740,7 @@ class CollaboratorTab(QWidget):
         :class:`InteractshError` if not registered.
         """
         host = self._client.new_payload()
-        self._payloads.append({"host": host, "note": note})
-        self._payload_edit.setText(host)
-        return host
+        return self._create_payload(note=note)
 
     @property
     def is_registered(self) -> bool:
@@ -624,11 +751,20 @@ class CollaboratorTab(QWidget):
     def save_state(self, path: Path) -> None:
         """Persist the session, generated payloads, and interactions to JSON."""
         info = self._client.session_info()
+        session = _session_to_dict(info) if info else None
+        protected_session = _protect_session(session) if session else None
         payload = {
-            "session": _session_to_dict(info) if info else None,
+            "session": None if protected_session else session,
+            "session_protected": protected_session,
             "payloads": self._payloads,
-            "interactions": [r.interaction.to_dict() for r in self._model.all_rows()],
+            "interactions": [
+                {**r.interaction.to_dict(), "payload_label": r.payload_label, "note": r.note}
+                for r in self._model.all_rows()
+            ],
             "poll_interval": self._interval_spin.value(),
+            "servers": self._config.servers,
+            "allow_http_fallback": self._config.allow_http_fallback,
+            "max_interactions": self._config.max_interactions,
         }
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -648,21 +784,45 @@ class CollaboratorTab(QWidget):
             return
 
         self._payloads = list(payload.get("payloads", []))
+        self._payload_history.clear()
+        for item in self._payloads:
+            host = item.get("host", "") if isinstance(item, dict) else ""
+            if host:
+                self._payload_history.addItem(host)
+        self._clear_payloads_btn.setEnabled(bool(self._payloads))
+        saved_servers = payload.get("servers")
+        if isinstance(saved_servers, list):
+            self._config.servers = [str(s) for s in saved_servers if str(s).strip()]
+            self._server_combo.clear()
+            self._server_combo.addItems(self._config.servers)
+        if "allow_http_fallback" in payload:
+            self._config.allow_http_fallback = bool(payload["allow_http_fallback"])
+            self._http_fallback_check.setChecked(self._config.allow_http_fallback)
+        if "max_interactions" in payload:
+            self._config.max_interactions = max(100, int(payload["max_interactions"]))
         for item in payload.get("interactions", []):
             try:
                 interaction = Interaction.from_dict(item)
             except Exception:  # noqa: BLE001
                 continue
-            uid = interaction.unique_id or interaction.full_id
-            if uid:
-                self._seen_ids.add(uid)
+            self._seen_ids.add(_interaction_key(interaction))
             self._model.add_interaction(
-                interaction, payload_label=self._label_for(interaction)
+                interaction,
+                payload_label=item.get("payload_label") or self._label_for(interaction),
+                note=item.get("note", ""),
             )
+        self._model.trim_to(self._config.max_interactions)
         interval = int(payload.get("poll_interval", self._config.poll_interval_secs))
         self._interval_spin.setValue(max(2, min(300, interval)))
 
         session = payload.get("session")
+        if payload.get("session_protected"):
+            try:
+                session = _unprotect_session(payload["session_protected"])
+            except (ValueError, OSError):
+                self._status_label.setText("Could not decrypt saved Collaborator session")
+                self._status_label.setStyleSheet("color: #c0392b;")
+                return
         if session:
             info = _session_from_dict(session)
             self._status_label.setText("Restoring session...")
@@ -674,6 +834,7 @@ class CollaboratorTab(QWidget):
     def shutdown(self) -> None:
         """Stop polling and deregister on application close (best-effort)."""
         self._stop_polling()
+        self._keepalive_timer.stop()
         if self._client.registered:
             self._client.deregister()
 
@@ -700,6 +861,19 @@ def _split_http_message(raw: str) -> tuple[str, str, str]:
     return start_line, headers, body
 
 
+def _interaction_key(interaction: Interaction) -> str:
+    """Return a stable dedupe key, including records with empty IDs."""
+    explicit = interaction.unique_id or interaction.full_id
+    if explicit:
+        return f"id:{explicit.lower()}"
+    material = "\x1f".join((
+        interaction.protocol, interaction.timestamp, interaction.remote_address,
+        interaction.q_type, interaction.smtp_from,
+        interaction.raw_request, interaction.raw_response,
+    ))
+    return "hash:" + hashlib.sha256(material.encode("utf-8", "replace")).hexdigest()
+
+
 def _session_to_dict(info: SessionInfo) -> dict:
     return {
         "server": info.server,
@@ -720,3 +894,59 @@ def _session_from_dict(data: dict) -> SessionInfo:
         public_key_b64=data.get("public_key_b64", ""),
         token=data.get("token", ""),
     )
+
+
+def _protect_session(value: dict) -> str | None:
+    """Encrypt session keys with the current Windows user's DPAPI key."""
+    if os.name != "nt":
+        return None
+    class _Blob(ctypes.Structure):
+        _fields_ = [("cbData", ctypes.c_ulong),
+                    ("pbData", ctypes.POINTER(ctypes.c_byte))]
+    raw = json.dumps(value).encode("utf-8")
+    source = ctypes.create_string_buffer(raw)
+    source_blob = _Blob(len(raw), ctypes.cast(source, ctypes.POINTER(ctypes.c_byte)))
+    result_blob = _Blob()
+    api = ctypes.windll.crypt32.CryptProtectData
+    api.argtypes = [ctypes.POINTER(_Blob), ctypes.c_wchar_p,
+                    ctypes.POINTER(_Blob), ctypes.c_void_p, ctypes.c_void_p,
+                    ctypes.c_ulong, ctypes.POINTER(_Blob)]
+    api.restype = ctypes.c_bool
+    if not api(ctypes.byref(source_blob), "Bidoytu Collaborator session",
+               None, None, None, 0, ctypes.byref(result_blob)):
+        return None
+    try:
+        return base64.b64encode(
+            ctypes.string_at(result_blob.pbData, result_blob.cbData)
+        ).decode("ascii")
+    finally:
+        ctypes.windll.kernel32.LocalFree(result_blob.pbData)
+
+
+def _unprotect_session(encoded: str) -> dict:
+    if os.name != "nt":
+        raise ValueError("encrypted session requires Windows")
+    class _Blob(ctypes.Structure):
+        _fields_ = [("cbData", ctypes.c_ulong),
+                    ("pbData", ctypes.POINTER(ctypes.c_byte))]
+    raw = base64.b64decode(encoded)
+    source = ctypes.create_string_buffer(raw)
+    source_blob = _Blob(len(raw), ctypes.cast(source, ctypes.POINTER(ctypes.c_byte)))
+    result_blob = _Blob()
+    api = ctypes.windll.crypt32.CryptUnprotectData
+    api.argtypes = [ctypes.POINTER(_Blob), ctypes.c_void_p,
+                    ctypes.POINTER(_Blob), ctypes.c_void_p, ctypes.c_void_p,
+                    ctypes.c_ulong, ctypes.POINTER(_Blob)]
+    api.restype = ctypes.c_bool
+    if not api(ctypes.byref(source_blob), None, None, None, None, 0,
+               ctypes.byref(result_blob)):
+        raise ValueError("DPAPI decryption failed")
+    try:
+        value = json.loads(
+            ctypes.string_at(result_blob.pbData, result_blob.cbData).decode("utf-8")
+        )
+        if not isinstance(value, dict):
+            raise ValueError("invalid encrypted session")
+        return value
+    finally:
+        ctypes.windll.kernel32.LocalFree(result_blob.pbData)

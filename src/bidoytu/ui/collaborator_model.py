@@ -43,7 +43,7 @@ def protocol_color(protocol: str) -> str:
         return "#2ecc71"   # green
     if p == "smtp":
         return "#e67e22"   # orange
-    if p in ("ldap", "ftp"):
+    if p in ("ldap", "ftp", "smb", "responder"):
         return "#9b59b6"   # purple
     return "#95a5a6"       # gray
 
@@ -145,6 +145,19 @@ class InteractionsModel(QAbstractTableModel):
         self._rows.clear()
         self.endResetModel()
 
+    def trim_to(self, limit: int) -> int:
+        """Drop the oldest rows and return the number removed."""
+        limit = max(1, int(limit))
+        remove_count = max(0, len(self._rows) - limit)
+        if not remove_count:
+            return 0
+        self.beginRemoveRows(QModelIndex(), 0, remove_count - 1)
+        del self._rows[:remove_count]
+        self.endRemoveRows()
+        for index, row in enumerate(self._rows):
+            row.index = index
+        return remove_count
+
 
 def _short_time(iso_ts: str) -> str:
     """Render an ISO timestamp as HH:MM:SS, falling back to the raw string."""
@@ -194,7 +207,8 @@ class InteractionFilterProxy(QSortFilterProxyModel):
         if self._needle:
             hay = " ".join([
                 row.payload_label, it.full_id, it.unique_id,
-                it.remote_address, it.raw_request, it.q_type,
+                row.note, it.protocol, it.timestamp, it.smtp_from,
+                it.remote_address, it.raw_request, it.raw_response, it.q_type,
             ]).lower()
             if self._needle not in hay:
                 return False

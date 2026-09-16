@@ -130,6 +130,20 @@ Implementation: [`ui/intruder_tab.py`](../src/bidoytu/ui/intruder_tab.py), [`ui/
 
 Collaborator integrates with an Interactsh-compatible out-of-band service. The tab manages registration and polling, displays received interactions, and provides fresh payload hosts to Repeater and Intruder request editors.
 
+After registration, one payload is automatically created and copied to the
+clipboard. Use **New payload** when a separate hostname is needed; bulk payload
+generation is intentionally avoided to keep the workflow simple.
+
+Polling is guarded against overlapping requests and the session is refreshed with
+keep-alive registration. If a session expires, the tab attempts to register a new
+session automatically. HTTPS registration is used by default; HTTP fallback must
+be explicitly enabled for a trusted self-hosted server. Saved Windows sessions
+use the current user's DPAPI protection for the private key and token.
+
+The interaction table supports DNS, HTTP(S), SMTP, LDAP, FTP, SMB, and Responder
+filters. Exports include the original interaction metadata, raw request/response,
+payload label, and request-context note.
+
 Use this feature only with an approved server and an authorized test target. A Collaborator payload is intentionally treated as external content and should not be placed into production traffic without explicit authorization.
 
 Implementation: [`ui/collaborator_tab.py`](../src/bidoytu/ui/collaborator_tab.py) and [`net/interactsh.py`](../src/bidoytu/net/interactsh.py).
