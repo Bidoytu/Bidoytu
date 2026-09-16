@@ -77,11 +77,7 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
   const chips = filterChips(filters)
   const sortHeader = (key: typeof historySort.key, label: string) => {
     const active = historySort.key === key
-    const SortIcon = active
-      ? historySort.direction === 'asc'
-        ? ArrowUp
-        : ArrowDown
-      : ArrowUpDown
+    const SortIcon = active ? (historySort.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
     return (
       <button
         className={active ? 'sort-header active' : 'sort-header'}

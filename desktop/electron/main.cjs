@@ -152,6 +152,17 @@ else {
       await writeFile(result.filePath, certificate, 'utf8')
       return true
     })
+    ipcMain.handle('browser:list', async (event) => {
+      trusted(event)
+      await backend.ready
+      return backend.request('browser.list')
+    })
+    ipcMain.handle('browser:open', async (event, id) => {
+      trusted(event)
+      if (!Number.isInteger(id) || id < 0) throw new Error('Invalid browser selection')
+      await backend.ready
+      return backend.request('browser.open', { id })
+    })
     ipcMain.handle('clipboard:write', (event, text) => {
       trusted(event)
       if (typeof text !== 'string' || Buffer.byteLength(text) > 2 * 1024 * 1024)

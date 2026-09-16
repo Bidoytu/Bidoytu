@@ -108,8 +108,12 @@ export function InterceptView({ workspace }: { workspace: WorkspaceController })
               >
                 <span className="muted">{item.phase === 'request' ? 'Request' : 'Response'}</span>
                 <span className={`method method-${item.method.toLowerCase()}`}>{item.method}</span>
-                <span className="host-cell"><span>{item.host}</span></span>
-                <span className="mono path-cell" title={item.path}>{item.path}</span>
+                <span className="host-cell">
+                  <span>{item.host}</span>
+                </span>
+                <span className="mono path-cell" title={item.path}>
+                  {item.path}
+                </span>
                 <span className="muted mono">{item.status_code ?? '—'}</span>
               </button>
             ))}
@@ -144,49 +148,67 @@ export function InterceptView({ workspace }: { workspace: WorkspaceController })
                   {
                     label: 'Send to Repeater',
                     shortcut: 'Ctrl+R',
-                    disabled: !interceptDetail || interceptDetail.truncated || interceptDetail.binary,
+                    disabled:
+                      !interceptDetail || interceptDetail.truncated || interceptDetail.binary,
                     onClick: () => interceptDetail && toRepeater(interceptDetail),
                   },
                   {
                     label: 'Send to Intruder',
                     shortcut: 'Ctrl+I',
-                    disabled: !interceptDetail || interceptDetail.truncated || interceptDetail.binary,
+                    disabled:
+                      !interceptDetail || interceptDetail.truncated || interceptDetail.binary,
                     onClick: () => interceptDetail && toIntruder(interceptDetail),
                   },
                 ])
               }}
             >
-            <Editor
-              title="Request"
-              value={pending.phase === 'response' ? interceptDetail?.request ?? '' : interceptText}
-              onChange={
-                pending.phase === 'request' && !interceptDetail?.truncated && !interceptDetail?.binary
-                  ? setInterceptText
-                  : undefined
-              }
-              hint={pending.phase === 'response' ? 'Original request' : 'Paused in Python engine'}
-            />
-            {pending.phase === 'response' ? (
               <Editor
-                title="Response"
-                value={interceptText}
-                onChange={
-                  interceptDetail?.truncated || interceptDetail?.binary ? undefined : setInterceptText
+                title="Request"
+                value={
+                  pending.phase === 'response' ? (interceptDetail?.request ?? '') : interceptText
                 }
-                hint="Paused before returning to the client"
+                onChange={
+                  pending.phase === 'request' &&
+                  !interceptDetail?.truncated &&
+                  !interceptDetail?.binary
+                    ? setInterceptText
+                    : undefined
+                }
+                hint={pending.phase === 'response' ? 'Original request' : 'Paused in Python engine'}
               />
-            ) : (
-              <div className="intercept-guide">
-                <div className="empty-icon"><ArrowLeftRight size={25} /></div>
-                <h3>Request paused</h3>
-                <p>Edit the request, then forward it to the target. Enable response interception to pause the matching response on the right.</p>
-                <dl>
-                  <dt>Destination</dt><dd>{pending.host}:{pending.port}</dd>
-                  <dt>Phase</dt><dd>Request</dd>
-                  <dt>Scope</dt><dd>In scope</dd>
-                </dl>
-              </div>
-            )}
+              {pending.phase === 'response' ? (
+                <Editor
+                  title="Response"
+                  value={interceptText}
+                  onChange={
+                    interceptDetail?.truncated || interceptDetail?.binary
+                      ? undefined
+                      : setInterceptText
+                  }
+                  hint="Paused before returning to the client"
+                />
+              ) : (
+                <div className="intercept-guide">
+                  <div className="empty-icon">
+                    <ArrowLeftRight size={25} />
+                  </div>
+                  <h3>Request paused</h3>
+                  <p>
+                    Edit the request, then forward it to the target. Enable response interception to
+                    pause the matching response on the right.
+                  </p>
+                  <dl>
+                    <dt>Destination</dt>
+                    <dd>
+                      {pending.host}:{pending.port}
+                    </dd>
+                    <dt>Phase</dt>
+                    <dd>Request</dd>
+                    <dt>Scope</dt>
+                    <dd>In scope</dd>
+                  </dl>
+                </div>
+              )}
             </div>
           </div>
         </div>

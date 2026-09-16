@@ -103,7 +103,11 @@ export function filterChips(filters: HistoryFilters): FilterChip[] {
   text('listenerPort', filters.listenerPort, 'Port')
   if (filters.mimeTypes.length !== MIME_OPTIONS.length) {
     if (filters.mimeTypes.length === 0) {
-      chips.push({ id: 'mime:none', label: 'No MIME types', clear: { mimeTypes: EMPTY_HISTORY_FILTERS.mimeTypes } })
+      chips.push({
+        id: 'mime:none',
+        label: 'No MIME types',
+        clear: { mimeTypes: EMPTY_HISTORY_FILTERS.mimeTypes },
+      })
     } else {
       for (const value of filters.mimeTypes) {
         chips.push({
@@ -116,7 +120,11 @@ export function filterChips(filters: HistoryFilters): FilterChip[] {
   }
   if (filters.statusClasses.length !== STATUS_OPTIONS.length) {
     if (filters.statusClasses.length === 0) {
-      chips.push({ id: 'status:none', label: 'No status classes', clear: { statusClasses: EMPTY_HISTORY_FILTERS.statusClasses } })
+      chips.push({
+        id: 'status:none',
+        label: 'No status classes',
+        clear: { statusClasses: EMPTY_HISTORY_FILTERS.statusClasses },
+      })
     } else {
       for (const value of filters.statusClasses) {
         chips.push({

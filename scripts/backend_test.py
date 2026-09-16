@@ -25,6 +25,9 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
             self.events.append(event)
         self.service = ApplicationService(Path(self.temp.name), emit)
         await self.service.open()
+        # The desktop backend auto-starts the default listener. Stop it here so
+        # these focused tests can choose their own ports explicitly.
+        await self.service.proxy.stop()
         self.origin = await asyncio.start_server(self.respond, "127.0.0.1", 0)
         self.origin_port = self.origin.sockets[0].getsockname()[1]
 
@@ -186,7 +189,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         with socket.socket() as occupied:
             occupied.bind(("127.0.0.1", 0))
             occupied.listen()
-            with self.assertRaises(OSError):
+            with self.assertRaisesRegex(ValueError, "already in use"):
                 await self.service.dispatch("proxy.start", {"port": occupied.getsockname()[1]})
             self.assertFalse(self.service.state()["running"])
         await self.service.dispatch("proxy.start", {"port": self.free_port()})

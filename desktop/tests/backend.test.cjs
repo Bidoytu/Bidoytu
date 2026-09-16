@@ -28,7 +28,7 @@ test('stdio backend handshake, concurrent RPC, validation and clean EOF shutdown
     ])
     assert.equal(values[0], 'bidoytu')
     assert.equal(values[1].total, 0)
-    assert.equal(values[2].running, false)
+    assert.equal(values[2].running, true)
     await assert.rejects(backend.request('shell.exec'), /Unknown method/)
     assert.equal(METHODS.has('certificate.read'), false)
     assert.equal(METHODS.has('shell.exec'), false)

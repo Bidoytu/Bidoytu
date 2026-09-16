@@ -2,7 +2,7 @@ import {
   ArrowLeftRight,
   Code2,
   Crosshair,
-  History,
+  Radio,
   Send,
   Settings2,
   ShieldCheck,
@@ -19,19 +19,13 @@ import {
 import type { Detail, EngineState, Finding, Flow, JobResult } from '../types'
 
 export type View =
-  | 'History'
-  | 'Intercept'
-  | 'Repeater'
-  | 'Intruder'
-  | 'Scope'
-  | 'Live audit'
-  | 'Decoder'
-  | 'Settings'
+  'Proxy' | 'Repeater' | 'Intruder' | 'Scope' | 'Live audit' | 'Decoder' | 'Settings'
 export type RepeaterTab = {
   id: number
   name: string
   url: string
   request: string
+  response?: string
   result?: Detail
   busy: boolean
   error?: string
@@ -53,6 +47,7 @@ export type IntruderTab = {
   payloads: string
   results: JobResult[]
 }
+export type ProxyView = 'History' | 'Intercept'
 const initial: EngineState = {
   protocol: 1,
   running: false,
@@ -71,8 +66,7 @@ const initial: EngineState = {
   job_state: 'idle',
 }
 export const icons = {
-  History,
-  Intercept: ArrowLeftRight,
+  Proxy: Radio,
   Repeater: Send,
   Intruder: Zap,
   Scope: Crosshair,
@@ -81,8 +75,7 @@ export const icons = {
   Settings: Settings2,
 }
 export const descriptions: Record<View, string> = {
-  History: 'Every request. The complete picture.',
-  Intercept: 'Pause, inspect, and shape traffic in flight.',
+  Proxy: 'Capture, inspect, and shape traffic in flight.',
   Repeater: 'Refine a request. Explore the response.',
   Intruder: 'Controlled payload testing, powered by Python.',
   Scope: 'Define the boundaries of your investigation.',
@@ -122,7 +115,8 @@ export const newIntruderTab = (id: number): IntruderTab => ({
 })
 
 export function useWorkspace() {
-  const [view, setView] = useState<View>('History')
+  const [view, setView] = useState<View>('Proxy')
+  const [proxyView, setProxyView] = useState<ProxyView>('History')
   const [state, setState] = useState(initial)
   const [online, setOnline] = useState(false)
   const [connecting, setConnecting] = useState(true)
@@ -368,7 +362,7 @@ export function useWorkspace() {
     return () => clearTimeout(timer)
   }, [filters])
   useEffect(() => {
-    if (!online || view !== 'History') return
+    if (!online || view !== 'Proxy' || proxyView !== 'History') return
     let alive = true
     const requestSequence = ++historyRequestSequence.current
     api
@@ -394,13 +388,13 @@ export function useWorkspace() {
     return () => {
       alive = false
     }
-  }, [online, revision, view, debouncedQuery, page, debouncedFilters, historySort])
+  }, [online, revision, view, proxyView, debouncedQuery, page, debouncedFilters, historySort])
   useEffect(() => {
     setScrollTop(0)
     if (scrollRef.current) scrollRef.current.scrollTop = 0
   }, [page, debouncedQuery, debouncedFilters])
   useEffect(() => {
-    if (view !== 'History' || !selectedId) return
+    if (view !== 'Proxy' || proxyView !== 'History' || !selectedId) return
     let alive = true
     api
       .request<Detail>('history.detail', { flow_id: selectedId })
@@ -411,9 +405,9 @@ export function useWorkspace() {
     return () => {
       alive = false
     }
-  }, [revision, selectedId, view])
+  }, [revision, selectedId, view, proxyView])
   useEffect(() => {
-    if (view !== 'Intercept' || !pending) {
+    if (view !== 'Proxy' || proxyView !== 'Intercept' || !pending) {
       setInterceptDetail(null)
       return
     }
@@ -436,7 +430,7 @@ export function useWorkspace() {
     return () => {
       alive = false
     }
-  }, [view, pending?.flow_id, pending?.phase])
+  }, [view, proxyView, pending?.flow_id, pending?.phase])
   useEffect(() => {
     if (!online) return
     if (view === 'Live audit')
@@ -458,12 +452,20 @@ export function useWorkspace() {
     const listener = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        setView('History')
+        setView('Proxy')
+        setProxyView('History')
         setTimeout(() => searchRef.current?.focus(), 0)
       }
       if ((e.ctrlKey || e.metaKey) && ['1', '2', '3', '4'].includes(e.key)) {
         e.preventDefault()
-        setView((['History', 'Intercept', 'Repeater', 'Intruder'] as View[])[Number(e.key) - 1])
+        if (e.key === '1') {
+          setView('Proxy')
+          setProxyView('History')
+        } else if (e.key === '2') {
+          setView('Proxy')
+          setProxyView('Intercept')
+        } else if (e.key === '3') setView('Repeater')
+        else if (e.key === '4') setView('Intruder')
       }
       // Ctrl+R -> Send to Repeater. Inside Repeater it duplicates the active
       // request into a new tab; inside Intruder it forwards the attack template.
@@ -475,7 +477,9 @@ export function useWorkspace() {
         else if (viewRef.current === 'Intruder') intruderToRepeater()
         else {
           const detail =
-            viewRef.current === 'Intercept' ? interceptDetailRef.current : selectedRef.current
+            viewRef.current === 'Proxy' && proxyView === 'Intercept'
+              ? interceptDetailRef.current
+              : selectedRef.current
           if (detail) toRepeater(detail)
         }
       }
@@ -485,7 +489,9 @@ export function useWorkspace() {
         else if (viewRef.current === 'Repeater') repeaterToIntruder()
         else {
           const detail =
-            viewRef.current === 'Intercept' ? interceptDetailRef.current : selectedRef.current
+            viewRef.current === 'Proxy' && proxyView === 'Intercept'
+              ? interceptDetailRef.current
+              : selectedRef.current
           if (detail) toIntruder(detail)
         }
       }
@@ -496,7 +502,7 @@ export function useWorkspace() {
     }
     window.addEventListener('keydown', listener)
     return () => window.removeEventListener('keydown', listener)
-  }, [])
+  }, [proxyView])
 
   async function selectFlow(flowId: string) {
     const sequence = ++detailSequence.current
@@ -605,7 +611,7 @@ export function useWorkspace() {
   async function sendRequestForTab(id: number, run = sendRun.current) {
     const tab = tabs.find((item) => item.id === id)
     if (!tab || tab.busy) return
-    updateTab({ busy: true, error: undefined, result: undefined }, tab.id)
+    updateTab({ busy: true, error: undefined, result: undefined, response: undefined }, tab.id)
     try {
       const result = await api.request<Detail>('repeater.send', {
         url: tab.url,
@@ -619,7 +625,13 @@ export function useWorkspace() {
             const history = item.history ?? []
             const index = item.historyIndex ?? history.length - 1
             const nextHistory = [...history.slice(0, index + 1), { request: tab.request, result }]
-            return { ...item, result, history: nextHistory, historyIndex: nextHistory.length - 1 }
+            return {
+              ...item,
+              response: result.response,
+              result,
+              history: nextHistory,
+              historyIndex: nextHistory.length - 1,
+            }
           }),
         )
       }
@@ -662,7 +674,12 @@ export function useWorkspace() {
     if (nextIndex === currentIndex) return
     const revision = history[nextIndex]
     updateTab(
-      { request: revision.request, result: revision.result, historyIndex: nextIndex },
+      {
+        request: revision.request,
+        response: revision.result.response,
+        result: revision.result,
+        historyIndex: nextIndex,
+      },
       tab.id,
     )
   }
@@ -783,6 +800,8 @@ export function useWorkspace() {
   return {
     view,
     setView,
+    proxyView,
+    setProxyView,
     state,
     setState,
     online,

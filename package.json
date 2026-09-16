@@ -21,6 +21,7 @@
     "package:dir": "npm run build && npm run package:backend && electron-builder --dir"
   },
   "dependencies": {
+    "@fortawesome/free-brands-svg-icons": "^7.1.0",
     "lucide-react": "^0.577.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

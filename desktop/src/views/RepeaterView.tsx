@@ -288,7 +288,9 @@ export function RepeaterView({ workspace }: { workspace: WorkspaceController }) 
         />
         <Editor
           title="Response"
-          value={requestTab.result?.response ?? ''}
+          value={requestTab.response ?? requestTab.result?.response ?? ''}
+          onChange={(value) => updateTab({ response: value })}
+          disabled={requestTab.busy}
           hint={
             requestTab.result
               ? `${requestTab.result.status_code} · ${duration(requestTab.result.duration_ms)} · ${bytes(requestTab.result.response_body_size)}${requestTab.result.truncated ? ' · truncated' : ''}`

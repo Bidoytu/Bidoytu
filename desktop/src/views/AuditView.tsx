@@ -38,7 +38,8 @@ export function AuditView({ workspace }: { workspace: WorkspaceController }) {
                 <Button
                   className="subtle"
                   onClick={() => {
-                    setView('History')
+                    setView('Proxy')
+                    workspace.setProxyView('History')
                     void selectFlow(finding.flow_id)
                   }}
                 >

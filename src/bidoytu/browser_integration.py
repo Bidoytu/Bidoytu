@@ -101,6 +101,9 @@ def discover_browsers() -> list[BrowserInfo]:
             "Firefox": (["firefox"], [r"Mozilla Firefox\firefox.exe"]),
             "Google Chrome": (["chrome"], [r"Google\Chrome\Application\chrome.exe"]),
             "Microsoft Edge": (["msedge"], [r"Microsoft\Edge\Application\msedge.exe"]),
+            "Brave": (["brave"], [r"BraveSoftware\Brave-Browser\Application\brave.exe"]),
+            "Opera": (["opera"], [r"Opera\launcher.exe"]),
+            "Vivaldi": (["vivaldi"], [r"Vivaldi\Application\vivaldi.exe"]),
         }
         result: list[BrowserInfo] = []
         for name, (commands, suffixes) in candidates.items():
@@ -116,6 +119,9 @@ def discover_browsers() -> list[BrowserInfo]:
         ("Chromium", "chromium", "chromium"),
         ("Microsoft Edge", "microsoft-edge", "chromium"),
         ("Microsoft Edge", "microsoft-edge-stable", "chromium"),
+        ("Brave", "brave", "chromium"),
+        ("Opera", "opera", "chromium"),
+        ("Vivaldi", "vivaldi", "chromium"),
     ]
     result: list[BrowserInfo] = []
     seen_names: set[str] = set()

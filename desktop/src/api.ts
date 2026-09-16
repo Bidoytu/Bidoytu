@@ -6,6 +6,10 @@ export const api: DesktopBridge = window.bidoytu ?? {
   },
   onEvent: () => () => {},
   exportCertificate: async () => false,
+  listBrowsers: async () => [],
+  openBrowser: async () => {
+    throw new Error('Desktop browser integration is unavailable.')
+  },
   copyText: (text) => navigator.clipboard.writeText(text),
   window: () => {},
 }

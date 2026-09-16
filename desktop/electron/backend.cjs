@@ -22,6 +22,8 @@ const METHODS = new Set([
   'decoder.transform',
   'workspace.load',
   'workspace.save',
+  'browser.list',
+  'browser.open',
 ])
 
 class Backend extends EventEmitter {

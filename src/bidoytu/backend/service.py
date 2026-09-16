@@ -7,6 +7,7 @@ import copy
 import json
 import time
 import uuid
+import errno
 from dataclasses import asdict
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
@@ -19,6 +20,7 @@ from bidoytu.http_utils import parse_request_text
 from bidoytu.storage.advanced_history import filter_spec_from_dict
 from bidoytu.storage.models import FlowRecord
 from bidoytu.proxy.engine import ProxyService
+from bidoytu.browser_integration import discover_browsers, launch_browser, stop_browser
 from .storage import Storage, summary
 
 
@@ -45,11 +47,22 @@ class ApplicationService:
         self.job_state = "idle"
         self.error = ""
         self.network_slots = asyncio.Semaphore(8)
+        self.browsers = discover_browsers()
+        self.browser_processes = []
 
     async def open(self):
         await self.storage.open()
         self.writer = asyncio.create_task(self._persist())
         self.notifier = asyncio.create_task(self._notify())
+        try:
+            await self.proxy.start(self.config.proxy.listen_port, not self.config.proxy.ssl_insecure)
+        except OSError as exc:
+            if exc.errno in (errno.EADDRINUSE, 10048):
+                self.error = f"Proxy port {self.config.proxy.listen_port} is already in use. Choose another port in Settings."
+            else:
+                self.error = f"Proxy could not start: {exc}"
+        except Exception as exc:
+            self.error = f"Proxy could not start: {exc}"
 
     def changed(self):
         self.dirty = True
@@ -227,7 +240,12 @@ class ApplicationService:
             port = int(p.get("port", 8080))
             if not 1024 <= port <= 65535:
                 raise ValueError("Use a listener port between 1024 and 65535")
-            await self.proxy.start(port, bool(p.get("verify_tls", True)))
+            try:
+                await self.proxy.start(port, bool(p.get("verify_tls", True)))
+            except OSError as exc:
+                if exc.errno in (errno.EADDRINUSE, 10048):
+                    raise ValueError(f"Proxy port {port} is already in use. Choose another port in Settings.") from exc
+                raise
             return self.state()
         if method == "proxy.stop":
             await self.proxy.stop()
@@ -308,6 +326,25 @@ class ApplicationService:
             if not self.config.ca_cert_pem.exists():
                 raise ValueError("Start the proxy once to generate its public CA certificate")
             return await self.storage.call(self.config.ca_cert_pem.read_text)
+        if method == "browser.list":
+            return [{"id": index, "name": browser.name, "kind": browser.kind}
+                    for index, browser in enumerate(self.browsers)]
+        if method == "browser.open":
+            if not self.proxy.running:
+                raise ValueError("Start the proxy before opening a browser")
+            try:
+                index = int(p.get("id", -1))
+                browser = self.browsers[index]
+            except (ValueError, IndexError):
+                raise ValueError("That browser is no longer available") from None
+            profile_name = browser.name.lower().replace(" ", "-")
+            profile = self.config.browser_profiles_dir / f"{index}-{profile_name}"
+            process, trust_method = await asyncio.to_thread(
+                launch_browser, browser, self.config.proxy.listen_host,
+                self.config.proxy.listen_port, profile,
+                self.config.ca_cert_pem, self.config.ca_cert_cer)
+            self.browser_processes.append(process)
+            return {"name": browser.name, "trust_method": trust_method}
         raise ValueError(f"Unknown method: {method}")
 
     async def close(self):
@@ -315,6 +352,9 @@ class ApplicationService:
             task.cancel()
         await asyncio.gather(*self.jobs.values(), return_exceptions=True)
         await self.proxy.stop()
+        await asyncio.gather(*(asyncio.to_thread(stop_browser, process)
+                               for process in self.browser_processes), return_exceptions=True)
+        self.browser_processes.clear()
         await self.queue.join()
         self.writer.cancel()
         self.notifier.cancel()

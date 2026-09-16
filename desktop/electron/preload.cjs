@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('bidoytu', {
     return () => ipcRenderer.removeListener('backend:event', listener)
   },
   exportCertificate: () => ipcRenderer.invoke('certificate:export'),
+  listBrowsers: () => ipcRenderer.invoke('browser:list'),
+  openBrowser: (id) => ipcRenderer.invoke('browser:open', id),
   copyText: (text) => ipcRenderer.invoke('clipboard:write', text),
   window: (action) => ipcRenderer.send('window:action', action),
 })

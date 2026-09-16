@@ -540,6 +540,42 @@ h1 {
   min-height: 0;
   margin: 0 24px 20px;
 }
+.proxy-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+.proxy-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 24px 12px;
+  padding: 3px;
+  width: fit-content;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #13161a;
+}
+.proxy-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 3px;
+  padding: 7px 11px;
+  color: #7f8996;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 600;
+}
+.proxy-tabs button:hover,
+.proxy-tabs button.active {
+  color: #e0e3e8;
+  background: #292e35;
+}
+.proxy-tabs .nav-badge {
+  margin-left: 2px;
+}
 .traffic-panel {
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -1954,6 +1990,73 @@ tr:hover td {
   color: #8998ad;
   font-size: 11px;
   line-height: 1.7;
+}
+.browser-modal {
+  width: 560px;
+  padding: 25px;
+}
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.modal-head h2 {
+  margin-bottom: 7px;
+}
+.modal-head p {
+  color: #8392a6;
+  line-height: 1.6;
+}
+.modal-head > button {
+  height: 28px;
+  color: #8c96a4;
+}
+.browser-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.browser-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px;
+  border: 1px solid #303741;
+  border-radius: 7px;
+  background: #151a20;
+}
+.browser-row:hover {
+  border-color: #655538;
+  background: #1b2027;
+}
+.browser-row strong,
+.browser-row small {
+  display: block;
+}
+.browser-row strong {
+  color: #d9dee6;
+  font-weight: 550;
+  margin-bottom: 4px;
+}
+.browser-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.browser-logo path {
+  fill: currentColor;
+}
+.browser-logo-fallback {
+  width: 32px;
+  height: 32px;
+  color: #9da7b4;
+  flex-shrink: 0;
+}
+.browser-note {
+  display: block;
+  line-height: 1.5;
 }
 .spin {
   animation: spin 1s linear infinite;

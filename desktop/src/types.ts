@@ -62,10 +62,13 @@ export type JobResult = {
 }
 export type EngineEvent =
   { type: 'changed'; data: EngineState } | { type: 'offline'; message: string }
+export type BrowserInfo = { id: number; name: string; kind: 'firefox' | 'chromium' }
 export interface DesktopBridge {
   request<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>
   onEvent(callback: (event: EngineEvent) => void): () => void
   exportCertificate(): Promise<boolean>
+  listBrowsers(): Promise<BrowserInfo[]>
+  openBrowser(id: number): Promise<{ name: string; trust_method: string }>
   copyText(text: string): Promise<unknown>
   window(action: 'minimize' | 'maximize' | 'close'): void
 }

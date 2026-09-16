@@ -4,6 +4,7 @@ import {
   Check,
   ChevronRight,
   CircleHelp,
+  Globe2,
   Fingerprint,
   Folder,
   Layers3,
@@ -23,12 +24,47 @@ import { Button } from './components'
 import { icons, useWorkspace, type View } from './hooks/useWorkspace'
 import { AuditView } from './views/AuditView'
 import { DecoderView } from './views/DecoderView'
-import { HistoryView } from './views/HistoryView'
-import { InterceptView } from './views/InterceptView'
 import { IntruderView } from './views/IntruderView'
+import { ProxyView } from './views/ProxyView'
 import { RepeaterView } from './views/RepeaterView'
 import { ScopeView } from './views/ScopeView'
 import { SettingsView } from './views/SettingsView'
+import type { BrowserInfo } from './types'
+import { useState } from 'react'
+import type { IconDefinition } from '@fortawesome/free-brands-svg-icons'
+import {
+  faBrave,
+  faChrome,
+  faEdge,
+  faFirefoxBrowser,
+  faOpera,
+} from '@fortawesome/free-brands-svg-icons'
+
+const browserBrandIcons: Record<string, IconDefinition> = {
+  'Google Chrome': faChrome,
+  Chromium: faChrome,
+  Firefox: faFirefoxBrowser,
+  'Microsoft Edge': faEdge,
+  Brave: faBrave,
+  Opera: faOpera,
+}
+
+function BrowserLogo({ browser }: { browser: BrowserInfo }) {
+  if (browser.name === 'Vivaldi') {
+    return <img className="browser-logo" src="/browser-logos/vivaldi.svg" alt="" />
+  }
+  const icon = browserBrandIcons[browser.name]
+  if (!icon) return <Globe2 className="browser-logo-fallback" size={22} aria-hidden="true" />
+  const [width, height, , , paths] = icon.icon
+  const pathList = Array.isArray(paths) ? paths : [paths]
+  return (
+    <svg className="browser-logo" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+      {pathList.map((path, index) => (
+        <path key={index} d={path} />
+      ))}
+    </svg>
+  )
+}
 
 export function App() {
   const workspace = useWorkspace()
@@ -42,6 +78,7 @@ export function App() {
     error,
     setError,
     notice,
+    setNotice,
     busy,
     page,
     port,
@@ -51,6 +88,34 @@ export function App() {
     pending,
     toggleProxy,
   } = workspace
+  const [showBrowsers, setShowBrowsers] = useState(false)
+  const [browsers, setBrowsers] = useState<BrowserInfo[]>([])
+  const [browserBusy, setBrowserBusy] = useState(false)
+  const [browserError, setBrowserError] = useState('')
+
+  async function openBrowserPicker() {
+    setShowBrowsers(true)
+    setBrowserError('')
+    try {
+      setBrowsers(await api.listBrowsers())
+    } catch (e) {
+      setBrowserError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function launchBrowser(id: number) {
+    setBrowserBusy(true)
+    setBrowserError('')
+    try {
+      const result = await api.openBrowser(id)
+      setNotice(`${result.name} opened with the Bidoytu proxy and CA configured.`)
+      setShowBrowsers(false)
+    } catch (e) {
+      setBrowserError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBrowserBusy(false)
+    }
+  }
   return (
     <div className="app">
       <header className="titlebar">
@@ -89,7 +154,7 @@ export function App() {
         </div>
         <div className="nav-label">WORKSPACE</div>
         <nav>
-          {(['History', 'Intercept', 'Repeater', 'Intruder'] as View[]).map((item) => {
+          {(['Proxy', 'Repeater', 'Intruder'] as View[]).map((item) => {
             const NavIcon = icons[item]
             return (
               <button
@@ -98,10 +163,10 @@ export function App() {
                 onClick={() => setView(item)}
               >
                 <NavIcon size={17} />
-                <span>{item === 'History' ? 'HTTP history' : item}</span>
-                {item === 'Intercept' && state.pending.length > 0 ? (
+                <span>{item}</span>
+                {item === 'Proxy' && state.pending.length > 0 ? (
                   <b className="nav-badge">{state.pending.length}</b>
-                ) : item === 'History' ? (
+                ) : item === 'Proxy' ? (
                   <kbd>⌘ 1</kbd>
                 ) : null}
               </button>
@@ -176,7 +241,7 @@ export function App() {
             <Folder size={14} />
             <span>Default workspace</span>
             <ChevronRight size={12} />
-            <strong>{view === 'History' ? 'HTTP history' : view}</strong>
+            <strong>{view}</strong>
           </div>
           <div className="inline">
             <span className={`connection-label ${state.running ? 'connected' : ''}`}>
@@ -196,6 +261,13 @@ export function App() {
                 <Play size={13} />
               )}{' '}
               {state.running ? 'Stop proxy' : 'Start proxy'}
+            </Button>
+            <Button
+              className="subtle"
+              disabled={!online || !state.running || browserBusy}
+              onClick={openBrowserPicker}
+            >
+              <Globe2 size={13} /> Open browser
             </Button>
           </div>
         </div>
@@ -220,8 +292,7 @@ export function App() {
             {notice}
           </div>
         )}
-        {view === 'History' && <HistoryView workspace={workspace} />}
-        {view === 'Intercept' && <InterceptView workspace={workspace} />}
+        {view === 'Proxy' && <ProxyView workspace={workspace} />}
         {view === 'Repeater' && <RepeaterView workspace={workspace} />}
         {view === 'Intruder' && <IntruderView workspace={workspace} />}
         {view === 'Scope' && <ScopeView workspace={workspace} />}
@@ -243,7 +314,12 @@ export function App() {
         {state.dropped > 0 && (
           <span className="warning-text">{state.dropped} capture updates dropped</span>
         )}
-        <button onClick={() => setView('Intercept')}>
+        <button
+          onClick={() => {
+            setView('Proxy')
+            workspace.setProxyView('Intercept')
+          }}
+        >
           <span className={`dot ${state.intercept ? 'amber' : ''}`} />
           Intercept {state.intercept ? 'on' : 'off'}
         </button>
@@ -310,6 +386,56 @@ export function App() {
             >
               Open settings <ArrowRight size={14} />
             </Button>
+          </section>
+        </div>
+      )}
+      {showBrowsers && (
+        <div className="modal-backdrop" onClick={() => setShowBrowsers(false)}>
+          <section
+            className="modal browser-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Open browser"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-head">
+              <div>
+                <h2>Open browser through Bidoytu</h2>
+                <p>A dedicated profile will use the active proxy and trust its public CA.</p>
+              </div>
+              <button aria-label="Close" onClick={() => setShowBrowsers(false)}>
+                <X size={15} />
+              </button>
+            </div>
+            {browserError && (
+              <div className="error-banner" role="alert">
+                {browserError}
+              </div>
+            )}
+            <div className="browser-list">
+              {browsers.map((browser) => (
+                <div className="browser-row" key={browser.id}>
+                  <BrowserLogo browser={browser} />
+                  <div className="grow">
+                    <strong>{browser.name}</strong>
+                    <small>Fresh isolated profile</small>
+                  </div>
+                  <Button
+                    className="primary"
+                    disabled={browserBusy}
+                    onClick={() => launchBrowser(browser.id)}
+                  >
+                    Open
+                  </Button>
+                </div>
+              ))}
+              {!browsers.length && !browserError && (
+                <p className="muted">No supported browsers were found on this device.</p>
+              )}
+            </div>
+            <small className="browser-note">
+              Browsers opened here are closed automatically when Bidoytu exits.
+            </small>
           </section>
         </div>
       )}
