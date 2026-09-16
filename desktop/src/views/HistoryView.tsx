@@ -9,9 +9,22 @@ import {
   LockKeyhole,
   Radio,
   Search,
+  SlidersHorizontal,
+  X,
 } from 'lucide-react'
 import { api } from '../api'
-import { Button, ContextMenu, Editor, Empty, Status, bytes, duration, useContextMenu } from '../components'
+import {
+  Button,
+  ContextMenu,
+  Editor,
+  Empty,
+  Status,
+  bytes,
+  duration,
+  useContextMenu,
+} from '../components'
+import { filterChips } from '../historyFilters'
+import { HistoryFilterModal } from './HistoryFilterModal'
 
 import type { WorkspaceController } from '../hooks/useWorkspace'
 
@@ -21,12 +34,15 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
     setRevision,
     flows,
     total,
+    unfilteredTotal,
     query,
     setQuery,
-    scopeOnly,
-    setScopeOnly,
-    bookmarked,
-    setBookmarked,
+    filters,
+    updateFilters,
+    resetFilters,
+    activeFilterCount,
+    showFilters,
+    setShowFilters,
     page,
     setPage,
     selected,
@@ -51,6 +67,7 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
     resize,
   } = workspace
   const ctx = useContextMenu()
+  const chips = filterChips(filters)
   return (
     <div
       className="history-workspace"
@@ -71,11 +88,9 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
             <kbd>Ctrl K</kbd>
           </label>
           <Button
-            className={scopeOnly ? 'selected' : 'subtle'}
-            onClick={() => {
-              setScopeOnly((v) => !v)
-              setPage(0)
-            }}
+            className={filters.inScopeOnly ? 'selected' : 'subtle'}
+            aria-pressed={filters.inScopeOnly}
+            onClick={() => updateFilters({ inScopeOnly: !filters.inScopeOnly })}
           >
             <Crosshair size={14} />
             In scope
@@ -83,15 +98,42 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
           <Button
             title="Show bookmarked traffic"
             aria-label="Show bookmarked traffic"
-            className={bookmarked ? 'selected icon-only' : 'subtle icon-only'}
-            onClick={() => {
-              setBookmarked((v) => !v)
-              setPage(0)
-            }}
+            aria-pressed={filters.bookmarkedOnly}
+            className={filters.bookmarkedOnly ? 'selected icon-only' : 'subtle icon-only'}
+            onClick={() => updateFilters({ bookmarkedOnly: !filters.bookmarkedOnly })}
           >
             <Bookmark size={14} />
           </Button>
+          <Button
+            className={showFilters || activeFilterCount ? 'selected' : 'subtle'}
+            aria-haspopup="dialog"
+            aria-expanded={showFilters}
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            <SlidersHorizontal size={14} />
+            Filters
+            {activeFilterCount > 0 && <span className="filter-badge">{activeFilterCount}</span>}
+          </Button>
         </div>
+        {chips.length > 0 && (
+          <div className="filter-chips">
+            <span className="filter-chips-label">Active</span>
+            {chips.map((chip) => (
+              <button
+                key={chip.id}
+                className="filter-chip"
+                title={`Remove filter: ${chip.label}`}
+                onClick={() => updateFilters(chip.clear)}
+              >
+                {chip.label}
+                <X size={11} />
+              </button>
+            ))}
+            <button className="filter-chip-clear" onClick={resetFilters}>
+              Clear all
+            </button>
+          </div>
+        )}
         <div className="traffic-header traffic-row">
           <span>#</span>
           <span>Method</span>
@@ -122,7 +164,10 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
                           label: 'Send to Repeater',
                           shortcut: 'Ctrl+R',
                           onClick: async () => {
-                            const detail = await api.request<import('../types').Detail>('history.detail', { flow_id: flow.flow_id })
+                            const detail = await api.request<import('../types').Detail>(
+                              'history.detail',
+                              { flow_id: flow.flow_id },
+                            )
                             toRepeater(detail)
                           },
                         },
@@ -130,7 +175,10 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
                           label: 'Send to Intruder',
                           shortcut: 'Ctrl+I',
                           onClick: async () => {
-                            const detail = await api.request<import('../types').Detail>('history.detail', { flow_id: flow.flow_id })
+                            const detail = await api.request<import('../types').Detail>(
+                              'history.detail',
+                              { flow_id: flow.flow_id },
+                            )
                             toIntruder(detail)
                           },
                         },
@@ -168,12 +216,12 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
             <Empty
               icon={<Radio size={28} />}
               title={
-                query || scopeOnly || bookmarked
+                query || activeFilterCount
                   ? 'No matching requests'
                   : 'Your next discovery starts here'
               }
             >
-              {query || scopeOnly || bookmarked ? (
+              {query || activeFilterCount ? (
                 'Try another search or turn off the active filters.'
               ) : (
                 <>
@@ -193,7 +241,16 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
             <span className={`dot ${state.running ? 'green' : ''}`} />
             {state.running ? 'Live capture' : 'Capture paused'}
             <span className="footer-separator">/</span>
-            <strong>{total.toLocaleString()}</strong> requests
+            {total !== unfilteredTotal ? (
+              <span>
+                <strong>{total.toLocaleString()}</strong> of {unfilteredTotal.toLocaleString()}{' '}
+                requests
+              </span>
+            ) : (
+              <span>
+                <strong>{total.toLocaleString()}</strong> requests
+              </span>
+            )}
           </span>
           <div className="inline">
             <span>
@@ -317,6 +374,16 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
         </div>
       </section>
       <ContextMenu menu={ctx.menu} onClose={ctx.close} />
+      {showFilters && (
+        <HistoryFilterModal
+          filters={filters}
+          onChange={updateFilters}
+          onReset={resetFilters}
+          onClose={() => setShowFilters(false)}
+          total={total}
+          unfiltered={unfilteredTotal}
+        />
+      )}
     </div>
   )
 }

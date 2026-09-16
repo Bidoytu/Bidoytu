@@ -126,6 +126,40 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.service.dispatch("audit.list", {}))
         self.assertIn("127.0.0.1", self.service.config.proxy_scope_path.read_text())
 
+    async def test_advanced_history_filters(self):
+        records = [
+            FlowRecord(flow_id="f1", method="GET", scheme="http", host="a.example", path="/index.html",
+                       status_code=200, content_type="text/html", response_body_size=1000,
+                       response_headers="X-Tag: alpha", scope=True),
+            FlowRecord(flow_id="f2", method="POST", scheme="http", host="b.example", path="/api/users?id=1",
+                       status_code=404, content_type="application/json", response_body_size=5000, scope=False),
+            FlowRecord(flow_id="f3", method="GET", scheme="http", host="cdn.example", path="/logo.png",
+                       status_code=200, content_type="image/png", response_body_size=900000, scope=True),
+        ]
+        for record in records:
+            await self.service.storage.call(self.service.storage.save, record)
+
+        async def total(filters, query=""):
+            listing = await self.service.dispatch("history.list", {"query": query, "filter": filters})
+            return listing["total"]
+
+        self.assertEqual(await total({"status_classes": ["4xx"]}), 1)
+        self.assertEqual(await total({"mime_types": ["images"]}), 1)
+        self.assertEqual(await total({"size": ">1000"}), 2)
+        self.assertEqual(await total({"hide_extensions": "png"}), 2)
+        self.assertEqual(await total({"show_extensions": "html"}), 1)
+        self.assertEqual(await total({"in_scope_only": True}), 2)
+        self.assertEqual(await total({"method": "POST"}), 1)
+        self.assertEqual(await total({"path": "api"}), 1)
+        self.assertEqual(await total({"parameterized_only": True}), 1)
+        self.assertEqual(await total({"host": "example", "notes_only": True}), 0)
+        self.assertEqual(await total({"regex": True}, query=r"users\?id=\d"), 1)
+        self.assertEqual(await total({"negative_search": True}, query="cdn"), 2)
+        # Unknown keys are ignored rather than raising.
+        self.assertEqual(await total({"bogus": "x"}), 3)
+        listing = await self.service.dispatch("history.list", {"bookmarked": True})
+        self.assertEqual(listing["total"], 0)
+
     async def test_lazy_preview_pagination_validation_and_no_qt(self):
         self.assertFalse(any(key.startswith("PySide6") for key in sys.modules))
         for index in range(3):

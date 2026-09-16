@@ -21,8 +21,12 @@ const env = { ...process.env, BIDOYTU_DATA_DIR: dir, BIDOYTU_TEST: '1' }
 delete env.ELECTRON_RUN_AS_NODE
 const app = await electron.launch(
   process.env.BIDOYTU_PACKAGED
-    ? { executablePath: process.env.BIDOYTU_PACKAGED, args: [], env }
-    : { args: ['.'], env },
+    ? {
+        executablePath: process.env.BIDOYTU_PACKAGED,
+        args: [`--user-data-dir=${join(dir, 'electron')}`],
+        env,
+      }
+    : { args: ['.', `--user-data-dir=${join(dir, 'electron')}`], env },
 )
 const page = await app.firstWindow()
 const errors = []
@@ -51,8 +55,18 @@ try {
   await expect(page.getByRole('region', { name: 'Response message' })).toContainText(
     'Bidoytu integration fixture',
   )
+  // Ctrl+R duplicates the active Repeater request into a new tab.
+  await page.keyboard.press('Control+r')
+  await expect(page.getByRole('button', { name: 'Request 1 copy', exact: true })).toBeVisible()
+  // Ctrl+I forwards the active request to a new Intruder attack.
+  await page.keyboard.press('Control+i')
+  await expect(page.getByRole('heading', { name: 'Intruder', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Request 1 copy', exact: true })).toBeVisible()
+  // Ctrl+I again duplicates the active Intruder attack.
+  await page.keyboard.press('Control+i')
+  await expect(page.getByRole('button', { name: 'Request 1 copy copy', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'HTTP history' }).click()
-  console.log('Python replay verified.')
+  console.log('Python replay and global shortcuts verified.')
   const reservation = createServer()
   await new Promise((resolve) => reservation.listen(0, '127.0.0.1', resolve))
   const proxyPort = reservation.address().port
@@ -96,7 +110,16 @@ try {
   )
   await page.getByRole('button', { name: 'Bookmark selected request' }).click()
   await page.getByRole('button', { name: 'Show bookmarked traffic' }).click()
-  await expect(page.getByText('1 requests')).toBeVisible()
+  await expect(page.getByText(/1 of \d+ requests/)).toBeVisible()
+  await page.getByRole('button', { name: /^Filters/ }).click()
+  const filterDialog = page.getByRole('dialog', { name: 'Advanced HTTP history filter' })
+  await expect(filterDialog).toBeVisible()
+  await filterDialog.getByLabel('4xx').check()
+  await expect(page.getByText('No matching requests')).toBeVisible()
+  await expect(filterDialog.getByText(/0 of \d+ requests/)).toBeVisible()
+  await page.getByRole('button', { name: 'Reset all' }).click()
+  await page.getByRole('button', { name: 'Done', exact: true }).click()
+  await expect(filterDialog).toBeHidden()
   await page.getByRole('button', { name: 'Decoder', exact: true }).click()
   await page.getByRole('textbox', { name: 'Input editor' }).fill('Ymlkb3l0dQ==')
   await page.getByRole('button', { name: 'Transform', exact: true }).click()
@@ -113,7 +136,7 @@ try {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   expect(errors).toEqual([])
   console.log(
-    'Electron E2E passed: sandbox, real Python replay, history, bookmark, decoder, scope, responsive layout.',
+    'Electron E2E passed: sandbox, real Python replay, history, filters, bookmark, decoder, scope, responsive layout.',
   )
 } finally {
   await app.close()

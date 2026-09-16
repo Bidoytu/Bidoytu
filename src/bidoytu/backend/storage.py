@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from functools import partial
 
 from bidoytu.config import AppConfig
 from bidoytu.http_utils import build_request_text, build_response_text
+from bidoytu.storage.advanced_history import FilterSpec, matches
 from bidoytu.storage.body_store import BodyStore
 from bidoytu.storage.models import FlowRecord
 from bidoytu.storage.repository import FlowRepository
@@ -47,23 +49,27 @@ class Storage:
                 setattr(record, f"{side}_body_inline", None)
         self.repo.upsert(record)
 
-    def history(self, query: str, offset: int, limit: int, scope: bool, bookmarked: bool):
-        where, args = ["1=1"], []
-        if query:
-            where.append("(host LIKE ? OR path LIKE ? OR method LIKE ? OR CAST(status_code AS TEXT) LIKE ?)")
-            args.extend([f"%{query}%"] * 4)
-        if scope:
-            where.append("scope=1")
-        if bookmarked:
-            where.append("bookmarked=1")
-        clause = " AND ".join(where)
-        # Projection deliberately excludes bodies AND large header blocks.
-        columns = "id,flow_id,method,scheme,host,port,path,status_code,content_type,response_body_size,started_at,completed_at,scope,bookmarked,notes,tool"
-        rows = self.repo._conn.execute(
-            f"SELECT {columns} FROM flows WHERE {clause} ORDER BY id DESC LIMIT ? OFFSET ?",
-            (*args, limit, offset)).fetchall()
-        count = self.repo._conn.execute(f"SELECT COUNT(*) FROM flows WHERE {clause}", args).fetchone()[0]
-        return {"items": [summary(FlowRecord(**dict(row))) for row in rows], "total": count}
+    def history(self, query: str, offset: int, limit: int, scope: bool,
+                bookmarked: bool, spec: FilterSpec | None = None):
+        """Return a newest-first page of history matching all active filters.
+
+        The structured :class:`FilterSpec` is evaluated against metadata-only
+        summaries (bodies stay on disk), so advanced filters never materialize
+        request or response payloads.
+        """
+        if spec is None:
+            spec = FilterSpec(search=query, in_scope_only=scope, bookmarked_only=bookmarked)
+        elif query or scope or bookmarked:
+            spec = replace(
+                spec,
+                search=spec.search or query,
+                in_scope_only=spec.in_scope_only or scope,
+                bookmarked_only=spec.bookmarked_only or bookmarked,
+            )
+        records = self.repo.list_summaries()
+        matched = [record for record in reversed(records) if matches(record, spec)]
+        return {"items": [summary(record) for record in matched[offset:offset + limit]],
+                "total": len(matched), "unfiltered": len(records)}
 
     def detail(self, flow_id: str):
         record = self.repo.get_by_flow_id(flow_id)

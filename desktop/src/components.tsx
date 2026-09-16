@@ -1,4 +1,4 @@
-import { Braces, Copy, FileCode2 } from 'lucide-react'
+import { Binary, Braces, Copy, FileCode2 } from 'lucide-react'
 import { api } from './api'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
@@ -10,14 +10,11 @@ export type ContextMenuItem = {
 }
 export function useContextMenu() {
   const [menu, setMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null)
-  const open = useCallback(
-    (e: React.MouseEvent, items: ContextMenuItem[]) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setMenu({ x: e.clientX, y: e.clientY, items })
-    },
-    [],
-  )
+  const open = useCallback((e: React.MouseEvent, items: ContextMenuItem[]) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setMenu({ x: e.clientX, y: e.clientY, items })
+  }, [])
   const close = useCallback(() => setMenu(null), [])
   return { menu, open, close }
 }
@@ -31,7 +28,14 @@ export function ContextMenu({
   if (!menu) return null
   return (
     <>
-      <div className="context-menu-backdrop" onMouseDown={onClose} onContextMenu={(e) => { e.preventDefault(); onClose() }} />
+      <div
+        className="context-menu-backdrop"
+        onMouseDown={onClose}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          onClose()
+        }}
+      />
       <div className="context-menu" style={{ left: menu.x, top: menu.y }}>
         {menu.items.map((item, i) => (
           <button
@@ -103,6 +107,40 @@ export function Toggle({
     </button>
   )
 }
+type EditorView = 'pretty' | 'raw' | 'hex'
+
+function formatMessage(value: string): string {
+  const separator = value.includes('\r\n\r\n') ? '\r\n\r\n' : '\n\n'
+  const index = value.indexOf(separator)
+  try {
+    return index < 0
+      ? JSON.stringify(JSON.parse(value), null, 2)
+      : value.slice(0, index) +
+          separator +
+          JSON.stringify(JSON.parse(value.slice(index + separator.length)), null, 2)
+  } catch {
+    return value
+  }
+}
+
+function buildHexLines(value: string) {
+  const bytes = new TextEncoder().encode(value)
+  const lines: { offset: string; hex: string; ascii: string }[] = []
+  for (let index = 0; index < bytes.length; index += 16) {
+    const slice = bytes.subarray(index, index + 16)
+    const parts: string[] = []
+    for (let offset = 0; offset < 16; offset += 1) {
+      parts.push(offset < slice.length ? slice[offset].toString(16).padStart(2, '0') : '  ')
+    }
+    const hex = `${parts.slice(0, 8).join(' ')}  ${parts.slice(8).join(' ')}`
+    const ascii = Array.from(slice, (byte) =>
+      byte >= 32 && byte < 127 ? String.fromCharCode(byte) : '.',
+    ).join('')
+    lines.push({ offset: index.toString(16).padStart(8, '0'), hex, ascii })
+  }
+  return { lines, bytes: bytes.length }
+}
+
 export function Editor({
   title,
   value,
@@ -118,40 +156,40 @@ export function Editor({
   actions?: ReactNode
   disabled?: boolean
 }) {
-  const [pretty, setPretty] = useState(false)
+  const [view, setView] = useState<EditorView>(onChange ? 'raw' : 'pretty')
   const [copied, setCopied] = useState(false)
   const [copyFailed, setCopyFailed] = useState(false)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(900)
   const viewport = useRef<HTMLDivElement>(null)
-  const displayed = useMemo(() => {
-    if (!pretty) return value
-    const separator = value.includes('\r\n\r\n') ? '\r\n\r\n' : '\n\n'
-    const index = value.indexOf(separator)
-    try {
-      return index < 0
-        ? JSON.stringify(JSON.parse(value), null, 2)
-        : value.slice(0, index) +
-            separator +
-            JSON.stringify(JSON.parse(value.slice(index + separator.length)), null, 2)
-    } catch {
-      return value
-    }
-  }, [value, pretty])
-  const lines = useMemo(() => displayed.split('\n'), [displayed])
+  const prettyText = useMemo(
+    () => (view === 'pretty' ? formatMessage(value) : value),
+    [value, view],
+  )
+  const lines = useMemo(() => prettyText.split('\n'), [prettyText])
+  const hex = useMemo(() => (view === 'hex' ? buildHexLines(value) : null), [value, view])
   const firstLine = Math.max(0, Math.floor(scrollTop / 20) - 8)
-  const visibleLines = lines.slice(firstLine, firstLine + Math.ceil(viewportHeight / 20) + 16)
+  const windowSize = Math.ceil(viewportHeight / 20) + 16
+  const visibleLines = lines.slice(firstLine, firstLine + windowSize)
+  const visibleHex = hex ? hex.lines.slice(firstLine, firstLine + windowSize) : []
   useEffect(() => {
     setScrollTop(0)
     if (viewport.current) viewport.current.scrollTop = 0
-  }, [value, pretty])
+  }, [value, view])
   useEffect(() => {
     const element = viewport.current
     if (!element) return
     const observer = new ResizeObserver(() => setViewportHeight(element.clientHeight))
     observer.observe(element)
     return () => observer.disconnect()
-  }, [pretty, !!onChange])
+  }, [view, !!onChange])
+  const editable = Boolean(onChange) && view === 'raw'
+  const copyValue =
+    view === 'hex' && hex
+      ? hex.lines.map((line) => `${line.offset}  ${line.hex}  ${line.ascii}`).join('\n')
+      : view === 'pretty'
+        ? prettyText
+        : value
   return (
     <section className="editor">
       <div className="panel-title">
@@ -165,12 +203,28 @@ export function Editor({
         </div>
       </div>
       <div className="editor-toolbar">
-        <button className={!pretty ? 'tab active' : 'tab'} onClick={() => setPretty(false)}>
-          Raw
-        </button>
-        <button className={pretty ? 'tab active' : 'tab'} onClick={() => setPretty(true)}>
+        <button
+          className={view === 'pretty' ? 'tab active' : 'tab'}
+          aria-pressed={view === 'pretty'}
+          onClick={() => setView('pretty')}
+        >
           <Braces size={12} />
           Pretty
+        </button>
+        <button
+          className={view === 'raw' ? 'tab active' : 'tab'}
+          aria-pressed={view === 'raw'}
+          onClick={() => setView('raw')}
+        >
+          Raw
+        </button>
+        <button
+          className={view === 'hex' ? 'tab active' : 'tab'}
+          aria-pressed={view === 'hex'}
+          onClick={() => setView('hex')}
+        >
+          <Binary size={12} />
+          Hex
         </button>
         <span className="grow" />
         <button
@@ -179,7 +233,7 @@ export function Editor({
           aria-label="Copy message"
           onClick={async () => {
             try {
-              await api.copyText(displayed)
+              await api.copyText(copyValue)
               setCopied(true)
               setTimeout(() => setCopied(false), 1500)
             } catch {
@@ -194,14 +248,43 @@ export function Editor({
         </button>
       </div>
       <div className="editor-body">
-        {onChange && !pretty ? (
+        {editable ? (
           <textarea
             aria-label={`${title} editor`}
             spellCheck={false}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => onChange?.(e.target.value)}
             disabled={disabled}
           />
+        ) : view === 'hex' ? (
+          <div
+            ref={viewport}
+            onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+            className="code-view hex-view"
+            tabIndex={0}
+            role="region"
+            aria-label={`${title} hex view`}
+          >
+            {value && hex ? (
+              <div style={{ height: hex.lines.length * 20, position: 'relative' }}>
+                <div style={{ position: 'absolute', top: firstLine * 20, minWidth: '100%' }}>
+                  {visibleHex.map((line, index) => (
+                    <div className="hex-line" key={firstLine + index}>
+                      <span className="hex-offset">{line.offset}</span>
+                      <span className="hex-bytes">{line.hex}</span>
+                      <span className="hex-ascii">{line.ascii}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="code-placeholder">
+                {title === 'Response'
+                  ? 'The response will appear here.'
+                  : 'Select a request to inspect its contents.'}
+              </div>
+            )}
+          </div>
         ) : (
           <div
             ref={viewport}
@@ -244,13 +327,19 @@ export function Editor({
       </div>
       <div className="editor-footer">
         <span>
-          {onChange && !pretty
+          {editable
             ? 'Editable · UTF-8 text'
-            : pretty
+            : view === 'pretty'
               ? 'Formatted view · original message preserved'
-              : 'Read only · UTF-8 preview'}
+              : view === 'hex'
+                ? 'Hex view · UTF-8 bytes'
+                : 'Read only · UTF-8 preview'}
         </span>
-        <span>{value.length.toLocaleString()} characters</span>
+        <span>
+          {view === 'hex' && hex
+            ? `${hex.bytes.toLocaleString()} bytes`
+            : `${value.length.toLocaleString()} characters`}
+        </span>
       </div>
     </section>
   )

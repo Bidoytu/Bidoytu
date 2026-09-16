@@ -1,17 +1,26 @@
-import { Activity, ArrowRight, Globe2, Layers3, Play, Square, Zap } from 'lucide-react'
+import {
+  Activity,
+  ArrowRight,
+  Globe2,
+  Layers3,
+  LoaderCircle,
+  Play,
+  Plus,
+  Square,
+  X,
+  Zap,
+} from 'lucide-react'
 import { api } from '../api'
 import { Button, Editor, Empty, Status, bytes, duration } from '../components'
 import type { Detail } from '../types'
 
 import type { WorkspaceController } from '../hooks/useWorkspace'
+import { newIntruderTab } from '../hooks/useWorkspace'
 
 export function IntruderView({ workspace }: { workspace: WorkspaceController }) {
   const {
     state,
-    setState,
     online,
-    error,
-    verifyTLS,
     attackRequest,
     setAttackRequest,
     attackUrl,
@@ -19,13 +28,70 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
     payloads,
     setPayloads,
     results,
-    setResults,
-    split,
+    intruderTabs,
+    setIntruderTabs,
+    activeIntruderTab,
+    setActiveIntruderTab,
+    intruderSequence,
+    intruderRunningId,
+    startIntruder,
+    duplicateIntruderTab,
     run,
     toRepeater,
   } = workspace
   return (
     <div className="tool-workspace">
+      <div className="request-tabs">
+        {intruderTabs.map((tab) => (
+          <div
+            className={`request-tab ${tab.id === activeIntruderTab ? 'active' : ''}`}
+            key={tab.id}
+          >
+            <button onClick={() => setActiveIntruderTab(tab.id)}>
+              {tab.id === intruderRunningId && state.job_state === 'running' ? (
+                <LoaderCircle size={13} className="spin" />
+              ) : (
+                <Zap size={12} />
+              )}
+              <span>{tab.name}</span>
+            </button>
+            {intruderTabs.length > 1 && (
+              <button
+                aria-label={`Close ${tab.name}`}
+                disabled={state.job_state === 'running'}
+                onClick={() => {
+                  setIntruderTabs(intruderTabs.filter((t) => t.id !== tab.id))
+                  if (tab.id === activeIntruderTab)
+                    setActiveIntruderTab(intruderTabs.find((t) => t.id !== tab.id)!.id)
+                }}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        ))}
+        <button
+          className="icon-button"
+          aria-label="New Intruder attack"
+          disabled={state.job_state === 'running'}
+          onClick={() => {
+            const id = ++intruderSequence.current
+            setIntruderTabs((prev) => [...prev, newIntruderTab(id)])
+            setActiveIntruderTab(id)
+          }}
+        >
+          <Plus size={16} />
+        </button>
+        <button
+          className="icon-button"
+          aria-label="Duplicate Intruder attack"
+          title="Duplicate attack (Ctrl+I)"
+          disabled={state.job_state === 'running'}
+          onClick={duplicateIntruderTab}
+        >
+          <Layers3 size={15} />
+        </button>
+      </div>
       <div className="tool-toolbar">
         <label className="target-input">
           <Globe2 size={15} />
@@ -43,22 +109,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
             Cancel run
           </Button>
         ) : (
-          <Button
-            className="primary"
-            disabled={!online}
-            onClick={() =>
-              void run(async () => {
-                await api.request('intruder.start', {
-                  url: attackUrl,
-                  request: attackRequest,
-                  payloads: payloads.split('\n').filter(Boolean),
-                  verify_tls: verifyTLS,
-                })
-                setState((s) => ({ ...s, job_state: 'running' }))
-                setResults([])
-              })
-            }
-          >
+          <Button className="primary" disabled={!online} onClick={() => void startIntruder()}>
             <Play size={13} />
             Start run
           </Button>

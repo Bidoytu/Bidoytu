@@ -1,4 +1,4 @@
-import { Globe2, LoaderCircle, Plus, Send, X, Zap } from 'lucide-react'
+import { Copy, Globe2, LoaderCircle, Plus, Send, X, Zap } from 'lucide-react'
 import { Button, Editor, bytes, duration } from '../components'
 
 import type { WorkspaceController } from '../hooks/useWorkspace'
@@ -6,7 +6,6 @@ import { newTab } from '../hooks/useWorkspace'
 
 export function RepeaterView({ workspace }: { workspace: WorkspaceController }) {
   const {
-    setView,
     online,
     error,
     busy,
@@ -15,11 +14,11 @@ export function RepeaterView({ workspace }: { workspace: WorkspaceController }) 
     activeTab,
     setActiveTab,
     tabSequence,
-    setAttackRequest,
-    setAttackUrl,
     split,
     requestTab,
     updateTab,
+    duplicateRepeaterTab,
+    repeaterToIntruder,
     sendRequest,
   } = workspace
   return (
@@ -86,12 +85,13 @@ export function RepeaterView({ workspace }: { workspace: WorkspaceController }) 
         </Button>
         <Button
           className="subtle"
-          onClick={() => {
-            setAttackUrl(requestTab.url)
-            setAttackRequest(requestTab.request)
-            setView('Intruder')
-          }}
+          title="Duplicate request (Ctrl+R)"
+          onClick={duplicateRepeaterTab}
         >
+          <Copy size={14} />
+          Duplicate
+        </Button>
+        <Button className="subtle" title="Send to Intruder (Ctrl+I)" onClick={repeaterToIntruder}>
           <Zap size={14} />
           To Intruder
         </Button>

@@ -19,6 +19,7 @@ from bidoytu.http_utils import ensure_host_header
 from bidoytu.storage.models import FlowRecord
 
 _TERM = re.compile(r'''(?:([^\s:<>!=]+)\s*(?:(>=|<=|!=|=|>|<|:)\s*("[^"]*"|'[^']*'|[^\s]+))|("[^"]*"|'[^']*'|[^\s]+))''')
+_OPERATOR = re.compile(r"^(>=|<=|!=|>|<|=)\s*(.+)$")
 _ALL_STATUS_CLASSES = {"2xx", "3xx", "4xx", "5xx"}
 
 
@@ -47,7 +48,37 @@ class FilterSpec:
     hide_extensions: str = ""
     notes_only: bool = False
     highlighted_only: bool = False
+    bookmarked_only: bool = False
     listener_port: str = ""
+
+
+def filter_spec_from_dict(data: dict) -> FilterSpec:
+    """Build a :class:`FilterSpec` from an untrusted IPC payload.
+
+    Unknown keys are ignored and values are coerced to the expected type so a
+    malformed desktop request can never break history filtering. String fields
+    are bounded to keep a hostile payload from being echoed back verbatim.
+    """
+    allowed = set(FilterSpec.__dataclass_fields__)
+    boolean_fields = {
+        "regex", "case_sensitive", "negative_search", "in_scope_only",
+        "hide_without_responses", "parameterized_only", "notes_only",
+        "highlighted_only", "bookmarked_only",
+    }
+    clean: dict = {}
+    for key, value in data.items():
+        if key not in allowed:
+            continue
+        if key in boolean_fields:
+            clean[key] = bool(value)
+        elif key in ("mime_types", "status_classes"):
+            if isinstance(value, (list, tuple, set)):
+                clean[key] = {str(item)[:40] for item in value}
+            else:
+                clean[key] = set()
+        else:
+            clean[key] = str(value)[:512]
+    return FilterSpec(**clean)
 
 
 def serialize_filter_spec(spec: FilterSpec) -> str:
@@ -117,13 +148,28 @@ def _compare(actual, op: str, expected: str) -> bool:
     return (right in left) if op == ":" else ((left == right) if op == "=" else left != right)
 
 
+def _compare_field(actual, raw: str) -> bool:
+    """Compare a structured field, honouring an optional ``>``/``<`` prefix.
+
+    Free-text fields stay substring matches, while numeric fields can express
+    ranges (``size: >1024``) without forcing the full HTTPQL syntax.
+    """
+    value = raw.strip()
+    prefix = _OPERATOR.match(value)
+    if prefix:
+        return _compare(actual, prefix.group(1), prefix.group(2))
+    return _compare(actual, ":", value)
+
+
 def matches(record: FlowRecord, spec: FilterSpec) -> bool:
     """Return true when *record* matches all structured filters and query terms."""
     for name in ("host", "path", "method", "status", "mime", "size", "time", "scope", "tool"):
         value = getattr(spec, name)
-        if value and not _compare(_field(record, name), ":", value):
+        if value and not _compare_field(_field(record, name), value):
             return False
     if spec.in_scope_only and not record.scope:
+        return False
+    if spec.bookmarked_only and not record.bookmarked:
         return False
     if spec.hide_without_responses and record.status_code is None:
         return False

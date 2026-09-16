@@ -1,5 +1,5 @@
 'use strict'
-const { app, BrowserWindow, ipcMain, dialog, session, clipboard } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain, dialog, session, clipboard } = require('electron')
 const { join, resolve } = require('node:path')
 const { existsSync } = require('node:fs')
 const { writeFile } = require('node:fs/promises')
@@ -23,6 +23,28 @@ function trusted(event) {
     event.senderFrame.url !== entry
   )
     throw new Error('Untrusted IPC sender')
+}
+
+function configureMenu() {
+  // The default menu binds Ctrl+R/F5 to "Reload", which would swallow the
+  // renderer's Ctrl+R "Send to Repeater" shortcut. Keep editing/window roles
+  // but omit the reload accelerators so key events reach the page.
+  const template = [
+    ...(process.platform === 'darwin' ? [{ role: 'appMenu' }] : []),
+    { role: 'editMenu' },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+      ],
+    },
+    { role: 'windowMenu' },
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
 function startBackend() {
@@ -90,18 +112,6 @@ function createWindow() {
     if (url !== entry) event.preventDefault()
   })
   window.webContents.on('will-attach-webview', (event) => event.preventDefault())
-  // Block Chromium refresh shortcuts (Ctrl+R, Ctrl+Shift+R, F5) so the app
-  // can use Ctrl+R for "Send to Repeater" without reloading the renderer.
-  window.webContents.on('before-input-event', (_event, input) => {
-    if (input.type !== 'keyDown') return
-    const ctrl = input.control || input.meta
-    if (ctrl && (input.key === 'r' || input.key === 'R')) {
-      _event.preventDefault()
-    }
-    if (input.key === 'F5') {
-      _event.preventDefault()
-    }
-  })
   window.once('ready-to-show', () => {
     if (process.env.BIDOYTU_TEST !== '1') window.show()
   })
@@ -117,6 +127,7 @@ else {
     }
   })
   app.whenReady().then(() => {
+    configureMenu()
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) =>
       callback(false),
     )

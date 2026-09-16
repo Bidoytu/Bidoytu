@@ -16,6 +16,7 @@ import httpx
 from bidoytu.audit.service import LiveAuditService
 from bidoytu.config import AppConfig, host_matches_scope
 from bidoytu.http_utils import parse_request_text
+from bidoytu.storage.advanced_history import filter_spec_from_dict
 from bidoytu.storage.models import FlowRecord
 from bidoytu.proxy.engine import ProxyService
 from .storage import Storage, summary
@@ -204,9 +205,11 @@ class ApplicationService:
             await self.storage.call(save_session)
             return True
         if method == "history.list":
+            raw_filter = p.get("filter")
+            spec = filter_spec_from_dict(raw_filter) if isinstance(raw_filter, dict) else None
             return await self.storage.call(self.storage.history, str(p.get("query", ""))[:512],
                 max(0, int(p.get("offset", 0))), min(250, max(1, int(p.get("limit", 100)))),
-                bool(p.get("scope")), bool(p.get("bookmarked")))
+                bool(p.get("scope")), bool(p.get("bookmarked")), spec)
         if method == "history.detail":
             await self.queue.join()
             return await self.storage.call(self.storage.detail, str(p["flow_id"]))

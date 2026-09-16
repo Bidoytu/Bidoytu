@@ -8,8 +8,14 @@ import {
   ShieldCheck,
   Zap,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api'
+import {
+  EMPTY_HISTORY_FILTERS,
+  countActiveFilters,
+  historyFilterPayload,
+  type HistoryFilters,
+} from '../historyFilters'
 import type { Detail, EngineState, Finding, Flow, JobResult } from '../types'
 
 export type View =
@@ -29,6 +35,14 @@ export type RepeaterTab = {
   result?: Detail
   busy: boolean
   error?: string
+}
+export type IntruderTab = {
+  id: number
+  name: string
+  url: string
+  request: string
+  payloads: string
+  results: JobResult[]
 }
 const initial: EngineState = {
   protocol: 1,
@@ -74,6 +88,14 @@ export const newTab = (id: number): RepeaterTab => ({
   request: 'GET / HTTP/1.1\r\nHost: example.com\r\nAccept: */*\r\n\r\n',
   busy: false,
 })
+export const newIntruderTab = (id: number): IntruderTab => ({
+  id,
+  name: `Attack ${id}`,
+  url: 'https://example.com',
+  request: 'GET /?q=§payload§ HTTP/1.1\r\nHost: example.com\r\n\r\n',
+  payloads: '',
+  results: [],
+})
 
 export function useWorkspace() {
   const [view, setView] = useState<View>('History')
@@ -86,10 +108,12 @@ export function useWorkspace() {
   const [revision, setRevision] = useState(0)
   const [flows, setFlows] = useState<Flow[]>([])
   const [total, setTotal] = useState(0)
+  const [unfilteredTotal, setUnfilteredTotal] = useState(0)
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
-  const [scopeOnly, setScopeOnly] = useState(false)
-  const [bookmarked, setBookmarked] = useState(false)
+  const [filters, setFilters] = useState<HistoryFilters>(EMPTY_HISTORY_FILTERS)
+  const [debouncedFilters, setDebouncedFilters] = useState<HistoryFilters>(EMPTY_HISTORY_FILTERS)
+  const [showFilters, setShowFilters] = useState(false)
   const [page, setPage] = useState(0)
   const [selected, setSelected] = useState<Detail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
@@ -109,12 +133,10 @@ export function useWorkspace() {
   const [decoderInput, setDecoderInput] = useState('')
   const [decoderOutput, setDecoderOutput] = useState('')
   const [operation, setOperation] = useState('base64.decode')
-  const [attackRequest, setAttackRequest] = useState(
-    'GET /?q=§payload§ HTTP/1.1\r\nHost: example.com\r\n\r\n',
-  )
-  const [attackUrl, setAttackUrl] = useState('https://example.com')
-  const [payloads, setPayloads] = useState('')
-  const [results, setResults] = useState<JobResult[]>([])
+  const [intruderTabs, setIntruderTabs] = useState<IntruderTab[]>([newIntruderTab(1)])
+  const [activeIntruderTab, setActiveIntruderTab] = useState(1)
+  const intruderSequence = useRef(1)
+  const [intruderRunningId, setIntruderRunningId] = useState<number | null>(null)
   const [showHelp, setShowHelp] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const detailSequence = useRef(0)
@@ -131,6 +153,11 @@ export function useWorkspace() {
   const interceptDetailRef = useRef(interceptDetail)
   interceptDetailRef.current = interceptDetail
   const requestTab = tabs.find((t) => t.id === activeTab) ?? tabs[0]
+  const intruderTab = intruderTabs.find((t) => t.id === activeIntruderTab) ?? intruderTabs[0]
+  const requestTabRef = useRef(requestTab)
+  requestTabRef.current = requestTab
+  const intruderTabRef = useRef(intruderTab)
+  intruderTabRef.current = intruderTab
   const pending = state.pending.find((p) => p.flow_id === interceptId) ?? state.pending[0]
 
   const run = useCallback(async <T>(fn: () => Promise<T>): Promise<T | undefined> => {
@@ -145,12 +172,22 @@ export function useWorkspace() {
     setState(next)
     setRevision((v) => v + 1)
   }, [])
+  const updateFilters = useCallback((patch: Partial<HistoryFilters>) => {
+    setFilters((previous) => ({ ...previous, ...patch }))
+  }, [])
+  const resetFilters = useCallback(() => setFilters(EMPTY_HISTORY_FILTERS), [])
+  const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters])
 
   useEffect(() => {
     if (!online) return
     let alive = true
     api
-      .request<{ tabs?: RepeaterTab[]; port?: number; verifyTLS?: boolean }>('workspace.load')
+      .request<{
+        tabs?: RepeaterTab[]
+        intruderTabs?: IntruderTab[]
+        port?: number
+        verifyTLS?: boolean
+      }>('workspace.load')
       .then((saved) => {
         if (!alive) return
         if (
@@ -166,6 +203,27 @@ export function useWorkspace() {
           setTabs(saved.tabs.map((tab) => ({ ...tab, busy: false })))
           setActiveTab(saved.tabs[0].id)
           tabSequence.current = Math.max(...saved.tabs.map((tab) => tab.id))
+        }
+        if (
+          Array.isArray(saved.intruderTabs) &&
+          saved.intruderTabs.length &&
+          saved.intruderTabs.every(
+            (tab) =>
+              Number.isInteger(tab.id) &&
+              typeof tab.request === 'string' &&
+              typeof tab.url === 'string',
+          )
+        ) {
+          setIntruderTabs(
+            saved.intruderTabs.map((tab) => ({
+              ...newIntruderTab(tab.id),
+              ...tab,
+              payloads: typeof tab.payloads === 'string' ? tab.payloads : '',
+              results: [],
+            })),
+          )
+          setActiveIntruderTab(saved.intruderTabs[0].id)
+          intruderSequence.current = Math.max(...saved.intruderTabs.map((tab) => tab.id))
         }
         if (saved.port && saved.port >= 1024 && saved.port <= 65535) setPort(saved.port)
         if (typeof saved.verifyTLS === 'boolean') setVerifyTLS(saved.verifyTLS)
@@ -184,13 +242,20 @@ export function useWorkspace() {
       void run(() =>
         api.request('workspace.save', {
           tabs: tabs.map(({ id, name, url, request }) => ({ id, name, url, request })),
+          intruderTabs: intruderTabs.map(({ id, name, url, request, payloads }) => ({
+            id,
+            name,
+            url,
+            request,
+            payloads,
+          })),
           port,
           verifyTLS,
         }),
       )
     }, 350)
     return () => clearTimeout(timer)
-  }, [tabs, port, verifyTLS, sessionLoaded, run])
+  }, [tabs, intruderTabs, port, verifyTLS, sessionLoaded, run])
   useEffect(() => {
     let alive = true
     const unsubscribe = api.onEvent((event) => {
@@ -231,20 +296,27 @@ export function useWorkspace() {
     return () => clearTimeout(timer)
   }, [query])
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters(filters)
+      setPage(0)
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [filters])
+  useEffect(() => {
     if (!online || view !== 'History') return
     let alive = true
     api
-      .request<{ items: Flow[]; total: number }>('history.list', {
+      .request<{ items: Flow[]; total: number; unfiltered: number }>('history.list', {
         query: debouncedQuery,
         offset: page * 100,
         limit: 100,
-        scope: scopeOnly,
-        bookmarked,
+        filter: historyFilterPayload(debouncedFilters),
       })
       .then((result) => {
         if (alive) {
           setFlows(result.items)
           setTotal(result.total)
+          setUnfilteredTotal(result.unfiltered)
           if (!result.items.length && page > 0) setPage(0)
         }
       })
@@ -254,11 +326,11 @@ export function useWorkspace() {
     return () => {
       alive = false
     }
-  }, [online, revision, view, debouncedQuery, page, scopeOnly, bookmarked])
+  }, [online, revision, view, debouncedQuery, page, debouncedFilters])
   useEffect(() => {
     setScrollTop(0)
     if (scrollRef.current) scrollRef.current.scrollTop = 0
-  }, [page, debouncedQuery, scopeOnly, bookmarked])
+  }, [page, debouncedQuery, debouncedFilters])
   useEffect(() => {
     if (view !== 'History' || !selectedId) return
     let alive = true
@@ -301,11 +373,14 @@ export function useWorkspace() {
     if (!online) return
     if (view === 'Live audit')
       void run(async () => setFindings(await api.request<Finding[]>('audit.list')))
-    if (view === 'Intruder')
-      void run(async () =>
-        setResults((await api.request<{ items: JobResult[] }>('intruder.results')).items),
-      )
-  }, [view, online, revision, run])
+    if (view === 'Intruder' && intruderRunningId != null)
+      void run(async () => {
+        const { items } = await api.request<{ items: JobResult[] }>('intruder.results')
+        setIntruderTabs((prev) =>
+          prev.map((tab) => (tab.id === intruderRunningId ? { ...tab, results: items } : tab)),
+        )
+      })
+  }, [view, online, revision, run, intruderRunningId])
   useEffect(() => {
     if (!notice) return
     const timer = setTimeout(() => setNotice(''), 3500)
@@ -322,21 +397,29 @@ export function useWorkspace() {
         e.preventDefault()
         setView((['History', 'Intercept', 'Repeater', 'Intruder'] as View[])[Number(e.key) - 1])
       }
-      // Ctrl+R -> Send to Repeater, Ctrl+I -> Send to Intruder.
-      // Uses the selected detail from History or the intercepted flow detail.
+      // Ctrl+R -> Send to Repeater. Inside Repeater it duplicates the active
+      // request into a new tab; inside Intruder it forwards the attack template.
+      // Everywhere else it uses the selected history request or the paused
+      // intercepted flow. Ctrl+I mirrors this for Intruder.
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'r' && !e.shiftKey) {
         e.preventDefault()
-        const detail = viewRef.current === 'Intercept'
-          ? interceptDetailRef.current
-          : selectedRef.current
-        if (detail) toRepeater(detail)
+        if (viewRef.current === 'Repeater') duplicateRepeaterTab()
+        else if (viewRef.current === 'Intruder') intruderToRepeater()
+        else {
+          const detail =
+            viewRef.current === 'Intercept' ? interceptDetailRef.current : selectedRef.current
+          if (detail) toRepeater(detail)
+        }
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i' && !e.shiftKey) {
         e.preventDefault()
-        const detail = viewRef.current === 'Intercept'
-          ? interceptDetailRef.current
-          : selectedRef.current
-        if (detail) toIntruder(detail)
+        if (viewRef.current === 'Intruder') duplicateIntruderTab()
+        else if (viewRef.current === 'Repeater') repeaterToIntruder()
+        else {
+          const detail =
+            viewRef.current === 'Intercept' ? interceptDetailRef.current : selectedRef.current
+          if (detail) toIntruder(detail)
+        }
       }
       if (e.key === 'Escape') {
         setShowHelp(false)
@@ -379,19 +462,75 @@ export function useWorkspace() {
     setActiveTab(id)
     setView('Repeater')
   }
+  function addIntruderTab(seed: Partial<IntruderTab>) {
+    const id = ++intruderSequence.current
+    setIntruderTabs((prev) => [...prev, { ...newIntruderTab(id), ...seed, id, results: [] }])
+    setActiveIntruderTab(id)
+    setView('Intruder')
+  }
   function toIntruder(detail: Detail) {
     if (detail.truncated || detail.binary) {
-      setError(
-        'Binary or truncated previews cannot be sent to Intruder as text.',
-      )
+      setError('Binary or truncated previews cannot be sent to Intruder as text.')
       return
     }
-    setAttackUrl(`${detail.scheme}://${detail.host}:${detail.port}`)
-    setAttackRequest(detail.request)
+    addIntruderTab({
+      name: detail.host,
+      url: `${detail.scheme}://${detail.host}:${detail.port}`,
+      request: detail.request,
+    })
+  }
+  // The shortcuts below only read refs and stable setters so the empty-deps
+  // keyboard listener always sees the current tab.
+  function duplicateRepeaterTab() {
+    const current = requestTabRef.current
+    if (!current) return
+    const id = ++tabSequence.current
+    setTabs((prev) => [
+      ...prev,
+      {
+        ...current,
+        id,
+        name: `${current.name} copy`,
+        busy: false,
+        result: undefined,
+        error: undefined,
+      },
+    ])
+    setActiveTab(id)
+    setView('Repeater')
+  }
+  function duplicateIntruderTab() {
+    const current = intruderTabRef.current
+    if (!current) return
+    const id = ++intruderSequence.current
+    setIntruderTabs((prev) => [
+      ...prev,
+      { ...current, id, name: `${current.name} copy`, results: [] },
+    ])
+    setActiveIntruderTab(id)
     setView('Intruder')
+  }
+  function repeaterToIntruder() {
+    const current = requestTabRef.current
+    if (!current) return
+    addIntruderTab({ name: current.name, url: current.url, request: current.request })
+  }
+  function intruderToRepeater() {
+    const current = intruderTabRef.current
+    if (!current) return
+    const id = ++tabSequence.current
+    setTabs((prev) => [
+      ...prev,
+      { id, name: current.name, url: current.url, request: current.request, busy: false },
+    ])
+    setActiveTab(id)
+    setView('Repeater')
   }
   function updateTab(patch: Partial<RepeaterTab>, id = activeTab) {
     setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+  }
+  function updateIntruderTab(patch: Partial<IntruderTab>, id = activeIntruderTab) {
+    setIntruderTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
   }
   async function sendRequest() {
     const tab = requestTab
@@ -413,6 +552,35 @@ export function useWorkspace() {
     } finally {
       updateTab({ busy: false }, tab.id)
     }
+  }
+  function setAttackRequest(value: string) {
+    updateIntruderTab({ request: value })
+  }
+  function setAttackUrl(value: string) {
+    updateIntruderTab({ url: value })
+  }
+  function setPayloads(value: string) {
+    updateIntruderTab({ payloads: value })
+  }
+  function setResults(value: JobResult[]) {
+    updateIntruderTab({ results: value })
+  }
+  async function startIntruder() {
+    const tab = intruderTab
+    try {
+      await api.request('intruder.start', {
+        url: tab.url,
+        request: tab.request,
+        payloads: tab.payloads.split('\n').filter(Boolean),
+        verify_tls: verifyTLS,
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      return
+    }
+    setIntruderRunningId(tab.id)
+    updateIntruderTab({ results: [] }, tab.id)
+    setState((s) => ({ ...s, job_state: 'running' }))
   }
   async function toggleProxy() {
     setBusy(true)
@@ -484,14 +652,19 @@ export function useWorkspace() {
     setFlows,
     total,
     setTotal,
+    unfilteredTotal,
     query,
     setQuery,
     debouncedQuery,
     setDebouncedQuery,
-    scopeOnly,
-    setScopeOnly,
-    bookmarked,
-    setBookmarked,
+    filters,
+    setFilters,
+    debouncedFilters,
+    updateFilters,
+    resetFilters,
+    activeFilterCount,
+    showFilters,
+    setShowFilters,
     page,
     setPage,
     selected,
@@ -529,14 +702,25 @@ export function useWorkspace() {
     setDecoderOutput,
     operation,
     setOperation,
-    attackRequest,
+    attackRequest: intruderTab.request,
     setAttackRequest,
-    attackUrl,
+    attackUrl: intruderTab.url,
     setAttackUrl,
-    payloads,
+    payloads: intruderTab.payloads,
     setPayloads,
-    results,
+    results: intruderTab.results,
     setResults,
+    intruderTabs,
+    setIntruderTabs,
+    activeIntruderTab,
+    setActiveIntruderTab,
+    intruderSequence,
+    intruderTab,
+    intruderRunningId,
+    updateIntruderTab,
+    startIntruder,
+    duplicateIntruderTab,
+    repeaterToIntruder,
     showHelp,
     setShowHelp,
     searchRef,
@@ -560,6 +744,8 @@ export function useWorkspace() {
     toRepeater,
     toIntruder,
     updateTab,
+    duplicateRepeaterTab,
+    intruderToRepeater,
     sendRequest,
     toggleProxy,
     interceptToggle,
