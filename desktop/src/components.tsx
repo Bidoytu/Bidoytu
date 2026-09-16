@@ -112,15 +112,133 @@ type EditorView = 'pretty' | 'raw' | 'hex'
 function formatMessage(value: string): string {
   const separator = value.includes('\r\n\r\n') ? '\r\n\r\n' : '\n\n'
   const index = value.indexOf(separator)
-  try {
-    return index < 0
-      ? JSON.stringify(JSON.parse(value), null, 2)
-      : value.slice(0, index) +
-          separator +
-          JSON.stringify(JSON.parse(value.slice(index + separator.length)), null, 2)
-  } catch {
-    return value
+  if (index < 0) return formatPayload(value, '')
+  const headers = value.slice(0, index)
+  const body = value.slice(index + separator.length)
+  const contentType = headers.match(/^content-type\s*:\s*([^;\r\n]+)/im)?.[1] ?? ''
+  return headers + separator + formatPayload(body, contentType)
+}
+
+function formatPayload(value: string, contentType: string): string {
+  const text = value.trim()
+  if (!text) return value
+  const type = contentType.toLowerCase()
+  if (type.includes('json') || /^[\[{]/.test(text)) {
+    try {
+      return JSON.stringify(JSON.parse(text), null, 2)
+    } catch {
+      // Continue with the content-type-specific formatter below.
+    }
   }
+  if (
+    type.includes('html') ||
+    type.includes('xml') ||
+    /^<!doctype\s+html|^<(?:html|head|body|div|main|section|article|svg|\/?[a-z]+[\s>])/i.test(text)
+  ) {
+    return beautifyMarkup(text)
+  }
+  if (
+    type.includes('javascript') ||
+    type.includes('ecmascript') ||
+    type.includes('typescript') ||
+    /^(?:#!.*\n)?\s*(?:import\s|export\s|(?:const|let|var|function|class)\s|(?:if|for|while|switch|try)\s*\(|[\w$.]+\s*=>)/.test(
+      text,
+    )
+  ) {
+    return beautifyCode(text)
+  }
+  if (type.includes('css') || /^[^{]+\{\s*[\w-]+\s*:/m.test(text)) return beautifyCode(text)
+  if (type.includes('x-www-form-urlencoded')) {
+    return text
+      .split('&')
+      .map((part) => part.replace('=', ' = '))
+      .join('\n')
+  }
+  return value
+}
+
+function beautifyMarkup(value: string): string {
+  const tokens = value.replace(/>\s+</g, '><').match(/<!--[\s\S]*?-->|<![^>]*>|<[^>]+>|[^<]+/g) ?? [
+    value,
+  ]
+  const lines: string[] = []
+  let indent = 0
+  const voidTag = /^(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b/i
+  for (const token of tokens) {
+    const part = token.trim()
+    if (!part) continue
+    if (part.startsWith('</')) indent = Math.max(0, indent - 1)
+    if (part.startsWith('<script') || part.startsWith('<style')) {
+      lines.push(`${'  '.repeat(indent)}${part}`)
+      indent += 1
+    } else if (part.startsWith('</script') || part.startsWith('</style')) {
+      indent = Math.max(0, indent - 1)
+      lines.push(`${'  '.repeat(indent)}${part}`)
+    } else {
+      lines.push(`${'  '.repeat(indent)}${part}`)
+      if (
+        part.startsWith('<') &&
+        !part.startsWith('</') &&
+        !part.startsWith('<!') &&
+        !part.startsWith('<?') &&
+        !part.endsWith('/>') &&
+        !voidTag.test(part.slice(1))
+      )
+        indent += 1
+    }
+  }
+  return lines.join('\n')
+}
+
+function beautifyCode(value: string): string {
+  const lines: string[] = []
+  let current = ''
+  let indent = 0
+  let quote = ''
+  let escaped = false
+  const flush = () => {
+    const line = current.trim()
+    if (line) lines.push(`${'  '.repeat(indent)}${line}`)
+    current = ''
+  }
+  for (const char of value) {
+    if (quote) {
+      current += char
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = ''
+      continue
+    }
+    if (char === '"' || char === "'" || char === '`') {
+      quote = char
+      current += char
+      continue
+    }
+    if (char === '{') {
+      current = current.trimEnd() + ' {'
+      flush()
+      indent += 1
+      continue
+    }
+    if (char === '}') {
+      flush()
+      indent = Math.max(0, indent - 1)
+      current = '}'
+      continue
+    }
+    if (char === ';') {
+      current = current.trimEnd() + ';'
+      flush()
+      continue
+    }
+    if (char === '\n' || char === '\r') {
+      flush()
+      continue
+    }
+    current += char
+  }
+  flush()
+  return lines.join('\n')
 }
 
 function buildHexLines(value: string) {

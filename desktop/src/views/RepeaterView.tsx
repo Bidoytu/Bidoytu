@@ -112,6 +112,14 @@ export function RepeaterView({ workspace }: { workspace: WorkspaceController }) 
       void sendGroup(activeGroup.tabIds, groupSendMode)
     else void sendRequest()
   }
+  const sendLabel =
+    !activeGroup || groupSendMode === 'current'
+      ? 'Send'
+      : groupSendMode === 'parallel'
+        ? 'Send group in parallel'
+        : groupSendMode === 'sequence-single'
+          ? 'Send group · single connection'
+          : 'Send group · separate connections'
 
   return (
     <div
@@ -176,7 +184,7 @@ export function RepeaterView({ workspace }: { workspace: WorkspaceController }) 
         <div className="send-control">
           <Button className="primary" disabled={!online || requestTab.busy} onClick={sendSelected}>
             {requestTab.busy ? <LoaderCircle size={14} className="spin" /> : <Send size={14} />}{' '}
-            {requestTab.busy ? 'Sending…' : 'Send'} <kbd>Ctrl ↵</kbd>
+            {requestTab.busy ? 'Sending…' : sendLabel} <kbd>Ctrl ↵</kbd>
           </Button>
           {activeGroup && (
             <button

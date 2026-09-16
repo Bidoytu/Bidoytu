@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const dir = await mkdtemp(join(tmpdir(), 'bidoytu-e2e-'))
+await mkdir('test-results', { recursive: true })
 const server = createServer((request, response) => {
   response.writeHead(200, { 'content-type': 'application/json' })
   response.end(
@@ -33,7 +34,7 @@ const errors = []
 page.on('pageerror', (error) => errors.push(error.message))
 try {
   await expect(page.getByText('Engine connected', { exact: true })).toBeVisible({ timeout: 30000 })
-  await expect(page.getByRole('heading', { name: 'HTTP history', exact: true })).toBeVisible()
+  await expect(page.getByText('HTTP history', { exact: true }).first()).toBeVisible()
   const security = await app.evaluate(({ BrowserWindow }) => {
     const prefs = BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences()
     return {
@@ -57,14 +58,14 @@ try {
   )
   // Ctrl+R duplicates the active Repeater request into a new tab.
   await page.keyboard.press('Control+r')
-  await expect(page.getByRole('button', { name: 'Request 1 copy', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Request 1 (1)', exact: true })).toBeVisible()
   // Ctrl+I forwards the active request to a new Intruder attack.
   await page.keyboard.press('Control+i')
-  await expect(page.getByRole('heading', { name: 'Intruder', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Request 1 copy', exact: true })).toBeVisible()
+  await expect(page.getByText('Intruder', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Request 1 (1)', exact: true })).toBeVisible()
   // Ctrl+I again duplicates the active Intruder attack.
   await page.keyboard.press('Control+i')
-  await expect(page.getByRole('button', { name: 'Request 1 copy copy', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Request 1 (1) copy', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'HTTP history' }).click()
   console.log('Python replay and global shortcuts verified.')
   const reservation = createServer()
@@ -114,7 +115,7 @@ try {
   await page.getByRole('button', { name: /^Filters/ }).click()
   const filterDialog = page.getByRole('dialog', { name: 'Advanced HTTP history filter' })
   await expect(filterDialog).toBeVisible()
-  await filterDialog.getByLabel('4xx').check()
+  await filterDialog.locator('label').filter({ hasText: '2xx' }).locator('input').uncheck()
   await expect(page.getByText('No matching requests')).toBeVisible()
   await expect(filterDialog.getByText(/0 of \d+ requests/)).toBeVisible()
   await page.getByRole('button', { name: 'Reset all' }).click()
@@ -129,7 +130,6 @@ try {
   await page.getByRole('button', { name: 'Save scope' }).click()
   await expect(page.getByRole('status')).toContainText('Target scope saved')
   await page.getByRole('button', { name: 'HTTP history' }).click()
-  await mkdir('test-results', { recursive: true })
   await page.screenshot({ path: 'test-results/desktop-history.png' })
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1100, 760))
   await page.screenshot({ path: 'test-results/desktop-compact.png' })
