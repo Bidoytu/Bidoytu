@@ -478,6 +478,34 @@ QTabBar::close-button:hover {{
 }}
 
 /* -- Table / headers ----------------------------------------------------- */
+QFrame#auditControlBar {{
+    background: {t['surface']};
+    border: 1px solid {t['border_soft']};
+    border-radius: 10px;
+}}
+QFrame#auditMetricCard {{
+    background: {t['surface']};
+    border: 1px solid {t['border_soft']};
+    border-radius: 10px;
+}}
+QFrame#auditMetricCard[tone="accent"] {{ border-left: 3px solid {t['accent']}; }}
+QFrame#auditMetricCard[tone="critical"] {{ border-left: 3px solid #ef6461; }}
+QFrame#auditMetricCard[tone="medium"] {{ border-left: 3px solid #e7a23b; }}
+QFrame#auditInfoPanel {{
+    background: {t['surface']};
+    border: 1px solid {t['border_soft']};
+    border-radius: 10px;
+}}
+QLabel#auditPageTitle {{ font-size: 20px; font-weight: 700; color: {t['text']}; }}
+QLabel#auditPageSubtitle {{ color: {t['text_muted']}; }}
+QLabel#auditSectionTitle {{ font-size: 14px; font-weight: 700; color: {t['text']}; }}
+QLabel#auditMetricLabel {{ color: {t['text_muted']}; font-size: 10px; font-weight: 700; letter-spacing: 1px; }}
+QLabel#auditMetricValue {{ color: {t['text']}; font-size: 24px; font-weight: 700; }}
+QLabel#auditScopeBadge {{ color: {t['accent']}; background: {t['base_alt']}; border: 1px solid {t['border_soft']}; border-radius: 8px; padding: 8px 14px; font-size: 10px; font-weight: 700; }}
+QLabel#auditStatusPill {{ color: {t['text_muted']}; background: {t['base_alt']}; border: 1px solid {t['border_soft']}; border-radius: 12px; padding: 5px 10px; font-size: 11px; font-weight: 700; }}
+QLabel#auditStatusPill[state="on"] {{ color: #63d391; border-color: #286342; background: #183528; }}
+QLabel#auditStatusPill[state="off"] {{ color: {t['text_muted']}; }}
+
 QHeaderView::section {{
     background-color: {t['surface_alt']};
     color: {t['text_muted']};

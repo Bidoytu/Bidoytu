@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QHeaderView, QLabel, QListWidget, QLineEdit,
     QPlainTextEdit, QSplitter, QTabWidget, QTableView, QTextBrowser, QVBoxLayout,
-    QWidget,
+    QHBoxLayout, QGridLayout, QFrame, QWidget,
 )
 
 from bidoytu.audit.catalog import VULNERABILITY_CATALOG, VulnerabilityAdvisory
@@ -32,22 +32,31 @@ class LiveAuditTab(QWidget):
         self._items = AuditItemModel(self)
         self._issues = AuditIssueModel(self)
 
-        self._toggle = QCheckBox("Enable passive live audit")
+        self._toggle = QCheckBox("Passive audit")
+        self._toggle.setObjectName("auditToggle")
         self._toggle.setToolTip("Analyzes in-scope traffic already passing through the proxy. It never sends probes.")
         self._toggle.toggled.connect(self._on_toggle)
-        self._active_toggle = QCheckBox("Enable active verification (safe methods only)")
+        self._active_toggle = QCheckBox("Active verification")
+        self._active_toggle.setObjectName("auditToggle")
         self._active_toggle.setToolTip(
             "Sends bounded diagnostic requests only for in-scope GET, HEAD, and OPTIONS traffic. "
             "POST/PUT/PATCH/DELETE requests are skipped."
         )
         self._active_toggle.toggled.connect(self._on_active_toggle)
-        self._status = QLabel("Off — no traffic is being audited")
-        self._status.setStyleSheet("color: #6b7280;")
+        self._status = QLabel("PAUSED  •  No traffic is being audited")
+        self._status.setObjectName("auditStatusPill")
+        self._status.setProperty("state", "off")
 
-        summary = QWidget(); summary_layout = QVBoxLayout(summary)
-        self._summary = QLabel(); self._summary.setWordWrap(True)
-        self._summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        summary_layout.addWidget(self._summary); summary_layout.addStretch(1)
+        controls = QFrame(); controls.setObjectName("auditControlBar")
+        controls_layout = QHBoxLayout(controls); controls_layout.setContentsMargins(14, 10, 14, 10)
+        controls_layout.addWidget(QLabel("LIVE AUDIT"))
+        controls_layout.addSpacing(10)
+        controls_layout.addWidget(self._toggle)
+        controls_layout.addWidget(self._active_toggle)
+        controls_layout.addStretch(1)
+        controls_layout.addWidget(self._status)
+
+        summary = self._build_overview()
         self._refresh_summary()
 
         items_view = self._table(self._items)
@@ -61,12 +70,17 @@ class LiveAuditTab(QWidget):
         self._path = QPlainTextEdit(); self._path.setReadOnly(True)
         detail_tabs = QTabWidget()
         detail_tabs.addTab(self._advisory, "Advisory")
-        detail_tabs.addTab(self._request, "Request")
-        detail_tabs.addTab(self._response, "Response")
-        detail_tabs.addTab(self._path, "Path to issue")
+        detail_tabs.addTab(self._request, "Request evidence")
+        detail_tabs.addTab(self._response, "Response evidence")
+        detail_tabs.addTab(self._path, "Trace")
 
         issue_panel = QWidget(); issue_layout = QVBoxLayout(issue_panel)
         issue_layout.setContentsMargins(0, 0, 0, 0)
+        issue_header = QHBoxLayout()
+        issue_title = QLabel("Evidence-backed findings"); issue_title.setObjectName("auditSectionTitle")
+        issue_hint = QLabel("Select a finding to inspect the matched request, response, and remediation."); issue_hint.setObjectName("auditPageSubtitle")
+        issue_header.addWidget(issue_title); issue_header.addSpacing(12); issue_header.addWidget(issue_hint); issue_header.addStretch(1)
+        issue_layout.addLayout(issue_header)
         splitter = QSplitter(Qt.Vertical); splitter.addWidget(issues_view); splitter.addWidget(detail_tabs); splitter.setSizes([300, 420])
         issue_layout.addWidget(splitter)
 
@@ -77,9 +91,40 @@ class LiveAuditTab(QWidget):
         tabs.addTab(self._catalog_widget(), "Vulnerability catalog")
         self._tabs = tabs
 
-        layout = QVBoxLayout(self); layout.setContentsMargins(8, 8, 8, 0)
-        layout.addWidget(self._toggle); layout.addWidget(self._active_toggle)
-        layout.addWidget(self._status); layout.addWidget(tabs, 1)
+        layout = QVBoxLayout(self); layout.setContentsMargins(14, 14, 14, 0); layout.setSpacing(10)
+        layout.addWidget(controls); layout.addWidget(tabs, 1)
+
+    def _metric_card(self, title: str, value: str, tone: str) -> tuple[QFrame, QLabel]:
+        card = QFrame(); card.setObjectName("auditMetricCard"); card.setProperty("tone", tone)
+        box = QVBoxLayout(card); box.setContentsMargins(16, 13, 16, 13); box.setSpacing(2)
+        label = QLabel(title.upper()); label.setObjectName("auditMetricLabel")
+        number = QLabel(value); number.setObjectName("auditMetricValue")
+        box.addWidget(label); box.addWidget(number)
+        return card, number
+
+    def _build_overview(self) -> QWidget:
+        widget = QWidget(); root = QVBoxLayout(widget); root.setContentsMargins(4, 10, 4, 4); root.setSpacing(14)
+        intro = QHBoxLayout()
+        copy = QVBoxLayout(); copy.setSpacing(3)
+        title = QLabel("Live security overview"); title.setObjectName("auditPageTitle")
+        subtitle = QLabel("Watch in-scope traffic as it passes through the proxy and review evidence-backed findings as they arrive.")
+        subtitle.setObjectName("auditPageSubtitle"); subtitle.setWordWrap(True)
+        copy.addWidget(title); copy.addWidget(subtitle); intro.addLayout(copy, 1)
+        scope = QLabel("SCOPE-AWARE\nProxy traffic only"); scope.setObjectName("auditScopeBadge"); scope.setAlignment(Qt.AlignCenter)
+        intro.addWidget(scope); root.addLayout(intro)
+
+        metrics = QGridLayout(); metrics.setSpacing(10)
+        self._metric_labels = {}
+        for column, (key, title, tone) in enumerate((("items", "Audit items", "neutral"), ("issues", "Total findings", "accent"), ("critical", "Critical", "critical"), ("medium", "Medium", "medium"))):
+            card, number = self._metric_card(title, "0", tone); self._metric_labels[key] = number; metrics.addWidget(card, 0, column)
+        root.addLayout(metrics)
+
+        panel = QFrame(); panel.setObjectName("auditInfoPanel"); panel_layout = QVBoxLayout(panel); panel_layout.setContentsMargins(16, 14, 16, 14)
+        heading = QLabel("Coverage & operating mode"); heading.setObjectName("auditSectionTitle")
+        self._summary = QLabel(); self._summary.setWordWrap(True); self._summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        panel_layout.addWidget(heading); panel_layout.addWidget(self._summary)
+        root.addWidget(panel); root.addStretch(1)
+        return widget
 
     def _catalog_widget(self) -> QWidget:
         """Build the local Burp-style advisory catalog and detail reader."""
@@ -131,19 +176,22 @@ class LiveAuditTab(QWidget):
 
     @staticmethod
     def _table(model):
-        table = QTableView(); table.setModel(model); table.setSortingEnabled(True)
+        table = QTableView(); table.setObjectName("auditTable"); table.setModel(model); table.setSortingEnabled(True)
         table.setSelectionBehavior(QAbstractItemView.SelectRows); table.setSelectionMode(QAbstractItemView.SingleSelection)
         table.setEditTriggers(QAbstractItemView.NoEditTriggers); table.verticalHeader().setVisible(False)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         table.horizontalHeader().setStretchLastSection(True)
+        table.setAlternatingRowColors(True); table.setShowGrid(False)
+        table.verticalHeader().setDefaultSectionSize(34)
         return table
 
     def _on_toggle(self, enabled: bool) -> None:
         if not enabled and self._active_toggle.isChecked():
             self._active_toggle.setChecked(False)
         self._service.set_enabled(enabled)
-        self._status.setText("On — passively auditing in-scope proxy traffic" if enabled else "Off — no traffic is being audited")
-        self._status.setStyleSheet("color: #15803d;" if enabled else "color: #6b7280;")
+        self._status.setText("LIVE  •  Capturing and auditing in-scope traffic" if enabled else "PAUSED  •  No traffic is being audited")
+        self._status.setProperty("state", "on" if enabled else "off")
+        self._status.style().unpolish(self._status); self._status.style().polish(self._status)
         self.enabled_changed.emit(enabled)
         self._refresh_summary()
 
@@ -166,15 +214,15 @@ class LiveAuditTab(QWidget):
         counts = Counter(issue.severity for issue in self._issues.rows)
         colors = " ".join(f"<span style='color:{SEVERITY_COLORS[level]}'>{level}: {counts[level]}</span>" for level in Severity)
         coverage = ", ".join(LiveAuditService.COVERAGE)
+        self._metric_labels["items"].setText(str(len(self._items.rows)))
+        self._metric_labels["issues"].setText(str(len(self._issues.rows)))
+        self._metric_labels["critical"].setText(str(counts[Severity.CRITICAL]))
+        self._metric_labels["medium"].setText(str(counts[Severity.MEDIUM]))
         self._summary.setText(
-            f"<h3>Passive live audit</h3><p>{'Enabled' if self._service.enabled else 'Disabled'}. "
-            "Only in-scope traffic already captured by the proxy is analyzed; no requests are sent.</p>"
-            f"<p><b>Audit items:</b> {len(self._items.rows)} &nbsp; <b>Issues:</b> {len(self._issues.rows)}<br>{colors}</p>"
-            f"<p><b>Active verification:</b> {'enabled for safe methods' if self._active_toggle.isChecked() else 'off'}</p>"
-            f"<p><b>Current coverage:</b> {coverage}.</p>"
-            f"<p><b>Catalog:</b> {len(VULNERABILITY_CATALOG)} Burp issue definitions. "
-            "Catalog inclusion and a scanner finding are intentionally distinct.</p>"
-            "<p>Findings are evidence-based review items. Passive analysis cannot confirm exploitability or detect every vulnerability.</p>"
+            f"<p><b>{'Running' if self._service.enabled else 'Paused'}</b> · Passive inspection of captured proxy traffic. "
+            f"Active verification is <b>{'on for safe methods' if self._active_toggle.isChecked() else 'off'}</b>.</p>"
+            f"<p><b>In scope:</b> {coverage}<br><b>Severity mix:</b> {colors}</p>"
+            f"<p class='muted'>The local catalog contains {len(VULNERABILITY_CATALOG)} issue definitions. Findings are review items with request/response evidence; passive analysis does not confirm exploitability.</p>"
         )
 
     def _on_issue_selected(self) -> None:
