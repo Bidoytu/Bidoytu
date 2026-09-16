@@ -22,6 +22,10 @@ foundation in one PySide6 interface.
 - Traffic history backed by SQLite with content-addressed storage for large
   bodies.
 - Repeater requests powered by an asynchronous httpx client.
+- Optional passive Live Audit of in-scope traffic already captured by the proxy,
+  with evidence-linked findings and no active probes.
+- Optional active verification for in-scope GET, HEAD, and OPTIONS requests;
+  state-changing methods are skipped.
 - Display-only formatting for JSON, XML/HTML, and URL-encoded bodies.
 - Public CA certificate export for HTTPS interception on machines you control.
 - Browser Integration discovers Firefox, Chrome, and Edge and launches them
@@ -76,6 +80,7 @@ Settings when strict upstream certificate verification is required.
 | ui/ | PySide6 windows, tabs, editors, views, and Qt signal wiring |
 | proxy/ | mitmproxy engine, flow capture, and interception control |
 | net/ | Async HTTP sending for Repeater and Intruder workflows |
+| audit/ | Qt-free passive checks over captured proxy traffic |
 | storage/ | SQLite history, flow models, and large-body file storage |
 | http_utils.py | Raw HTTP parsing, rebuilding, and display helpers |
 | scripts/ | Headless smoke checks and focused live verification |

@@ -126,6 +126,33 @@ Intruder is the automated attack surface. A request can be loaded from History o
 
 Implementation: [`ui/intruder_tab.py`](../src/bidoytu/ui/intruder_tab.py), [`ui/intruder_session.py`](../src/bidoytu/ui/intruder_session.py), and [`ui/attack_runner.py`](../src/bidoytu/ui/attack_runner.py).
 
+### Live audit
+
+Live audit is an opt-in, passive review of in-scope traffic already flowing
+through the proxy. It never sends probes, follows links, starts browser
+automation, or modifies traffic. The tab separates Summary, Audit items, and
+Issues; selecting an issue opens its advisory, the captured request and
+response, and the path from observed evidence to the finding. Evidence matches
+are highlighted in the appropriate message pane.
+
+The initial detector set covers transport and browser-security headers, CSP,
+cookie attributes, CORS policy, cache directives, technology disclosure,
+sensitive URL parameters, verbose errors, directory listings, password form
+autocomplete, and mixed-content references. Findings are review items based on
+captured evidence, not proof that an issue is exploitable.
+
+An adjacent active-verification switch can replay only in-scope GET, HEAD, and
+OPTIONS requests through a bounded worker. It uses a unique reflection marker
+and a diagnostic quote to identify candidates for reflected XSS and SQL error
+handling. State-changing methods are skipped to avoid turning a live audit into
+an unreviewed mutation workflow. This is intentionally narrower than Burp's
+full active scanner; Scrapy/Playwright workers will remain a separate future
+opt-in subsystem.
+
+Implementation: [`audit/service.py`](../src/bidoytu/audit/service.py),
+[`ui/audit_tab.py`](../src/bidoytu/ui/audit_tab.py), and
+[`ui/audit_model.py`](../src/bidoytu/ui/audit_model.py).
+
 ### Collaborator
 
 Collaborator integrates with an Interactsh-compatible out-of-band service. The tab manages registration and polling, displays received interactions, and provides fresh payload hosts to Repeater and Intruder request editors.
@@ -162,6 +189,7 @@ flowchart LR
     Window --> UI[PySide6 UI tabs]
     Window --> Proxy[ProxyEngine\nQThread + asyncio]
     Window --> Sender[AsyncHttpSender\nthread + asyncio]
+    Window --> Audit[LiveAuditService\npassive checks]
     Window --> Repo[FlowRepository\nSQLite]
     Window --> Bodies[BodyStore\nlarge bodies]
     Proxy --> Mitm[mitmproxy]

@@ -125,6 +125,57 @@ def test_target_scope(tmp: Path) -> None:
     print("  target scope matching + persistence OK")
 
 
+def test_live_audit() -> None:
+    from bidoytu.audit.service import LiveAuditService, Severity
+    from bidoytu.audit.active_scan import ActiveScanWorker
+
+    service = LiveAuditService()
+    record = FlowRecord(
+        flow_id="audit-1", method="GET", scheme="https", host="example.com",
+        port=443, path="/account?token=secret", scope=True,
+        request_headers="Host: example.com", status_code=500,
+        response_headers=(
+            "Server: Example/1.0\r\nSet-Cookie: session=abc\r\n"
+            "Access-Control-Allow-Origin: *\r\n"
+        ),
+        response_body_inline=b"Traceback (most recent call last): boom",
+    )
+    # Disabled means no audit results.
+    _, issues = service.analyze(record, is_response=False)
+    assert not issues
+    service.set_enabled(True)
+    _, request_issues = service.analyze(record, is_response=False)
+    assert any(issue.title == "Sensitive data in URL" for issue in request_issues)
+    _, response_issues = service.analyze(record, is_response=True)
+    assert any(issue.severity == Severity.MEDIUM for issue in response_issues)
+    assert any(issue.title == "Cookie without Secure flag" for issue in response_issues)
+    # Each flow/rule pair is emitted once even when the proxy updates the flow.
+    _, repeated = service.analyze(record, is_response=True)
+    assert not repeated
+
+    catalog_record = FlowRecord(
+        flow_id="catalog", method="POST", scheme="https", host="example.com",
+        port=443, path="/fetch?url=http://127.0.0.1/../../etc/passwd",
+        request_body_inline=b"<!DOCTYPE x [<!ENTITY e SYSTEM 'file:///etc/passwd'>]>",
+        response_body_inline=b"root:x:0:0:root:/root:/bin/sh",
+        response_headers="Content-Type: text/html",
+        status_code=200, scope=True,
+    )
+    _, catalog_issues = service.analyze(catalog_record, is_response=True)
+    catalog_titles = {issue.title for issue in catalog_issues}
+    assert "Potential XML external entity injection" in catalog_titles
+    assert "Potential directory traversal" in catalog_titles
+    assert "Potential server-side request forgery" in catalog_titles
+    assert "Sensitive local or cloud data disclosed" in catalog_titles
+
+    worker = ActiveScanWorker(lambda _result: None)
+    worker.set_enabled(True)
+    assert not worker.submit(catalog_record)
+    assert worker.skipped_state_changing == 1
+    worker.stop()
+    print("  passive live audit checks OK")
+
+
 def test_qt_and_proxy_apis(tmp: Path) -> None:
     from PySide6.QtWidgets import QApplication, QTabWidget
     from bidoytu.ui.flow_table_model import FlowTableModel
@@ -152,7 +203,7 @@ def test_qt_and_proxy_apis(tmp: Path) -> None:
     # Top-level tabs present in order.
     tabs: QTabWidget = win._tabs
     labels = [tabs.tabText(i) for i in range(tabs.count())]
-    assert labels == ["Proxy", "Target", "Repeater", "Intruder", "Collaborator"], labels
+    assert labels == ["Proxy", "Target", "Repeater", "Intruder", "Collaborator", "Live audit"], labels
 
     # Proxy sub-tabs.
     sub = win._proxy_tab.sub_tabs
@@ -193,6 +244,18 @@ def test_qt_and_proxy_apis(tmp: Path) -> None:
 
     win._target_tab.scope_page.include._insert("example.com")
     assert cfg.proxy.include_scope == ["example.com"]
+
+    # Live audit is opt-in and displays passive findings for captured in-scope
+    # traffic without involving the async sender.
+    win._audit_tab._toggle.setChecked(True)
+    audit_flow = FlowRecord(
+        flow_id="live-audit-flow", method="GET", scheme="https", host="example.com",
+        port=443, path="/", status_code=200, scope=True,
+        response_headers="Server: test", response_body_inline=b"ok",
+    )
+    win._on_flow_captured(audit_flow, is_response=True)
+    assert win._audit_tab._items.rowCount() == 1
+    assert win._audit_tab._issues.rowCount() > 0
 
     # Editing the inputs and starting applies them to the engine config.
     win._proxy_tab.host_edit.setText("0.0.0.0")
@@ -274,6 +337,7 @@ def main() -> int:
         test_body_format()
         test_http_utils()
         test_target_scope(tmp)
+        test_live_audit()
         test_qt_and_proxy_apis(tmp)
         test_intercept_view()
     print("ALL SMOKE TESTS PASSED")
