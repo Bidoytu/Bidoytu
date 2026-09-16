@@ -12,7 +12,8 @@ import { Button, Toggle } from '../components'
 import type { WorkspaceController } from '../hooks/useWorkspace'
 
 export function SettingsView({ workspace }: { workspace: WorkspaceController }) {
-  const { state, online, setNotice, port, setPort, verifyTLS, setVerifyTLS, run } = workspace
+  const { state, online, setNotice, port, setPort, verifyTLS, setVerifyTLS, run, theme, setTheme } =
+    workspace
   return (
     <div className="settings-workspace">
       <section className="settings-card">
@@ -87,6 +88,17 @@ export function SettingsView({ workspace }: { workspace: WorkspaceController }) 
           <span className="mono">
             {state.queue_depth} queued / {state.dropped} dropped
           </span>
+        </div>
+        <div className="setting-row">
+          <div>
+            <strong>Dark mode</strong>
+            <p>Invert the workspace to a dark canvas. Saved on this device.</p>
+          </div>
+          <Toggle
+            label="Dark mode"
+            enabled={theme === 'dark'}
+            onChange={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          />
         </div>
       </section>
       <div className="architecture-card">

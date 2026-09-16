@@ -161,6 +161,11 @@ export function useWorkspace() {
   const intruderSequence = useRef(1)
   const [intruderRunningId, setIntruderRunningId] = useState<number | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    typeof localStorage !== 'undefined' && localStorage.getItem('bidoytu.theme') === 'dark'
+      ? 'dark'
+      : 'light',
+  )
   const searchRef = useRef<HTMLInputElement>(null)
   const detailSequence = useRef(0)
   const historyRequestSequence = useRef(0)
@@ -449,6 +454,14 @@ export function useWorkspace() {
     const timer = setTimeout(() => setNotice(''), 3500)
     return () => clearTimeout(timer)
   }, [notice])
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    try {
+      localStorage.setItem('bidoytu.theme', theme)
+    } catch {
+      // Ignore storage failures; theme still applies for this session.
+    }
+  }, [theme])
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -897,6 +910,8 @@ export function useWorkspace() {
     repeaterToIntruder,
     showHelp,
     setShowHelp,
+    theme,
+    setTheme,
     searchRef,
     detailSequence,
     scrollRef,
