@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from functools import partial
 
-from bidoytu.config import AppConfig
+from bidoytu.config import AppConfig, host_matches_scope
 from bidoytu.http_utils import build_request_text, build_response_text
 from bidoytu.storage.advanced_history import FilterSpec, matches
 from bidoytu.storage.body_store import BodyStore
@@ -68,7 +68,25 @@ class Storage:
                 bookmarked_only=spec.bookmarked_only or bookmarked,
             )
         records = self.repo.list_summaries()
-        matched = [record for record in records if matches(record, spec)]
+        proxy_scope = self.config.proxy
+        scope_configured = any((proxy_scope.include_scope, proxy_scope.exclude_scope,
+                                proxy_scope.include_paths, proxy_scope.exclude_paths,
+                                proxy_scope.include_regex, proxy_scope.exclude_regex))
+        matched = []
+        for record in records:
+            # Re-evaluate against the current scope configuration so history
+            # captured before a scope change (or before scope was persisted
+            # correctly) does not leak into the In-scope view.
+            if spec.in_scope_only and scope_configured:
+                current_scope = host_matches_scope(
+                    record.host, tuple(proxy_scope.include_scope),
+                    tuple(proxy_scope.exclude_scope), record.path,
+                    tuple(proxy_scope.include_paths), tuple(proxy_scope.exclude_paths),
+                    tuple(proxy_scope.include_regex), tuple(proxy_scope.exclude_regex),
+                )
+                record = replace(record, scope=current_scope)
+            if matches(record, spec):
+                matched.append(record)
         sort_fields = {
             "id": lambda record: record.id,
             "method": lambda record: record.method.casefold(),

@@ -151,6 +151,7 @@ class CaptureAddon:
         # interception and editing.
         in_scope = self._flow_in_scope(flow)
         record = self._record_from_request(flow)
+        record.scope = in_scope
         self._on_flow(record, False)
 
         if not in_scope or not self._intercept_enabled:
@@ -183,6 +184,7 @@ class CaptureAddon:
         )
 
         record = self._record_from_request(flow)
+        record.scope = in_scope
         self._apply_response(record, flow)
 
         if should_pause:

@@ -144,11 +144,14 @@ export function useWorkspace() {
   const [showHelp, setShowHelp] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const detailSequence = useRef(0)
+  const historyRequestSequence = useRef(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [split, setSplit] = useState(51)
+  const [interceptSplit, setInterceptSplit] = useState(51)
   const [sessionLoaded, setSessionLoaded] = useState(false)
   const historyRef = useRef<HTMLDivElement>(null)
+  const interceptRef = useRef<HTMLDivElement>(null)
   // Refs for values accessed by the stable keyboard listener (empty deps array).
   const viewRef = useRef(view)
   viewRef.current = view
@@ -320,6 +323,7 @@ export function useWorkspace() {
   useEffect(() => {
     if (!online || view !== 'History') return
     let alive = true
+    const requestSequence = ++historyRequestSequence.current
     api
       .request<{ items: Flow[]; total: number; unfiltered: number }>('history.list', {
         query: debouncedQuery,
@@ -330,7 +334,7 @@ export function useWorkspace() {
         sort_direction: historySort.direction,
       })
       .then((result) => {
-        if (alive) {
+        if (alive && requestSequence === historyRequestSequence.current) {
           setFlows(result.items)
           setTotal(result.total)
           setUnfilteredTotal(result.unfiltered)
@@ -338,7 +342,7 @@ export function useWorkspace() {
         }
       })
       .catch((e) => {
-        if (alive) setError(e.message)
+        if (alive && requestSequence === historyRequestSequence.current) setError(e.message)
       })
     return () => {
       alive = false
@@ -630,12 +634,46 @@ export function useWorkspace() {
     )
     setBusy(false)
   }
+  async function resolveAllIntercept(drop: boolean) {
+    if (state.pending.length === 0) return
+    setBusy(true)
+    const waiting = [...state.pending]
+    await run(async () => {
+      let next = state
+      for (const item of waiting) {
+        next = await api.request<EngineState>('proxy.resolve', {
+          flow_id: item.flow_id,
+          drop,
+          ...(item.flow_id === pending?.flow_id && interceptText !== interceptOriginal
+            ? { edited_text: interceptText }
+            : {}),
+        })
+        refresh(next)
+      }
+      return next
+    })
+    setBusy(false)
+  }
   function resize(e: React.PointerEvent) {
     const element = e.currentTarget as HTMLElement
     element.setPointerCapture(e.pointerId)
     const move = (event: PointerEvent) => {
       const rect = historyRef.current!.getBoundingClientRect()
       setSplit(Math.min(72, Math.max(25, ((event.clientY - rect.top) / rect.height) * 100)))
+    }
+    const stop = () => {
+      element.removeEventListener('pointermove', move)
+      element.removeEventListener('pointerup', stop)
+    }
+    element.addEventListener('pointermove', move)
+    element.addEventListener('pointerup', stop)
+  }
+  function resizeIntercept(e: React.PointerEvent) {
+    const element = e.currentTarget as HTMLElement
+    element.setPointerCapture(e.pointerId)
+    const move = (event: PointerEvent) => {
+      const rect = interceptRef.current!.getBoundingClientRect()
+      setInterceptSplit(Math.min(78, Math.max(22, ((event.clientY - rect.top) / rect.height) * 100)))
     }
     const stop = () => {
       element.removeEventListener('pointermove', move)
@@ -750,9 +788,12 @@ export function useWorkspace() {
     setScrollTop,
     split,
     setSplit,
+    interceptSplit,
+    setInterceptSplit,
     sessionLoaded,
     setSessionLoaded,
     historyRef,
+    interceptRef,
     requestTab,
     pending,
     run,
@@ -770,7 +811,9 @@ export function useWorkspace() {
     toggleProxy,
     interceptToggle,
     resolveIntercept,
+    resolveAllIntercept,
     resize,
+    resizeIntercept,
   }
 }
 export type WorkspaceController = ReturnType<typeof useWorkspace>

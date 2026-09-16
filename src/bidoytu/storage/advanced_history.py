@@ -50,6 +50,11 @@ class FilterSpec:
     highlighted_only: bool = False
     bookmarked_only: bool = False
     listener_port: str = ""
+    # The desktop filter UI always sends these arrays. Empty means "match
+    # nothing" there, while an omitted array (legacy/API callers) means no
+    # filter, so keep that distinction explicitly.
+    mime_types_none: bool = False
+    status_classes_none: bool = False
 
 
 def filter_spec_from_dict(data: dict) -> FilterSpec:
@@ -74,6 +79,7 @@ def filter_spec_from_dict(data: dict) -> FilterSpec:
         elif key in ("mime_types", "status_classes"):
             if isinstance(value, (list, tuple, set)):
                 clean[key] = {str(item)[:40] for item in value}
+                clean["mime_types_none" if key == "mime_types" else "status_classes_none"] = not bool(value)
             else:
                 clean[key] = set()
         else:
@@ -112,14 +118,15 @@ def _value(value: str) -> str:
     return value[1:-1] if len(value) > 1 and value[0] == value[-1] and value[0] in "\"'" else value
 
 
-def _text(record: FlowRecord) -> str:
+def _text(record: FlowRecord, *, casefold: bool = True) -> str:
     parts = [record.method, record.url, record.host, record.path, record.request_headers,
              record.response_headers, record.tags, record.notes, record.tool]
     bodies = []
     for body in (record.request_body_inline, record.response_body_inline):
         if body:
             bodies.append(body.decode("utf-8", "replace"))
-    return "\n".join(parts + bodies).lower()
+    text = "\n".join(parts + bodies)
+    return text.casefold() if casefold else text
 
 
 def _field(record: FlowRecord, name: str):
@@ -175,6 +182,8 @@ def matches(record: FlowRecord, spec: FilterSpec) -> bool:
         return False
     if spec.parameterized_only and "?" not in record.path:
         return False
+    if spec.mime_types_none or spec.status_classes_none:
+        return False
     if spec.mime_types:
         mime = record.mime_type.lower()
         bucket = ("html" if mime == "text/html" else
@@ -205,11 +214,14 @@ def matches(record: FlowRecord, spec: FilterSpec) -> bool:
     if spec.listener_port and str(record.port) != spec.listener_port.strip():
         return False
     if spec.search:
-        haystack = _text(record)
-        needle = spec.search if spec.case_sensitive else spec.search.lower()
+        # Preserve the original text for case-sensitive and regex searches.
+        # The previous implementation lowercased the haystack unconditionally,
+        # which made the case-sensitive toggle ineffective.
+        haystack = _text(record, casefold=not spec.case_sensitive)
+        needle = spec.search if spec.case_sensitive else spec.search.casefold()
         if spec.regex:
             try:
-                found = re.search(spec.search, _text(record), 0 if spec.case_sensitive else re.I) is not None
+                found = re.search(spec.search, haystack, 0 if spec.case_sensitive else re.I) is not None
             except re.error:
                 found = False
         else:
