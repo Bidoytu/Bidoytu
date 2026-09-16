@@ -429,11 +429,6 @@ class MainWindow(QMainWindow):
         self._proxy_tab.intercept.enqueue_response(record)
 
     def _persist(self, record: FlowRecord) -> None:
-        record.scope = host_matches_scope(
-            record.host, self._config.proxy.include_scope, self._config.proxy.exclude_scope,
-            record.path, self._config.proxy.include_paths, self._config.proxy.exclude_paths,
-            self._config.proxy.include_regex, self._config.proxy.exclude_regex,
-        )
         limit = self._config.body_inline_limit
         if record.request_body_inline and len(record.request_body_inline) > limit:
             record.request_body_path = self._body_store.store(record.request_body_inline)

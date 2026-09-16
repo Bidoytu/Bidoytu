@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from functools import lru_cache
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -66,6 +67,21 @@ def _normalise_scope_entry(value: str) -> str:
     return value.strip(".")
 
 
+@lru_cache(maxsize=512)
+def _cached_normalise_scope_entry(value: str) -> str:
+    """Cache normalized scope values used for every captured request."""
+    return _normalise_scope_entry(value)
+
+
+@lru_cache(maxsize=256)
+def _cached_scope_regex(pattern: str):
+    """Compile scope regexes once; invalid expressions remain non-matching."""
+    try:
+        return re.compile(pattern, re.IGNORECASE)
+    except re.error:
+        return None
+
+
 def host_matches_scope(
     host: str, include_scope: list[str] | tuple[str, ...],
     exclude_scope: list[str] | tuple[str, ...], path: str = "/",
@@ -80,12 +96,12 @@ def host_matches_scope(
     ``example.com`` covers ``api.example.com``.  Exclusions always win.  With
     no include entries everything is included unless explicitly excluded.
     """
-    candidate = _normalise_scope_entry(host)
+    candidate = _cached_normalise_scope_entry(str(host))
     if not candidate:
         return False
 
     def matches(pattern: str) -> bool:
-        normalised = _normalise_scope_entry(pattern)
+        normalised = _cached_normalise_scope_entry(str(pattern))
         return bool(normalised) and (
             candidate == normalised or candidate.endswith("." + normalised)
         )
@@ -104,10 +120,8 @@ def host_matches_scope(
         return False
 
     def regex_matches(pattern: str) -> bool:
-        try:
-            return bool(re.search(pattern, f"{candidate}{request_path}", re.IGNORECASE))
-        except re.error:
-            return False
+        compiled = _cached_scope_regex(str(pattern))
+        return bool(compiled and compiled.search(f"{candidate}{request_path}"))
 
     if any(regex_matches(pattern) for pattern in exclude_regex if str(pattern).strip()):
         return False

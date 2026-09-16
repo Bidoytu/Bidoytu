@@ -150,7 +150,8 @@ class CaptureAddon:
         # filter can distinguish them. Only in-scope traffic is eligible for
         # interception and editing.
         in_scope = self._flow_in_scope(flow)
-        self._on_flow(self._record_from_request(flow), False)
+        record = self._record_from_request(flow)
+        self._on_flow(record, False)
 
         if not in_scope or not self._intercept_enabled:
             return
@@ -158,7 +159,7 @@ class CaptureAddon:
         pending = _PendingFlow(flow=flow)
         self._pending[flow.id] = pending
         # Notify the UI that a flow is paused and waiting.
-        self._on_intercept(self._record_from_request(flow))
+        self._on_intercept(record)
         try:
             await pending.event.wait()
         finally:
@@ -181,11 +182,12 @@ class CaptureAddon:
             self._intercept_responses or armed
         )
 
+        record = self._record_from_request(flow)
+        self._apply_response(record, flow)
+
         if should_pause:
             pending = _PendingFlow(flow=flow)
             self._pending_responses[flow.id] = pending
-            record = self._record_from_request(flow)
-            self._apply_response(record, flow)
             self._on_intercept_response(record)
             try:
                 await pending.event.wait()
@@ -198,9 +200,10 @@ class CaptureAddon:
             if pending.edited_text is not None:
                 self._apply_edited_response(flow, pending.edited_text)
 
-        # Surface the (possibly edited) response to the history.
-        record = self._record_from_request(flow)
-        self._apply_response(record, flow)
+        # Refresh the same record after a possible UI edit and surface it.
+        if should_pause and pending.edited_text is not None:
+            record = self._record_from_request(flow)
+            self._apply_response(record, flow)
         self._on_flow(record, True)
 
     # -- edit application -----------------------------------------------------
