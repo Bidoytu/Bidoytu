@@ -23,6 +23,7 @@ dist-release/
 *.manifest
 *.whl
 *.tar.gz
+graphify-out/
 
 # Test and coverage output
 .coverage
