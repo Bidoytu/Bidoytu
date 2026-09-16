@@ -31,18 +31,6 @@ coverage.xml
 htmlcov/
 .hypothesis/
 
-# Graphify generated state
-.codex/
-graphify-out/*
-graphify-out/.graphify_*
-graphify-out/cache/
-graphify-out/cost.json
-graphify-out/graph.html
-graphify-out/obsidian/
-!graphify-out/graph.json
-!graphify-out/GRAPH_REPORT.md
-!graphify-out/manifest.json
-
 # App data (in case someone points data_dir at the repo)
 *.db
 *.db-wal

@@ -334,4 +334,4 @@ packaging/                 PyInstaller spec and release documentation
 
 ### Source of truth
 
-This wiki describes the current implementation. When behavior changes, update the relevant source documentation and this page together. The generated architecture map in [`graphify-out/`](../graphify-out/) can be used to explore symbol and file relationships when making larger changes.
+This wiki describes the current implementation. When behavior changes, update the relevant source documentation and this page together.
