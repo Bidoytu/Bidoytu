@@ -136,6 +136,7 @@ try {
   await page.getByRole('textbox', { name: 'Included hosts' }).fill('127.0.0.1')
   await page.getByRole('button', { name: 'Save scope' }).click()
   await expect(page.getByRole('status')).toContainText('Target scope saved')
+  await page.getByRole('button', { name: /^Proxy/ }).click()
   await page.getByRole('tab', { name: 'HTTP history' }).click()
   await page.screenshot({ path: 'test-results/desktop-history.png' })
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1100, 760))
