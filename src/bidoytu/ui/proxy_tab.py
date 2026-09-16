@@ -6,8 +6,6 @@ sub-tab bar, so the main area stays uncluttered.
 """
 from __future__ import annotations
 
-import re
-
 from PySide6.QtCore import Signal, QPoint
 from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
