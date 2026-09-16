@@ -12,4 +12,11 @@ export const api: DesktopBridge = window.bidoytu ?? {
   },
   copyText: (text) => navigator.clipboard.writeText(text),
   window: () => {},
+  listSessions: async () => [],
+  createSession: async () => { throw new Error('Session management is unavailable.') },
+  deleteSession: async () => false,
+  openSession: async () => { throw new Error('Session management is unavailable.') },
+  onAppCloseRequest: () => () => {},
+  onSessionOpened: () => () => {},
+  closeDecision: async () => {},
 }

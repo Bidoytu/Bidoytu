@@ -165,6 +165,12 @@ kbd {
   display: flex;
   color: var(--amber);
 }
+.brand-logo {
+  width: 92px;
+  height: 25px;
+  object-fit: contain;
+  object-position: left center;
+}
 .titlebar > strong {
   font-size: 17px;
   letter-spacing: -0.7px;
@@ -2058,6 +2064,38 @@ tr:hover td {
   display: block;
   line-height: 1.5;
 }
+.session-picker {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: #101215;
+  color: #d9dee6;
+  padding: 24px;
+}
+.session-picker-card {
+  position: relative;
+  width: min(500px, 100%);
+  background: #1a1f26;
+  border: 1px solid #3a414a;
+  border-radius: 14px;
+  padding: 30px;
+  box-shadow: 0 25px 100px #000a;
+}
+.session-picker-close { position: absolute; top: 12px; right: 12px; color: #9da7b4; padding: 5px; }
+.session-picker-close:hover { color: #fff; }
+.session-picker-card h1 { margin: 15px 0 8px; font-size: 22px; font-weight: 500; }
+.session-picker-card > p { color: #8998ad; line-height: 1.7; font-size: 12px; }
+.session-list { display: grid; gap: 8px; margin: 25px 0 18px; }
+.session-row { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid #303741; border-radius: 7px; background: #151a20; }
+.session-row-info { flex: 1; min-width: 0; }
+.session-row-info strong, .session-row-info small { display: block; }
+.session-row-info small { color: #8392a6; margin-top: 4px; font-size: 10px; }
+.session-create { width: 100%; justify-content: center; }
+.session-create-form { display: flex; gap: 8px; }
+.session-create-form input { flex: 1; min-width: 0; background: #11151a; border: 1px solid #46505d; border-radius: 6px; color: #e0e5ed; padding: 9px 10px; }
+.session-error { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #552e30; color: #f0c7c9; padding: 12px 16px; border-radius: 7px; }
+.close-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 25px; }
+.close-progress { margin-top: 12px; color: #d5a76c; font-size: 11px; text-align: right; }
 .spin {
   animation: spin 1s linear infinite;
 }

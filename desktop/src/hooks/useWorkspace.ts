@@ -318,7 +318,7 @@ export function useWorkspace() {
   useEffect(() => {
     let alive = true
     const unsubscribe = api.onEvent((event) => {
-      if (event.type === 'changed') {
+      if (event.type === 'changed' || event.type === 'ready') {
         setOnline(true)
         refresh(event.data)
       } else {
@@ -327,9 +327,10 @@ export function useWorkspace() {
       }
     })
     api
-      .request<EngineState>('state')
+      .request<EngineState | null>('state')
       .then((next) => {
         if (!alive) return
+        if (!next) return
         setOnline(true)
         refresh(next)
         setPort(next.port)

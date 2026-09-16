@@ -42,3 +42,32 @@ test('stdio backend handshake, concurrent RPC, validation and clean EOF shutdown
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+test('workspace session snapshots round-trip through the backend', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'bidoytu-session-'))
+  const root = resolve(__dirname, '../..')
+  const candidate = join(
+    root,
+    'venv',
+    process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python',
+  )
+  const python = process.env.BIDOYTU_PYTHON || (existsSync(candidate) ? candidate : 'python')
+  const backend = new Backend(python, ['-u', '-m', 'bidoytu.backend', '--data-dir', dir], {
+    env: { ...process.env, PYTHONPATH: join(root, 'src'), PYTHONUTF8: '1' },
+  })
+  try {
+    await backend.ready
+    const snapshot = {
+      tabs: [{ id: 1, name: 'Saved request', url: 'https://example.com', request: 'GET / HTTP/1.1\r\n\r\n' }],
+      groups: [],
+      intruderTabs: [],
+      port: 9090,
+      verifyTLS: false,
+    }
+    assert.equal(await backend.request('workspace.save', snapshot), true)
+    assert.deepEqual(await backend.request('workspace.load'), snapshot)
+  } finally {
+    await backend.stop()
+    await rm(dir, { recursive: true, force: true })
+  }
+})

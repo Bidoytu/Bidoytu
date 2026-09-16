@@ -61,7 +61,14 @@ export type JobResult = {
   error?: string
 }
 export type EngineEvent =
-  { type: 'changed'; data: EngineState } | { type: 'offline'; message: string }
+  { type: 'changed'; data: EngineState } | { type: 'ready'; data: EngineState } | { type: 'offline'; message: string }
+export type WorkspaceSession = {
+  id: string
+  name: string
+  created_at: string
+  updated_at: string
+  protected?: boolean
+}
 export type BrowserInfo = { id: number; name: string; kind: 'firefox' | 'chromium' }
 export interface DesktopBridge {
   request<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>
@@ -71,6 +78,13 @@ export interface DesktopBridge {
   openBrowser(id: number): Promise<{ name: string; trust_method: string }>
   copyText(text: string): Promise<unknown>
   window(action: 'minimize' | 'maximize' | 'close'): void
+  listSessions(): Promise<WorkspaceSession[]>
+  createSession(name: string): Promise<WorkspaceSession>
+  deleteSession(id: string): Promise<boolean>
+  openSession(id: string): Promise<WorkspaceSession>
+  onAppCloseRequest(callback: () => void): () => void
+  onSessionOpened(callback: (session: WorkspaceSession) => void): () => void
+  closeDecision(decision: 'save' | 'discard' | 'cancel'): Promise<void>
 }
 declare global {
   interface Window {

@@ -12,7 +12,7 @@ from .service import ApplicationService
 MAX_MESSAGE = 2 * 1024 * 1024
 
 
-async def serve(data_dir: Path):
+async def serve(data_dir: Path, ca_dir: Path | None = None):
     # Reserve original stdout for protocol frames; dependency prints go to stderr.
     output = sys.stdout
     sys.stdout = sys.stderr
@@ -27,7 +27,7 @@ async def serve(data_dir: Path):
         output.write(encoded)
         output.flush()
 
-    service = ApplicationService(data_dir, emit)
+    service = ApplicationService(data_dir, emit, ca_dir=ca_dir)
     await service.open()
     await emit({"event": "ready", "data": service.state()})
     tasks: set[asyncio.Task] = set()
@@ -72,8 +72,9 @@ async def serve(data_dir: Path):
 def main():
     parser = argparse.ArgumentParser(description="Bidoytu headless desktop backend")
     parser.add_argument("--data-dir", type=Path, required=True)
+    parser.add_argument("--ca-dir", type=Path)
     args = parser.parse_args()
-    asyncio.run(serve(args.data_dir))
+    asyncio.run(serve(args.data_dir, args.ca_dir))
 
 
 if __name__ == "__main__":

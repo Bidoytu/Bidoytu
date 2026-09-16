@@ -96,7 +96,7 @@ jobs:
         run: cd release/linux-unpacked && zip -r "../../${{ matrix.asset }}.zip" .
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.asset }}
           path: ${{ matrix.asset }}.zip

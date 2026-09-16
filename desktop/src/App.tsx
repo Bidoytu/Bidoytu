@@ -30,7 +30,8 @@ import { RepeaterView } from './views/RepeaterView'
 import { ScopeView } from './views/ScopeView'
 import { SettingsView } from './views/SettingsView'
 import type { BrowserInfo } from './types'
-import { useState } from 'react'
+import type { WorkspaceSession } from './types'
+import { useEffect, useState } from 'react'
 import type { IconDefinition } from '@fortawesome/free-brands-svg-icons'
 import {
   faBrave,
@@ -39,6 +40,7 @@ import {
   faFirefoxBrowser,
   faOpera,
 } from '@fortawesome/free-brands-svg-icons'
+import brandImage from '../../bidoytu-long.png'
 
 const browserBrandIcons: Record<string, IconDefinition> = {
   'Google Chrome': faChrome,
@@ -63,6 +65,53 @@ function BrowserLogo({ browser }: { browser: BrowserInfo }) {
         <path key={index} d={path} />
       ))}
     </svg>
+  )
+}
+
+function SessionPicker({
+  sessions,
+  onOpen,
+  onCreate,
+  onDelete,
+  onClose,
+}: {
+  sessions: WorkspaceSession[]
+  onOpen: (session: WorkspaceSession) => void
+  onCreate: (name: string) => void
+  onDelete: (session: WorkspaceSession) => void
+  onClose: () => void
+}) {
+  const [creating, setCreating] = useState(false)
+  const [name, setName] = useState('New session')
+  return (
+    <div className="session-picker">
+      <div className="session-picker-card">
+        <button className="session-picker-close" aria-label="Close" onClick={onClose}><X size={17} /></button>
+        <div className="empty-icon"><Layers3 size={26} /></div>
+        <h1>Choose a session</h1>
+        <p>History, requests, scope, and tool state are saved per session. The proxy CA is shared globally.</p>
+        <div className="session-list">
+          {sessions.map((session) => (
+            <div className="session-row" key={session.id}>
+              <div className="session-row-info">
+                <strong>{session.name}</strong>
+                <small>Updated {new Date(session.updated_at).toLocaleString()}</small>
+              </div>
+              <Button className="primary" onClick={() => onOpen(session)}>Open</Button>
+              {!session.protected && <Button className="subtle" onClick={() => onDelete(session)}>Delete</Button>}
+            </div>
+          ))}
+          {!sessions.length && <p className="muted">No saved sessions yet.</p>}
+        </div>
+        {!creating ? <Button className="primary session-create" onClick={() => setCreating(true)}><Layers3 size={14} /> Create session</Button> : (
+          <form className="session-create-form" onSubmit={(event) => { event.preventDefault(); if (name.trim()) onCreate(name.trim()) }}>
+            <input autoFocus aria-label="Session name" value={name} maxLength={120} onChange={(event) => setName(event.target.value)} />
+            <Button className="subtle" type="button" onClick={() => setCreating(false)}>Cancel</Button>
+            <Button className="primary" type="submit" disabled={!name.trim()}>Create</Button>
+          </form>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -92,6 +141,43 @@ export function App() {
   const [browsers, setBrowsers] = useState<BrowserInfo[]>([])
   const [browserBusy, setBrowserBusy] = useState(false)
   const [browserError, setBrowserError] = useState('')
+  const [sessions, setSessions] = useState<WorkspaceSession[]>([])
+  const [activeSession, setActiveSession] = useState<WorkspaceSession | null>(null)
+  const [sessionError, setSessionError] = useState('')
+  const [closeRequested, setCloseRequested] = useState(false)
+  const [closing, setClosing] = useState(false)
+
+  useEffect(() => {
+    api.listSessions().then(setSessions).catch((e) => setSessionError(e.message))
+    const unsubscribeClose = api.onAppCloseRequest(() => setCloseRequested(true))
+    const unsubscribeSession = api.onSessionOpened((session) => setActiveSession(session))
+    return () => { unsubscribeClose(); unsubscribeSession() }
+  }, [])
+
+  async function createSession(name: string) {
+    try {
+      const created = await api.createSession(name)
+      setSessions((current) => [created, ...current])
+      await api.openSession(created.id)
+      setActiveSession(created)
+    } catch (e) { setSessionError(e instanceof Error ? e.message : String(e)) }
+  }
+
+  async function openSession(session: WorkspaceSession) {
+    try { await api.openSession(session.id); setActiveSession(session); setSessionError('') }
+    catch (e) { setSessionError(e instanceof Error ? e.message : String(e)) }
+  }
+
+  async function deleteSession(session: WorkspaceSession) {
+    if (!window.confirm(`Delete "${session.name}" and all of its history?`)) return
+    try { await api.deleteSession(session.id); setSessions((current) => current.filter((item) => item.id !== session.id)) }
+    catch (e) { setSessionError(e instanceof Error ? e.message : String(e)) }
+  }
+
+  if (!activeSession) return <>
+    <SessionPicker sessions={sessions} onOpen={openSession} onCreate={createSession} onDelete={deleteSession} onClose={() => api.window('close')} />
+    {sessionError && <div className="session-error">{sessionError}</div>}
+  </>
 
   async function openBrowserPicker() {
     setShowBrowsers(true)
@@ -119,17 +205,12 @@ export function App() {
   return (
     <div className="app">
       <header className="titlebar">
-        <div className="brand-mark">
-          <Layers3 size={18} />
-        </div>
-        <strong>
-          bidoytu<span className="version">2.0</span>
-        </strong>
+        <img className="brand-logo" src={brandImage} alt="bidoytu" />
         <span className="title-divider" />
         <span className="title-context">Security workspace</span>
         <div className="title-project">
           <Folder size={12} />
-          Default workspace<span className="local-pill">LOCAL</span>
+          {activeSession.name}<span className="local-pill">LOCAL</span>
         </div>
         <div className="window-controls">
           <button aria-label="Minimize" onClick={() => api.window('minimize')}>
@@ -144,14 +225,6 @@ export function App() {
         </div>
       </header>
       <aside className="sidebar">
-        <div className="workspace-card">
-          <div className="workspace-avatar">B</div>
-          <div>
-            <strong>Default workspace</strong>
-            <span>Local project</span>
-          </div>
-          <LockKeyhole size={13} />
-        </div>
         <div className="nav-label">WORKSPACE</div>
         <nav>
           {(['Proxy', 'Repeater', 'Intruder'] as View[]).map((item) => {
@@ -239,7 +312,7 @@ export function App() {
         <div className="workspace-topbar">
           <div className="breadcrumbs">
             <Folder size={14} />
-            <span>Default workspace</span>
+            <span>{activeSession.name}</span>
             <ChevronRight size={12} />
             <strong>{view}</strong>
           </div>
@@ -436,6 +509,20 @@ export function App() {
             <small className="browser-note">
               Browsers opened here are closed automatically when Bidoytu exits.
             </small>
+          </section>
+        </div>
+      )}
+      {closeRequested && (
+        <div className="modal-backdrop">
+          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="close-title">
+            <h2 id="close-title">Close session?</h2>
+            <p>Save this session to keep its history and workspace details for next time, or discard it permanently.</p>
+            <div className="close-actions">
+              <Button className="subtle" disabled={closing} onClick={() => { setCloseRequested(false); void api.closeDecision('cancel') }}>Cancel</Button>
+              <Button className="subtle" disabled={closing} onClick={async () => { setClosing(true); try { await api.closeDecision('discard') } catch (e) { setClosing(false); setCloseRequested(true); setError(e instanceof Error ? e.message : String(e)) } }}>Discard session</Button>
+              <Button className="primary" disabled={closing} onClick={async () => { setClosing(true); try { await api.closeDecision('save') } catch (e) { setClosing(false); setCloseRequested(true); setError(e instanceof Error ? e.message : String(e)) } }}>Save session</Button>
+            </div>
+            {closing && <p className="close-progress">Closing session…</p>}
           </section>
         </div>
       )}

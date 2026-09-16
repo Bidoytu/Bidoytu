@@ -25,8 +25,8 @@ from .storage import Storage, summary
 
 
 class ApplicationService:
-    def __init__(self, data_dir: Path, emit):
-        self.config = AppConfig(data_dir=data_dir)
+    def __init__(self, data_dir: Path, emit, ca_dir: Path | None = None):
+        self.config = AppConfig(data_dir=data_dir, ca_dir=ca_dir)
         self.config.ensure_dirs()
         self.config.load_proxy_scope()
         self.storage = Storage(self.config)

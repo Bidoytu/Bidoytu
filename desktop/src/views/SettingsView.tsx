@@ -74,7 +74,7 @@ export function SettingsView({ workspace }: { workspace: WorkspaceController }) 
         </h2>
         <div className="setting-row">
           <div>
-            <strong>Default workspace</strong>
+            <strong>Active session</strong>
             <p className="mono">{state.data_dir || 'Waiting for Python engine…'}</p>
           </div>
           <span className="count-chip">SQLite · WAL</span>

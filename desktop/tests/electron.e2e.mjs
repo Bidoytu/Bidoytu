@@ -33,6 +33,8 @@ const page = await app.firstWindow()
 const errors = []
 page.on('pageerror', (error) => errors.push(error.message))
 try {
+  await expect(page.getByRole('button', { name: 'Create session', exact: true })).toBeVisible()
+  await page.evaluate(async () => { await window.bidoytu.createSession('E2E session') })
   await expect(page.getByText('Engine connected', { exact: true })).toBeVisible({ timeout: 30000 })
   await expect(page.getByText('HTTP history', { exact: true }).first()).toBeVisible()
   const security = await app.evaluate(({ BrowserWindow }) => {
@@ -53,8 +55,8 @@ try {
       `GET /api/workspaces HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nAccept: application/json\r\n\r\n`,
     )
   await page.getByRole('button', { name: /^Send Ctrl/ }).click()
-  await expect(page.getByRole('region', { name: 'Response message' })).toContainText(
-    'Bidoytu integration fixture',
+  await expect(page.getByRole('textbox', { name: 'Response editor' })).toHaveValue(
+    /Bidoytu integration fixture/,
   )
   // Ctrl+R duplicates the active Repeater request into a new tab.
   await page.keyboard.press('Control+r')
@@ -66,8 +68,12 @@ try {
   // Ctrl+I again duplicates the active Intruder attack.
   await page.keyboard.press('Control+i')
   await expect(page.getByRole('button', { name: 'Request 1 (1) copy', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'HTTP history' }).click()
+  await page.getByRole('button', { name: /^Proxy/ }).click()
+  await page.getByRole('tab', { name: 'HTTP history' }).click()
   console.log('Python replay and global shortcuts verified.')
+  await expect(page.getByText('Engine connected', { exact: true })).toBeVisible({ timeout: 30000 })
+  if (await page.getByRole('button', { name: 'Stop proxy', exact: true }).isVisible())
+    await page.getByRole('button', { name: 'Stop proxy', exact: true }).click()
   const reservation = createServer()
   await new Promise((resolve) => reservation.listen(0, '127.0.0.1', resolve))
   const proxyPort = reservation.address().port
@@ -98,7 +104,8 @@ try {
   expect(proxyResponse).toContain('/proxy-fixture')
   await page.getByRole('button', { name: 'Stop proxy', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Start proxy', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'HTTP history' }).click()
+  await page.getByRole('button', { name: /^Proxy/ }).click()
+  await page.getByRole('tab', { name: 'HTTP history' }).click()
   console.log('Real proxy capture and shutdown verified.')
   await page
     .getByRole('button')
@@ -129,7 +136,7 @@ try {
   await page.getByRole('textbox', { name: 'Included hosts' }).fill('127.0.0.1')
   await page.getByRole('button', { name: 'Save scope' }).click()
   await expect(page.getByRole('status')).toContainText('Target scope saved')
-  await page.getByRole('button', { name: 'HTTP history' }).click()
+  await page.getByRole('tab', { name: 'HTTP history' }).click()
   await page.screenshot({ path: 'test-results/desktop-history.png' })
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1100, 760))
   await page.screenshot({ path: 'test-results/desktop-compact.png' })
