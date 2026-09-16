@@ -76,8 +76,13 @@ class LiveAuditService:
     """Runs a small, deterministic set of passive checks over proxy traffic."""
 
     COVERAGE = (
-        "XSS indicators", "SQL injection indicators", "CSRF indicators",
-        "XXE indicators", "directory traversal indicators", "SSRF indicators",
+        "OS command injection", "SQL injection", "second-order SQL injection",
+        "ASP.NET tracing", "file path traversal", "XXE", "LDAP injection",
+        "XPath injection", "XML injection", "ASP.NET debugging",
+        "broken access control review", "HTTP PUT", "out-of-band HTTP load",
+        "file path manipulation", "PHP code injection", "server-side JavaScript injection",
+        "Perl code injection", "Ruby code injection", "Python code injection",
+        "Expression Language injection",
         "transport and security headers", "cookie attributes", "CORS policy",
         "cache controls", "technology disclosure", "sensitive URL parameters",
         "verbose errors", "directory listing", "password form autocomplete",
@@ -240,11 +245,16 @@ class LiveAuditService:
 
     @staticmethod
     def _catalog_indicators(record: FlowRecord, body: str) -> list[AuditIssue]:
-        """Detect observable indicators for Burp's six catalog headline types."""
+        """Detect non-destructive, evidence-backed indicators in captured traffic."""
         issues: list[AuditIssue] = []
         path_lower = record.path.lower()
         request = (record.request_body_inline or b"").decode("utf-8", errors="replace")
         combined = f"{record.path}\n{request}".lower()
+
+        # The first 20 entries in the supplied Burp list have dedicated live
+        # rules. They inspect traffic already observed by the proxy; none sends
+        # a payload or performs an exploit attempt.
+        issues.extend(LiveAuditService._first_twenty_indicators(record, body, request, combined))
 
         xss_input = re.search(r"(?:<script\b|javascript:|on(?:error|load)\s*=|%3cscript|%3e)", combined, re.IGNORECASE)
         if xss_input and xss_input.group(0).lower() in body.lower():
@@ -290,4 +300,99 @@ class LiveAuditService:
             issues.append(_issue(record, "Potential server-side request forgery", Severity.MEDIUM,
                 "A captured URL parameter or request body points at a loopback or cloud-metadata address.",
                 "Allowlist outbound destinations, block private and link-local ranges, and validate URLs after canonicalization. Confirm only with an authorized controlled test.", Evidence("request", ssrf.group(0))))
+        return issues
+
+    @staticmethod
+    def _first_twenty_indicators(record: FlowRecord, body: str, request: str,
+                                 combined: str) -> list[AuditIssue]:
+        """First delivery of individually named Burp-list detector rules.
+
+        A match is a review candidate unless the response itself contains a
+        strong error/disclosure signature. This prevents request text alone
+        from being misreported as a confirmed server-side vulnerability.
+        """
+        issues: list[AuditIssue] = []
+
+        def add(title: str, detail: str, remediation: str, evidence: Evidence,
+                severity: Severity = Severity.MEDIUM) -> None:
+            issues.append(_issue(record, title, severity, detail, remediation, evidence))
+
+        command = re.search(r"(?:;|&&|\|\||\|)\s*(?:id|whoami|uname|cat|type|dir|ping)\b|`[^`]+`|\$\([^)]{1,120}\)", request, re.IGNORECASE)
+        shell_error = re.search(r"(?:/bin/(?:sh|bash):|cmd\.exe|command not found|uid=\d+\([^)]*\))", body, re.IGNORECASE)
+        if shell_error:
+            add("Potential OS command injection", "The response contains a shell execution or command-output signature.", "Avoid shell invocation for user input; use fixed command APIs and strict allowlists.", Evidence("response", shell_error.group(0)), Severity.CRITICAL)
+        elif command:
+            add("OS command injection test input observed", "Captured request data contains shell-control syntax. Review the server-side handling before treating it as exploitable.", "Never concatenate untrusted input into shell commands; validate expected values and use argument arrays.", Evidence("request", command.group(0)))
+
+        # SQL injection, XXE, and traversal are covered by the dedicated rules
+        # below in this method's caller so their existing detailed evidence is
+        # retained. Second-order SQLi needs a stored value and a later sink;
+        # record an explicit candidate only for state-changing SQL-like input.
+        second_order = re.search(r"(?:%27|'\s*(?:or|and)\s+\d|\bunion\s+(?:all\s+)?select\b)", request, re.IGNORECASE)
+        if record.method.upper() not in {"GET", "HEAD", "OPTIONS"} and second_order:
+            add("Second-order SQL injection review candidate", "A state-changing request contains SQL-like syntax. Confirm only by safely correlating stored data with a later server-side query.", "Use parameterized queries at every database sink, including background and later processing paths.", Evidence("request", second_order.group(0)), Severity.INFORMATIONAL)
+
+        trace = re.search(r"(?:trace\.axd|application trace|trace information)", body, re.IGNORECASE)
+        if trace:
+            add("ASP.NET tracing enabled", "The response exposes an ASP.NET trace viewer signature.", "Disable public tracing and restrict diagnostic endpoints to authorized administrators.", Evidence("response", trace.group(0)), Severity.CRITICAL)
+
+        ldap_error = re.search(r"(?:ldap(?:exception| error)|javax\.naming|invalid dn syntax)", body, re.IGNORECASE)
+        ldap_input = re.search(r"(?:\(\||\(&|\)\(|\*\)\(|\)\s*\(cn=)", request, re.IGNORECASE)
+        if ldap_error:
+            add("Potential LDAP injection", "The response contains an LDAP error signature.", "Escape LDAP filter and distinguished-name values with a library API; do not concatenate filters.", Evidence("response", ldap_error.group(0)))
+        elif ldap_input:
+            add("LDAP injection test input observed", "The captured request contains LDAP-filter control syntax.", "Escape LDAP filter values and verify with a controlled authorized test.", Evidence("request", ldap_input.group(0)), Severity.INFORMATIONAL)
+
+        xpath_error = re.search(r"(?:xpath(?:exception| expression)|system\.xml\.xpath|invalid predicate)", body, re.IGNORECASE)
+        xpath_input = re.search(r"['\"]\s*(?:or|and)\s+['\"]?\d|\]\s*\|\s*//", request, re.IGNORECASE)
+        if xpath_error:
+            add("Potential XPath injection", "The response contains an XPath parsing or evaluation error signature.", "Use parameterized XPath APIs where available, or safely escape values before evaluating expressions.", Evidence("response", xpath_error.group(0)))
+        elif xpath_input:
+            add("XPath injection test input observed", "The captured request contains XPath-like predicate syntax.", "Treat input as data, not expression syntax; verify only in an approved test flow.", Evidence("request", xpath_input.group(0)), Severity.INFORMATIONAL)
+
+        xml_error = re.search(r"(?:xml parse error|unexpected end tag|mismatched tag|saxparseexception)", body, re.IGNORECASE)
+        xml_input = re.search(r"(?:</?[A-Za-z][^>]{0,80}>|<!\[cdata\[)", request, re.IGNORECASE)
+        if xml_error and xml_input:
+            add("Potential XML injection", "XML-looking request input coincides with an XML parser error in the response.", "Parse structured XML safely and escape or validate untrusted content before embedding it in XML.", Evidence("response", xml_error.group(0)))
+
+        asp_debug = re.search(r"(?:server error in ['\"]/['\"] application|compilation error|customerrors mode=\"off\")", body, re.IGNORECASE)
+        if asp_debug:
+            add("ASP.NET debugging enabled", "The response exposes an ASP.NET detailed-error signature.", "Disable debug and detailed custom errors in production; retain diagnostic detail only in protected logs.", Evidence("response", asp_debug.group(0)))
+
+        unauth_admin = (not re.search(r"^(?:authorization|cookie):", record.request_headers, re.IGNORECASE)
+                        and record.status_code and 200 <= record.status_code < 300
+                        and re.search(r"/(?:admin|administrator|manage|users?/\d+)", record.path, re.IGNORECASE))
+        if unauth_admin:
+            add("Broken access control review candidate", "An apparently privileged path returned success without an observable Authorization or Cookie header. Authentication may be handled elsewhere, so this needs manual confirmation.", "Enforce server-side authorization for every object and action; test with multiple roles and identifiers.", Evidence("request", record.path), Severity.INFORMATIONAL)
+
+        allow = record.response_headers
+        put_enabled = record.method.upper() == "PUT" and record.status_code and record.status_code < 400
+        allow_put = re.search(r"^allow:\s*.*\bput\b", allow, re.IGNORECASE | re.MULTILINE)
+        if put_enabled or allow_put:
+            evidence = Evidence("response", allow_put.group(0) if allow_put else "PUT request accepted")
+            add("HTTP PUT method is enabled", "The server advertises or accepted HTTP PUT. This is a review item; exposure depends on authentication and writable paths.", "Disable PUT where unnecessary and require strong authorization plus safe upload handling where it is required.", evidence, Severity.CRITICAL)
+
+        oob_input = re.search(r"(?:https?://[^\s'\"<>]{1,200}|//[^\s'\"<>]{1,200})", combined, re.IGNORECASE)
+        if oob_input and re.search(r"(?:url|uri|webhook|callback|fetch|image|avatar|import|feed)", record.path + "\n" + request, re.IGNORECASE):
+            add("Out-of-band resource load review candidate", "A URL-bearing input was observed in a likely server-fetching context. Confirmation requires a controlled callback endpoint.", "Allowlist outbound destinations, isolate egress, and validate resolved IP addresses after redirects.", Evidence("request", oob_input.group(0)), Severity.INFORMATIONAL)
+
+        file_path = re.search(r"(?:[A-Za-z]:\\\\|/(?:etc|var|home|tmp|proc)/|\\\\\\\\[^\\\s]+\\)", combined)
+        if file_path:
+            add("File path manipulation test input observed", "The captured request contains an absolute filesystem or network path.", "Use opaque resource identifiers and constrain canonicalized paths below a trusted root.", Evidence("request", file_path.group(0)), Severity.INFORMATIONAL)
+
+        code_rules = (
+            ("PHP code injection", r"(?:<\?php|\beval\s*\(|\bsystem\s*\()", r"(?:php (?:parse|fatal) error|unexpected t_)"),
+            ("Server-side JavaScript code injection", r"(?:\brequire\s*\(|\bprocess\.(?:mainModule|env)|\bchild_process\b)", r"(?:node(?:\.js)? (?:error|exception)|referenceerror:)"),
+            ("Perl code injection", r"(?:\bperl\b|\$ENV\{|\buse\s+strict\b)", r"(?:perl(?:\.exe)?:|can'?t locate .*\.pm)"),
+            ("Ruby code injection", r"(?:\bKernel\.(?:system|eval)|\bProcess\.spawn|`[^`]+`)", r"(?:ruby(?: error| exception)|syntaxerror:.*\.rb)"),
+            ("Python code injection", r"(?:__import__\s*\(|\bexec\s*\(|\beval\s*\(|\bos\.system\s*\()", r"(?:traceback \(most recent call last\)|python (?:error|exception)|syntaxerror:.*\.py)"),
+            ("Expression Language injection", r"(?:\$\{[^}]{1,120}\}|#\{[^}]{1,120}\})", r"(?:javax\.el|expression language|spel evaluation)"),
+        )
+        for title, input_pattern, error_pattern in code_rules:
+            error = re.search(error_pattern, body, re.IGNORECASE)
+            candidate = re.search(input_pattern, request, re.IGNORECASE)
+            if error:
+                add(f"Potential {title.lower()}", "The response contains a runtime error signature associated with this server-side execution environment.", "Do not evaluate user-controlled expressions or code; use fixed APIs and strict allowlists.", Evidence("response", error.group(0)), Severity.CRITICAL)
+            elif candidate:
+                add(f"{title} test input observed", "The captured request contains syntax associated with this execution environment. It is a review candidate, not proof of execution.", "Treat user input only as data and verify the affected sink in an approved test flow.", Evidence("request", candidate.group(0)), Severity.INFORMATIONAL)
         return issues

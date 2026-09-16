@@ -397,6 +397,14 @@ class MainWindow(QMainWindow):
         if not is_response:
             self._active_scan.submit(record)
         self._persist(record)
+        # Keep the in-memory table and site map synchronized with the durable
+        # history.  The repository is the source of truth across restarts, but
+        # the live UI model must also receive each request/response event.
+        # Bodies are loaded lazily from the body store/repository by the detail
+        # view, so do not retain large payloads in the Qt model.
+        summary = replace(record, request_body_inline=None, response_body_inline=None)
+        self._model.upsert_record(summary)
+        self._target_tab.add_record(summary, defer=True)
 
     @Slot(bool)
     def _on_active_audit_changed(self, enabled: bool) -> None:
@@ -410,11 +418,6 @@ class MainWindow(QMainWindow):
     def _on_active_scan_result(self, result: ActiveScanResult) -> None:
         """Marshal a worker finding back to the Qt-owned issue model."""
         self._audit_tab.add_active_issue(result.issue)
-        # The table and site map never render bodies. Keep only metadata in
-        # their long-lived models; detail panes load the selected body lazily.
-        summary = replace(record, request_body_inline=None, response_body_inline=None)
-        self._model.upsert_record(summary)
-        self._target_tab.add_record(summary, defer=True)
 
     @Slot(object)
     def _on_flow_intercepted(self, record: FlowRecord) -> None:

@@ -5,10 +5,12 @@ from collections import Counter
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QFormLayout, QHeaderView, QLabel, QPlainTextEdit,
-    QSplitter, QTabWidget, QTableView, QVBoxLayout, QWidget,
+    QAbstractItemView, QCheckBox, QHeaderView, QLabel, QListWidget, QLineEdit,
+    QPlainTextEdit, QSplitter, QTabWidget, QTableView, QTextBrowser, QVBoxLayout,
+    QWidget,
 )
 
+from bidoytu.audit.catalog import VULNERABILITY_CATALOG, VulnerabilityAdvisory
 from bidoytu.audit.service import AuditIssue, AuditItem, LiveAuditService, Severity
 from bidoytu.http_utils import ensure_host_header
 from bidoytu.ui.audit_model import AuditIssueModel, AuditItemModel, SEVERITY_COLORS
@@ -72,10 +74,60 @@ class LiveAuditTab(QWidget):
         tabs.addTab(summary, "Summary")
         tabs.addTab(items_view, "Audit items")
         tabs.addTab(issue_panel, "Issues")
+        tabs.addTab(self._catalog_widget(), "Vulnerability catalog")
+        self._tabs = tabs
 
         layout = QVBoxLayout(self); layout.setContentsMargins(8, 8, 8, 0)
         layout.addWidget(self._toggle); layout.addWidget(self._active_toggle)
         layout.addWidget(self._status); layout.addWidget(tabs, 1)
+
+    def _catalog_widget(self) -> QWidget:
+        """Build the local Burp-style advisory catalog and detail reader."""
+        widget = QWidget(); layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        search = QLineEdit(); search.setPlaceholderText("Search vulnerability catalog...")
+        layout.addWidget(search)
+        split = QSplitter(Qt.Horizontal)
+        listing = QListWidget(); listing.setMinimumWidth(250)
+        reader = QTextBrowser(); reader.setOpenExternalLinks(True)
+        reader.setHtml("<h2>Vulnerability catalog</h2><p>Select an entry to read its advisory.</p>")
+        split.addWidget(listing); split.addWidget(reader); split.setSizes([300, 850])
+        layout.addWidget(split, 1)
+
+        def visible_entries(needle: str = "") -> list[VulnerabilityAdvisory]:
+            query = needle.casefold().strip()
+            return [entry for entry in VULNERABILITY_CATALOG if not query or query in f"{entry.name} {entry.aliases}".casefold()]
+
+        def render(entry: VulnerabilityAdvisory) -> None:
+            reader.setHtml(
+                f"<h2>{entry.name}</h2><p><b>Burp severity:</b> {entry.severity} &nbsp; "
+                f"<b>Scanner ID:</b> {entry.scanner_id}</p><p><b>Also known as:</b> {entry.aliases}</p>"
+                f"<h3>Advisory</h3><p>{entry.summary}</p>"
+                f"<h3>Potential impact</h3><p>{entry.impact}</p>"
+                f"<h3>How it is detected</h3><p>{entry.detection}</p>"
+                f"<h3>Prevention</h3><p>{entry.prevention}</p>"
+                f"<h3>Bidoytu coverage</h3><p>{entry.bidoytu_coverage}</p>"
+                f"<p><a href='{entry.url}'>Read the full PortSwigger advisory</a></p>"
+            )
+
+        def refill(needle: str = "") -> None:
+            entries = visible_entries(needle); listing.clear()
+            for entry in entries:
+                listing.addItem(f"[{entry.severity}] {entry.name}")
+            if entries:
+                listing.setCurrentRow(0); render(entries[0])
+            else:
+                reader.setHtml("<h2>No matching vulnerability</h2><p>Try a different search term.</p>")
+
+        def selected(row: int) -> None:
+            entries = visible_entries(search.text())
+            if 0 <= row < len(entries):
+                render(entries[row])
+
+        search.textChanged.connect(refill)
+        listing.currentRowChanged.connect(selected)
+        refill()
+        return widget
 
     @staticmethod
     def _table(model):
@@ -120,6 +172,8 @@ class LiveAuditTab(QWidget):
             f"<p><b>Audit items:</b> {len(self._items.rows)} &nbsp; <b>Issues:</b> {len(self._issues.rows)}<br>{colors}</p>"
             f"<p><b>Active verification:</b> {'enabled for safe methods' if self._active_toggle.isChecked() else 'off'}</p>"
             f"<p><b>Current coverage:</b> {coverage}.</p>"
+            f"<p><b>Catalog:</b> {len(VULNERABILITY_CATALOG)} Burp issue definitions. "
+            "Catalog inclusion and a scanner finding are intentionally distinct.</p>"
             "<p>Findings are evidence-based review items. Passive analysis cannot confirm exploitability or detect every vulnerability.</p>"
         )
 

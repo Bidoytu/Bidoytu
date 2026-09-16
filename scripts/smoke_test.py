@@ -126,6 +126,7 @@ def test_target_scope(tmp: Path) -> None:
 
 
 def test_live_audit() -> None:
+    from bidoytu.audit.catalog import VULNERABILITY_CATALOG
     from bidoytu.audit.service import LiveAuditService, Severity
     from bidoytu.audit.active_scan import ActiveScanWorker
 
@@ -168,11 +169,36 @@ def test_live_audit() -> None:
     assert "Potential server-side request forgery" in catalog_titles
     assert "Sensitive local or cloud data disclosed" in catalog_titles
 
+    # The first delivery batch is intentionally passive and evidence-backed:
+    # a controlled fixture must exercise individually named detector rules
+    # without transmitting a probe to a target.
+    first_twenty = FlowRecord(
+        flow_id="audit-first-twenty", method="PUT", scheme="https", host="example.com",
+        port=443, path="/admin?url=http://callback.example", scope=True,
+        request_headers="", status_code=200, response_headers="Allow: GET, PUT",
+        request_body_inline=b"; whoami (|(cn=*)) </bad> <?php __import__('os') ${user}",
+        response_body_inline=(b"/bin/sh: command not found LDAP Error XPathException "
+                              b"XML parse error Server Error in '/' Application trace.axd"),
+    )
+    _, first_twenty_issues = service.analyze(first_twenty, is_response=True)
+    first_twenty_titles = {issue.title for issue in first_twenty_issues}
+    assert {
+        "Potential OS command injection", "ASP.NET tracing enabled", "Potential LDAP injection",
+        "Potential XPath injection", "Potential XML injection", "ASP.NET debugging enabled",
+        "Broken access control review candidate", "HTTP PUT method is enabled",
+        "Out-of-band resource load review candidate", "PHP code injection test input observed",
+        "Python code injection test input observed", "Expression Language injection test input observed",
+    } <= first_twenty_titles
+    assert len(LiveAuditService.COVERAGE[:20]) == 20
+
     worker = ActiveScanWorker(lambda _result: None)
     worker.set_enabled(True)
     assert not worker.submit(catalog_record)
     assert worker.skipped_state_changing == 1
     worker.stop()
+    assert len(VULNERABILITY_CATALOG) == 179
+    assert VULNERABILITY_CATALOG[0].name == "OS command injection"
+    assert VULNERABILITY_CATALOG[-1].name == "Hidden HTTP 2"
     print("  passive live audit checks OK")
 
 
@@ -214,6 +240,9 @@ def test_qt_and_proxy_apis(tmp: Path) -> None:
     assert win._target_tab.tabs.tabText(0) == "Site map"
     assert win._target_tab.tabs.tabText(1) == "Scope"
     assert win._target_tab.tabs.currentWidget() is win._target_tab.scope_page
+    assert [win._audit_tab._tabs.tabText(i) for i in range(win._audit_tab._tabs.count())] == [
+        "Summary", "Audit items", "Issues", "Vulnerability catalog"
+    ]
 
     # Soft wrap defaults on in the history detail views.
     assert win._proxy_tab.history._detail.request_view.soft_wrap_enabled()

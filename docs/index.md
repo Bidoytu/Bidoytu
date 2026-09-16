@@ -153,6 +153,13 @@ Implementation: [`audit/service.py`](../src/bidoytu/audit/service.py),
 [`ui/audit_tab.py`](../src/bidoytu/ui/audit_tab.py), and
 [`ui/audit_model.py`](../src/bidoytu/ui/audit_model.py).
 
+The **Vulnerability catalog** sub-section mirrors the six entries currently
+listed in PortSwigger's Scanner catalog: XSS, SQL injection, CSRF, XXE,
+directory traversal, and SSRF. Each local advisory includes aliases, summary,
+impact, detection guidance, prevention, current Bidoytu coverage, and a link
+to the full PortSwigger reference. The catalog is a reference view; it does
+not imply that every entry is automatically confirmed by the live scanner.
+
 ### Collaborator
 
 Collaborator integrates with an Interactsh-compatible out-of-band service. The tab manages registration and polling, displays received interactions, and provides fresh payload hosts to Repeater and Intruder request editors.
