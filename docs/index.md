@@ -1,5 +1,10 @@
 # Bidoytu documentation
 
+> This wiki describes the optional **legacy Qt application**. For Bidoytu 2's
+> Electron desktop, read [the hybrid architecture guide](hybrid-architecture.md)
+> and [desktop build instructions](electron-release.md). Features described here
+> are not all exposed in Electron.
+
 > A focused desktop HTTP interception and testing workspace for authorized security work.
 
 Bidoytu is a Python desktop application for inspecting, modifying, and replaying HTTP traffic through a local [mitmproxy](https://mitmproxy.org/) engine. It brings live history, request and response interception, Repeater workflows, an Intruder foundation, and an out-of-band Collaborator workflow into one PySide6 interface.

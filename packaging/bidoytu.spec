@@ -83,7 +83,7 @@ excludes = [
 
 
 a = Analysis(
-    ["../src/bidoytu/__main__.py"],
+    ["legacy_entry.py"],
     pathex=["../src"],
     binaries=binaries,
     datas=datas,

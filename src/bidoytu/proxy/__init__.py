@@ -1,5 +1,5 @@
-"""Proxy engine package (mitmproxy running inside a QThread)."""
+"""Framework-independent asynchronous proxy engine."""
 
-from bidoytu.proxy.engine import ProxyEngine
+from bidoytu.proxy.engine import ProxyService
 
-__all__ = ["ProxyEngine"]
+__all__ = ["ProxyService"]

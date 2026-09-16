@@ -7,6 +7,7 @@ editable (Repeater / Intercept) or read-only (history).
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
@@ -34,18 +35,24 @@ class DetailView(QWidget):
         self.response_view = MessageView(read_only=True)
         self._current: FlowRecord | None = None
 
-        # Right-click on the request pane offers the same send-to actions as the
-        # history table, so the context menu "works" inside the request tab.
-        self.request_view.add_context_action(
-            "Send to Repeater",
-            self._emit_repeater,
-            lambda: self._current is not None,
-        )
-        self.request_view.add_context_action(
-            "Send to Intruder",
-            self._emit_intruder,
-            lambda: self._current is not None,
-        )
+        # Right-click on the request or response pane offers the same send-to
+        # actions as the history table row context menu.
+        for view in (self.request_view, self.response_view):
+            view.add_context_action(
+                "Send to Repeater\tCtrl+R",
+                self._emit_repeater,
+                lambda: self._current is not None,
+            )
+            view.add_context_action(
+                "Send to Intruder\tCtrl+I",
+                self._emit_intruder,
+                lambda: self._current is not None,
+            )
+
+        # Keyboard shortcuts active when the detail view (or its children) has
+        # focus: Ctrl+R -> Repeater, Ctrl+I -> Intruder.
+        self._add_shortcut("Ctrl+R", self._emit_repeater)
+        self._add_shortcut("Ctrl+I", self._emit_intruder)
 
         self._wrap_toggle = QCheckBox("Wrap")
         self._wrap_toggle.setChecked(True)
@@ -86,6 +93,13 @@ class DetailView(QWidget):
     def _on_wrap_toggled(self, enabled: bool) -> None:
         self.request_view.set_soft_wrap(enabled)
         self.response_view.set_soft_wrap(enabled)
+
+    def _add_shortcut(self, seq: str, handler) -> None:
+        action = QAction(self)
+        action.setShortcut(QKeySequence(seq))
+        action.setShortcutContext(Qt.WidgetWithChildrenShortcut)
+        action.triggered.connect(handler)
+        self.addAction(action)
 
     def _emit_repeater(self) -> None:
         if self._current is not None:

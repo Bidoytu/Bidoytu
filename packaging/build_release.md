@@ -1,5 +1,8 @@
 # Building and releasing Bidoytu
 
+> Legacy Qt build reference. The release workflow now packages Electron and a
+> Python sidecar. Use [the current desktop build guide](../docs/electron-release.md).
+
 Bidoytu ships as a self-contained desktop app for **Windows** and **Linux**,
 built with PyInstaller from `packaging/bidoytu.spec`.
 

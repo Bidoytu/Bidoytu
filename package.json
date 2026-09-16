@@ -1,0 +1,77 @@
+{
+  "name": "bidoytu-desktop",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bidoytu — Electron security workspace with a Python network engine",
+  "author": "Bidoytu",
+  "license": "MIT",
+  "main": "desktop/electron/main.cjs",
+  "scripts": {
+    "dev": "node desktop/scripts/dev.mjs",
+    "dev:renderer": "vite --config desktop/vite.config.ts",
+    "build": "tsc -p desktop/tsconfig.json && vite build --config desktop/vite.config.ts",
+    "start": "electron .",
+    "test": "node --test desktop/tests/*.test.cjs",
+    "test:backend": "python scripts/backend_test.py",
+    "test:e2e": "node desktop/tests/electron.e2e.mjs",
+    "format": "prettier --write desktop/src desktop/electron desktop/tests desktop/vite.config.ts",
+    "package:backend": "python scripts/build_backend.py",
+    "package": "npm run build && npm run package:backend && electron-builder",
+    "package:dir": "npm run build && npm run package:backend && electron-builder --dir"
+  },
+  "dependencies": {
+    "lucide-react": "^0.577.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "electron": "^44.4.1",
+    "electron-builder": "^26.0.0",
+    "prettier": "^3.9.7",
+    "typescript": "^5.9.0",
+    "vite": "^8.3.0"
+  },
+  "build": {
+    "appId": "in.bidoytu.desktop",
+    "productName": "Bidoytu",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/electron/**",
+      "desktop/dist/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/backend/bidoytu-backend",
+        "to": "backend"
+      },
+      {
+        "from": "src/bidoytu/assets/logo.png",
+        "to": "logo.png"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "src/bidoytu/assets/logo.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development",
+      "icon": "src/bidoytu/assets/logo.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.developer-tools"
+    }
+  }
+}

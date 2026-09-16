@@ -1,136 +1,104 @@
 # Bidoytu
 
-<p align="center">
-  <img src="bidoytu-long.png" alt="Bidoytu" width="720">
-</p>
+<p align="center"><img src="bidoytu-long.png" alt="Bidoytu" width="720"></p>
 
-<p align="center">A focused desktop HTTP interception and testing workspace for authorized security work.</p>
+A focused HTTP interception and testing workspace with an **Electron + React + TypeScript desktop** and an independent **Python network engine**.
 
-<p align="center">
-  <a href="https://github.com/Bidoytu/Bidoytu/actions/workflows/main.yml"><img src="https://github.com/Bidoytu/Bidoytu/actions/workflows/main.yml/badge.svg?branch=main" alt="Release CI"></a>
-  <a href="https://github.com/Bidoytu/Bidoytu/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-</p>
+Bidoytu 2 introduces a dark, compact workspace inspired by Burp Suite and Caido: live traffic history, resizable request/response inspectors, editable interception, persistent Repeater tabs, controlled payload runs, passive audit and decoding.
 
-Bidoytu is a Python desktop application for inspecting, modifying, and
-replaying HTTP traffic through a local mitmproxy engine. It combines live
-history, request interception, Repeater workflows, and an extensible Intruder
-foundation in one PySide6 interface.
+## Run the desktop
 
-## Highlights
+Requires Node 24 LTS and Python 3.11+.
 
-- Local HTTP/HTTPS proxy with editable interception and forward/drop controls.
-- Traffic history backed by SQLite with content-addressed storage for large
-  bodies.
-- Repeater requests powered by an asynchronous httpx client.
-- Optional passive Live Audit of in-scope traffic already captured by the proxy,
-  with evidence-linked findings and no active probes.
-- Optional active verification for in-scope GET, HEAD, and OPTIONS requests;
-  state-changing methods are skipped.
-- Display-only formatting for JSON, XML/HTML, and URL-encoded bodies.
-- Public CA certificate export for HTTPS interception on machines you control.
-- Browser Integration discovers Firefox, Chrome, and Edge and launches them
-  through the active proxy with an isolated profile.
-- Windows and Linux packaging through GitHub Actions.
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -e .
+npm ci
+npm run dev
+```
 
-## Requirements
+For a compiled renderer:
 
-- Python 3.11 or newer
-- Windows or Linux
+```powershell
+npm run build
+npm start
+```
 
-## Quick start
+Electron discovers `.venv` or `venv` automatically. Set `BIDOYTU_PYTHON` to use a different interpreter. `bidoytu` and `python -m bidoytu` also launch the compiled Electron desktop from a prepared source checkout.
 
-    python -m venv .venv
-    .venv\Scripts\Activate.ps1
-    python -m pip install -e .
-    bidoytu
+A locally built standalone Windows application is available at `release/win-unpacked/Bidoytu.exe` after packaging. Packaged applications bundle Python and do not require a separate interpreter.
 
-Alternatively, run python -m bidoytu.
+## Core workflows
 
-Start the proxy from the Proxy tab. The default listener is 127.0.0.1:8080.
-To inspect HTTPS traffic, start the proxy once, export the public CA
-certificate from the UI, and trust it only on a machine you own or are
-authorized to administer.
+- **HTTP history:** live metadata updates, server-side search, scope/bookmark filters, pagination, virtual rows and a resizable split inspector.
+- **Intercept:** pause, edit, forward or drop requests and responses; bounded pending queue and explicit state.
+- **Repeater:** independent editable request tabs, connection-pooled Python replay, timing and response inspection; saved tabs restore on launch.
+- **Intruder:** replace `§payload§` with line-based payloads; sequential runs, cancellation and result inspection.
+- **Target scope:** persistent include/exclude host rules applied to new traffic.
+- **Live audit:** opt-in passive checks with captured evidence and remediation.
+- **Decoder:** Base64, URL, hex and JSON transformations in Python.
+- **Settings:** proxy port, upstream TLS verification, public CA export and capture health.
 
-Use Proxy Settings > Open Browser... to detect supported browsers and launch
-one through the active listener. The selected browser is not launched unless
-the public CA is installed successfully: Windows Chrome, Edge, and Firefox use
-the current-user Root store, while Linux/macOS browser profiles use NSS
-`certutil` when available.
+Start the proxy, then configure a dedicated testing browser to use `127.0.0.1:8080` for HTTP and HTTPS. For HTTPS interception, export the public CA from Settings and import it into that browser's certificate authorities. Quick start in the sidebar explains the steps. Upstream TLS verification defaults to enabled.
 
-The CA is installation-wide and is shared by all Bidoytu workspaces and
-sessions. Existing workspace CA files are migrated to the shared CA directory
-on startup.
-
-Browsers launched through Browser Integration use isolated profiles named
-`Bidoytu Browser` and are closed automatically when Bidoytu exits. The browser
-vendor executable and its native window icon cannot be rebranded safely from an
-external launcher; custom executable branding would require shipping a
-separately built browser.
-
-Some sites publish a broken or incomplete certificate chain and otherwise
-return `502 Bad Gateway` with `Certificate verify failed` through the proxy.
-Bidoytu enables `Allow invalid upstream TLS certificates` by default for
-browser interception so these sites remain reachable. Disable it in Proxy
-Settings when strict upstream certificate verification is required.
+Keyboard shortcuts: **Ctrl/Cmd K** to search, **Ctrl/Cmd 1–4** to switch primary tools, and **Ctrl/Cmd Enter** to send in Repeater.
 
 ## Architecture
 
-| Layer | Responsibility |
-| --- | --- |
-| ui/ | PySide6 windows, tabs, editors, views, and Qt signal wiring |
-| proxy/ | mitmproxy engine, flow capture, and interception control |
-| net/ | Async HTTP sending for Repeater and Intruder workflows |
-| audit/ | Qt-free passive checks over captured proxy traffic |
-| storage/ | SQLite history, flow models, and large-body file storage |
-| http_utils.py | Raw HTTP parsing, rebuilding, and display helpers |
-| scripts/ | Headless smoke checks and focused live verification |
+```text
+React feature views
+    → sandboxed preload bridge
+    → Electron main process
+    ⇄ private JSON-lines process pipes
+Python application service
+    → asyncio mitmproxy + pooled httpx
+    → bounded capture queue
+    → dedicated SQLite/body-storage worker
+```
 
-Qt is intentionally isolated to ui/. The proxy, networking, and storage layers
-communicate through framework-independent models and thread-safe signals.
+No local HTTP control API is exposed. Electron validates IPC callers and commands; captured content renders as inert text. The Python runtime does not import or require Qt. Large bodies load on selection; history carries metadata only; editors virtualize long messages.
 
-## Documentation
+See [architecture, protocol, limits and migration](docs/hybrid-architecture.md) for the full design and measured performance.
 
-The complete application wiki is available at [`docs/index.md`](docs/index.md).
-It covers first-run setup, feature workflows, architecture, data flow,
-storage, testing, releases, and security guidance.
+## Data and compatibility
 
-## Development workflow
+The Electron app uses its own local default workspace under Electron's user-data directory. Set `BIDOYTU_DATA_DIR` before launch to choose a different workspace. Existing Qt workspaces are preserved; use a copy when migrating. Captured traffic and saved request tabs are local plaintext files.
 
-Development work is integrated through staging:
+The optional Qt application remains available for legacy features such as Collaborator, automatic browser integration, workspace archive/password management, advanced scope/filter editors, grouped Repeater sends and multi-position Intruder modes. Those features are **not yet exposed in Electron**.
 
-    git switch staging
-    git pull --ff-only origin staging
-    git switch -c feature/short-description
+```powershell
+python -m pip install -e ".[legacy]"
+bidoytu-legacy
+```
 
-Open pull requests against staging. Keep main reserved for reviewed,
-release-ready changes. The release workflow runs on pushes to main, on version
-tags, and through manual dispatch; pushes to staging do not publish releases.
+The [legacy wiki](docs/index.md) documents these older workflows. The [hybrid architecture guide](docs/hybrid-architecture.md) is authoritative for the new desktop.
 
-See CONTRIBUTING.md for checks and pull-request expectations.
+## Verify and package
 
-## Verification
+```powershell
+python scripts/backend_test.py
+npm test
+npm run build
+npm run test:e2e
+python scripts/backend_benchmark.py
+```
 
-    python -m compileall -q src
-    python scripts/smoke_test.py
+With `.[legacy]` installed, `python scripts/smoke_test.py` verifies Qt compatibility.
 
-Run the relevant live scripts from scripts/ when changing proxy, interception,
-Repeater, compression, port, or CA behavior. They require network access and
-use QT_QPA_PLATFORM=offscreen.
+```powershell
+python -m pip install -e ".[dev]"
+npm run package:dir
+# Or create an installer:
+npm run package
+```
 
-## Packaging and releases
+See [desktop build and release instructions](docs/electron-release.md). Local Windows source and packaged-app testing are separate from Linux/macOS release validation and signing.
 
-CI builds Windows and Linux artifacts with PyInstaller. Versioned releases are
-created from v* tags, and tagged releases are also published to PyPI through
-Trusted Publishing. See packaging/build_release.md for the complete release
-procedure.
+## Contributing
 
-## Responsible use
+Use feature branches and open pull requests against `staging`. Keep `main` release-ready; the existing main/tag publishing triggers remain in place. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Use Bidoytu only against systems and traffic you own or are explicitly
-authorized to test. Installing a MITM CA or intercepting traffic without
-permission may be illegal. See SECURITY.md for security reporting and
-data-handling guidance.
+Use Bidoytu only with systems and traffic you own or are authorized to test. See [SECURITY.md](SECURITY.md) for reporting and data handling.
 
-## License
-
-Bidoytu is released under the MIT License.
+MIT licensed.

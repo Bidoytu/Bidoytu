@@ -32,7 +32,7 @@ from bidoytu.resources import logo_path
 from bidoytu.net.async_sender import AsyncHttpSender
 from bidoytu.audit.service import LiveAuditService
 from bidoytu.audit.active_scan import ActiveScanResult, ActiveScanWorker
-from bidoytu.proxy.engine import ProxyEngine
+from bidoytu.ui.qt_proxy_engine import ProxyEngine
 from bidoytu.storage.body_store import BodyStore
 from bidoytu.storage.models import FlowRecord
 from bidoytu.storage.repository import FlowRepository

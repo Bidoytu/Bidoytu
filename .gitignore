@@ -16,6 +16,10 @@ env/
 .kiro/
 
 # Build artifacts
+node_modules/
+desktop/dist/
+release/
+test-results/
 build/
 dist/
 dist-release/
