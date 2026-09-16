@@ -50,7 +50,8 @@ class Storage:
         self.repo.upsert(record)
 
     def history(self, query: str, offset: int, limit: int, scope: bool,
-                bookmarked: bool, spec: FilterSpec | None = None):
+                bookmarked: bool, spec: FilterSpec | None = None,
+                sort_by: str = "id", sort_direction: str = "desc"):
         """Return a newest-first page of history matching all active filters.
 
         The structured :class:`FilterSpec` is evaluated against metadata-only
@@ -67,9 +68,27 @@ class Storage:
                 bookmarked_only=spec.bookmarked_only or bookmarked,
             )
         records = self.repo.list_summaries()
-        matched = [record for record in reversed(records) if matches(record, spec)]
+        matched = [record for record in records if matches(record, spec)]
+        sort_fields = {
+            "id": lambda record: record.id,
+            "method": lambda record: record.method.casefold(),
+            "host": lambda record: record.host.casefold(),
+            "path": lambda record: record.path.casefold(),
+            "status": lambda record: record.status_code,
+            "size": lambda record: record.response_body_size,
+            "time": lambda record: record.duration_ms,
+        }
+        key = sort_fields.get(sort_by, sort_fields["id"])
+        descending = sort_direction != "asc"
+        present = [record for record in matched if key(record) is not None]
+        missing = [record for record in matched if key(record) is None]
+        present.sort(key=key, reverse=descending)
+        matched = present + missing
         return {"items": [summary(record) for record in matched[offset:offset + limit]],
                 "total": len(matched), "unfiltered": len(records)}
+
+    def clear_history(self):
+        self.repo.clear()
 
     def detail(self, flow_id: str):
         record = self.repo.get_by_flow_id(flow_id)

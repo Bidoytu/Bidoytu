@@ -7,6 +7,7 @@ const METHODS = new Set([
   'history.list',
   'history.detail',
   'history.metadata',
+  'history.clear',
   'proxy.start',
   'proxy.stop',
   'proxy.intercept',

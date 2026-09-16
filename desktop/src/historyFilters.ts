@@ -44,8 +44,8 @@ export const EMPTY_HISTORY_FILTERS: HistoryFilters = {
   showExtensions: '',
   hideExtensions: '',
   listenerPort: '',
-  mimeTypes: [],
-  statusClasses: [],
+  mimeTypes: ['html', 'script', 'xml', 'css', 'other text', 'images', 'flash', 'other binary'],
+  statusClasses: ['2xx', '3xx', '4xx', '5xx'],
 }
 
 export const MIME_OPTIONS: { value: string; label: string }[] = [
@@ -101,19 +101,31 @@ export function filterChips(filters: HistoryFilters): FilterChip[] {
   text('showExtensions', filters.showExtensions, 'Only')
   text('hideExtensions', filters.hideExtensions, 'Hide')
   text('listenerPort', filters.listenerPort, 'Port')
-  for (const value of filters.mimeTypes) {
-    chips.push({
-      id: `mime:${value}`,
-      label: MIME_LABELS[value] ?? value,
-      clear: { mimeTypes: filters.mimeTypes.filter((item) => item !== value) },
-    })
+  if (filters.mimeTypes.length !== MIME_OPTIONS.length) {
+    if (filters.mimeTypes.length === 0) {
+      chips.push({ id: 'mime:none', label: 'No MIME types', clear: { mimeTypes: EMPTY_HISTORY_FILTERS.mimeTypes } })
+    } else {
+      for (const value of filters.mimeTypes) {
+        chips.push({
+          id: `mime:${value}`,
+          label: MIME_LABELS[value] ?? value,
+          clear: { mimeTypes: filters.mimeTypes.filter((item) => item !== value) },
+        })
+      }
+    }
   }
-  for (const value of filters.statusClasses) {
-    chips.push({
-      id: `status:${value}`,
-      label: STATUS_LABELS[value] ?? value,
-      clear: { statusClasses: filters.statusClasses.filter((item) => item !== value) },
-    })
+  if (filters.statusClasses.length !== STATUS_OPTIONS.length) {
+    if (filters.statusClasses.length === 0) {
+      chips.push({ id: 'status:none', label: 'No status classes', clear: { statusClasses: EMPTY_HISTORY_FILTERS.statusClasses } })
+    } else {
+      for (const value of filters.statusClasses) {
+        chips.push({
+          id: `status:${value}`,
+          label: STATUS_LABELS[value] ?? value,
+          clear: { statusClasses: filters.statusClasses.filter((item) => item !== value) },
+        })
+      }
+    }
   }
   return chips
 }

@@ -115,6 +115,10 @@ export function useWorkspace() {
   const [debouncedFilters, setDebouncedFilters] = useState<HistoryFilters>(EMPTY_HISTORY_FILTERS)
   const [showFilters, setShowFilters] = useState(false)
   const [page, setPage] = useState(0)
+  const [historySort, setHistorySort] = useState<{
+    key: 'id' | 'method' | 'host' | 'path' | 'status' | 'size' | 'time'
+    direction: 'asc' | 'desc'
+  }>({ key: 'id', direction: 'desc' })
   const [selected, setSelected] = useState<Detail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -176,6 +180,17 @@ export function useWorkspace() {
     setFilters((previous) => ({ ...previous, ...patch }))
   }, [])
   const resetFilters = useCallback(() => setFilters(EMPTY_HISTORY_FILTERS), [])
+  const clearHistory = useCallback(
+    () =>
+      run(async () => {
+        await api.request('history.clear')
+        setSelected(null)
+        setSelectedId(null)
+        setRevision((v) => v + 1)
+        setNotice('HTTP history cleared')
+      }),
+    [run],
+  )
   const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters])
 
   useEffect(() => {
@@ -311,6 +326,8 @@ export function useWorkspace() {
         offset: page * 100,
         limit: 100,
         filter: historyFilterPayload(debouncedFilters),
+        sort_by: historySort.key,
+        sort_direction: historySort.direction,
       })
       .then((result) => {
         if (alive) {
@@ -326,7 +343,7 @@ export function useWorkspace() {
     return () => {
       alive = false
     }
-  }, [online, revision, view, debouncedQuery, page, debouncedFilters])
+  }, [online, revision, view, debouncedQuery, page, debouncedFilters, historySort])
   useEffect(() => {
     setScrollTop(0)
     if (scrollRef.current) scrollRef.current.scrollTop = 0
@@ -665,6 +682,9 @@ export function useWorkspace() {
     activeFilterCount,
     showFilters,
     setShowFilters,
+    historySort,
+    setHistorySort,
+    clearHistory,
     page,
     setPage,
     selected,

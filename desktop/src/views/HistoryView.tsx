@@ -10,6 +10,10 @@ import {
   Radio,
   Search,
   SlidersHorizontal,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Trash2,
   X,
 } from 'lucide-react'
 import { api } from '../api'
@@ -43,6 +47,9 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
     activeFilterCount,
     showFilters,
     setShowFilters,
+    historySort,
+    setHistorySort,
+    clearHistory,
     page,
     setPage,
     selected,
@@ -68,6 +75,28 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
   } = workspace
   const ctx = useContextMenu()
   const chips = filterChips(filters)
+  const sortHeader = (key: typeof historySort.key, label: string) => {
+    const active = historySort.key === key
+    const SortIcon = active
+      ? historySort.direction === 'asc'
+        ? ArrowUp
+        : ArrowDown
+      : ArrowUpDown
+    return (
+      <button
+        className={active ? 'sort-header active' : 'sort-header'}
+        onClick={() =>
+          setHistorySort((current) => ({
+            key,
+            direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
+          }))
+        }
+      >
+        <span>{label}</span>
+        <SortIcon size={11} />
+      </button>
+    )
+  }
   return (
     <div
       className="history-workspace"
@@ -114,6 +143,17 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
             Filters
             {activeFilterCount > 0 && <span className="filter-badge">{activeFilterCount}</span>}
           </Button>
+          <Button
+            className="subtle"
+            title="Clear all HTTP history"
+            onClick={() => {
+              if (window.confirm('Clear all HTTP history? This cannot be undone.'))
+                void clearHistory()
+            }}
+          >
+            <Trash2 size={14} />
+            Clear history
+          </Button>
         </div>
         {chips.length > 0 && (
           <div className="filter-chips">
@@ -135,13 +175,13 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
           </div>
         )}
         <div className="traffic-header traffic-row">
-          <span>#</span>
-          <span>Method</span>
-          <span>Host</span>
-          <span>Path</span>
-          <span>Status</span>
-          <span>Size</span>
-          <span>Time</span>
+          {sortHeader('id', '#')}
+          {sortHeader('method', 'Method')}
+          {sortHeader('host', 'Host')}
+          {sortHeader('path', 'Path')}
+          {sortHeader('status', 'Status')}
+          {sortHeader('size', 'Size')}
+          {sortHeader('time', 'Time')}
           <span />
         </div>
         <div
@@ -180,6 +220,13 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
                               { flow_id: flow.flow_id },
                             )
                             toIntruder(detail)
+                          },
+                        },
+                        {
+                          label: 'Clear all history',
+                          onClick: () => {
+                            if (window.confirm('Clear all HTTP history? This cannot be undone.'))
+                              void clearHistory()
                           },
                         },
                       ])

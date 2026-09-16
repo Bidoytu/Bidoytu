@@ -607,6 +607,22 @@ h1 {
   letter-spacing: 0.1px;
   border-bottom: 1px solid #2d333b;
 }
+.sort-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+}
+.sort-header:hover,
+.sort-header.active {
+  color: #d8b67d;
+}
 .traffic-scroll {
   flex: 1;
   overflow: auto;
@@ -839,6 +855,21 @@ h1 {
   color: #d8b67d;
   border-bottom-color: #ce9d5d;
 }
+.wrap-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 100%;
+  margin-left: 5px;
+  color: #747f8d;
+  font-size: 9px;
+  cursor: pointer;
+  user-select: none;
+}
+.wrap-toggle input {
+  margin: 0;
+  accent-color: var(--amber);
+}
 .editor-body {
   flex: 1;
   min-height: 0;
@@ -857,6 +888,11 @@ h1 {
   white-space: pre;
   tab-size: 2;
 }
+.editor-body textarea.wrap-editor {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 .editor-body textarea:focus {
   box-shadow: inset 0 0 0 1px #735f3a;
 }
@@ -871,6 +907,16 @@ h1 {
   height: 20px;
   line-height: 20px;
   white-space: pre;
+}
+.code-line.wrap {
+  height: auto;
+  min-height: 20px;
+  align-items: flex-start;
+}
+.code-line.wrap > span:last-child {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .line-number {
   flex-shrink: 0;

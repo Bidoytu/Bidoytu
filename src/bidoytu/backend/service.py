@@ -209,10 +209,16 @@ class ApplicationService:
             spec = filter_spec_from_dict(raw_filter) if isinstance(raw_filter, dict) else None
             return await self.storage.call(self.storage.history, str(p.get("query", ""))[:512],
                 max(0, int(p.get("offset", 0))), min(250, max(1, int(p.get("limit", 100)))),
-                bool(p.get("scope")), bool(p.get("bookmarked")), spec)
+                bool(p.get("scope")), bool(p.get("bookmarked")), spec,
+                str(p.get("sort_by", "id")), str(p.get("sort_direction", "desc")))
         if method == "history.detail":
             await self.queue.join()
             return await self.storage.call(self.storage.detail, str(p["flow_id"]))
+        if method == "history.clear":
+            await self.queue.join()
+            await self.storage.call(self.storage.clear_history)
+            self.changed()
+            return True
         if method == "history.metadata":
             await self.storage.call(self.storage.metadata, str(p["flow_id"]), bool(p["bookmarked"]), str(p.get("notes", ""))[:10000])
             self.changed()

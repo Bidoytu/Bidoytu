@@ -156,7 +156,8 @@ export function Editor({
   actions?: ReactNode
   disabled?: boolean
 }) {
-  const [view, setView] = useState<EditorView>(onChange ? 'raw' : 'pretty')
+  const [view, setView] = useState<EditorView>('pretty')
+  const [wrap, setWrap] = useState(true)
   const [copied, setCopied] = useState(false)
   const [copyFailed, setCopyFailed] = useState(false)
   const [scrollTop, setScrollTop] = useState(0)
@@ -183,7 +184,8 @@ export function Editor({
     observer.observe(element)
     return () => observer.disconnect()
   }, [view, !!onChange])
-  const editable = Boolean(onChange) && view === 'raw'
+  const editable = Boolean(onChange) && (view === 'pretty' || view === 'raw')
+  const editorValue = view === 'pretty' ? prettyText : value
   const copyValue =
     view === 'hex' && hex
       ? hex.lines.map((line) => `${line.offset}  ${line.hex}  ${line.ascii}`).join('\n')
@@ -226,6 +228,15 @@ export function Editor({
           <Binary size={12} />
           Hex
         </button>
+        <label className="wrap-toggle">
+          <input
+            type="checkbox"
+            checked={wrap}
+            onChange={(e) => setWrap(e.target.checked)}
+            aria-label={`Wrap ${title.toLowerCase()} text`}
+          />
+          Wrap
+        </label>
         <span className="grow" />
         <button
           className="icon-button"
@@ -252,7 +263,8 @@ export function Editor({
           <textarea
             aria-label={`${title} editor`}
             spellCheck={false}
-            value={value}
+            className={wrap ? 'wrap-editor' : undefined}
+            value={editorValue}
             onChange={(e) => onChange?.(e.target.value)}
             disabled={disabled}
           />
@@ -289,20 +301,20 @@ export function Editor({
           <div
             ref={viewport}
             onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
-            className="code-view"
+            className={wrap ? 'code-view wrap-view' : 'code-view'}
             tabIndex={0}
             role="region"
             aria-label={`${title} message`}
           >
             {value ? (
-              <div style={{ height: lines.length * 20, position: 'relative' }}>
-                <div style={{ position: 'absolute', top: firstLine * 20, minWidth: '100%' }}>
-                  {visibleLines.map((line, index) => (
-                    <div className="code-line" key={firstLine + index}>
-                      <span className="line-number">{firstLine + index + 1}</span>
+              wrap ? (
+                <div>
+                  {lines.map((line, index) => (
+                    <div className="code-line wrap" key={index}>
+                      <span className="line-number">{index + 1}</span>
                       <span
                         className={
-                          firstLine + index === 0
+                          index === 0
                             ? 'code-first'
                             : line.match(/^[\w-]+:/)
                               ? 'code-header'
@@ -314,7 +326,28 @@ export function Editor({
                     </div>
                   ))}
                 </div>
-              </div>
+              ) : (
+                <div style={{ height: lines.length * 20, position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: firstLine * 20, minWidth: '100%' }}>
+                    {visibleLines.map((line, index) => (
+                      <div className="code-line" key={firstLine + index}>
+                        <span className="line-number">{firstLine + index + 1}</span>
+                        <span
+                          className={
+                            firstLine + index === 0
+                              ? 'code-first'
+                              : line.match(/^[\w-]+:/)
+                                ? 'code-header'
+                                : 'code-text'
+                          }
+                        >
+                          {line || ' '}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
             ) : (
               <div className="code-placeholder">
                 {title === 'Response'

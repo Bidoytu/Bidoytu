@@ -20,7 +20,7 @@ import {
 import { api } from './api'
 import { Button } from './components'
 
-import { descriptions, icons, useWorkspace, type View } from './hooks/useWorkspace'
+import { icons, useWorkspace, type View } from './hooks/useWorkspace'
 import { AuditView } from './views/AuditView'
 import { DecoderView } from './views/DecoderView'
 import { HistoryView } from './views/HistoryView'
@@ -49,7 +49,6 @@ export function App() {
     showHelp,
     setShowHelp,
     pending,
-    Icon,
     toggleProxy,
   } = workspace
   return (
@@ -198,20 +197,6 @@ export function App() {
               )}{' '}
               {state.running ? 'Stop proxy' : 'Start proxy'}
             </Button>
-          </div>
-        </div>
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">
-              {view === 'History' || view === 'Intercept' ? 'PROXY' : 'WORKSPACE'}
-            </div>
-            <h1>
-              {view === 'History' ? 'HTTP history' : view === 'Scope' ? 'Target scope' : view}
-            </h1>
-            <p>{descriptions[view]}</p>
-          </div>
-          <div className="page-heading-icon">
-            <Icon size={30} />
           </div>
         </div>
         {(error || state.error) && (
