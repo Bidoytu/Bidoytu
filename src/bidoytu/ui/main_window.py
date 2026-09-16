@@ -42,7 +42,6 @@ from bidoytu.ui.flow_table_model import FlowTableModel
 from bidoytu.ui.intruder_tab import IntruderTab
 from bidoytu.ui.message_view import MessageView
 from bidoytu.ui.proxy_tab import ProxyTab
-from bidoytu.ui.target_tab import TargetTab
 from bidoytu.ui.repeater_tab import RepeaterTab
 from bidoytu.ui.theme import DARK, LIGHT, apply_theme, current_mode, save_theme
 from bidoytu.workspace import Workspace, WorkspaceManager
@@ -89,13 +88,6 @@ class MainWindow(QMainWindow):
         self.resize(1300, 850)
 
         self._model = FlowTableModel(self)
-        # Scope-table edits can emit repeatedly while text is being changed.
-        # The proxy receives new rules immediately; history reclassification is
-        # coalesced so it cannot freeze the event loop on every keystroke.
-        self._scope_refresh_timer = QTimer(self)
-        self._scope_refresh_timer.setSingleShot(True)
-        self._scope_refresh_timer.setInterval(300)
-        self._scope_refresh_timer.timeout.connect(self._refresh_history_scope)
 
         # Top-level tabs.
         self._tabs = QTabWidget()
@@ -104,12 +96,6 @@ class MainWindow(QMainWindow):
             include_scope=config.proxy.include_scope,
             exclude_scope=config.proxy.exclude_scope,
             ssl_insecure=config.proxy.ssl_insecure,
-        )
-        self._target_tab = TargetTab(
-            config.proxy.include_scope, config.proxy.exclude_scope,
-            config.proxy.include_paths, config.proxy.exclude_paths,
-            config.proxy.include_regex, config.proxy.exclude_regex,
-            config.proxy.sitemaps,
         )
         # Reflect the configured defaults in the address inputs.
         self._proxy_tab.host_edit.setText(config.proxy.listen_host)
@@ -120,7 +106,6 @@ class MainWindow(QMainWindow):
         self._collaborator_tab = CollaboratorTab(self._sender, config.collaborator)
         self._audit_tab = LiveAuditTab(self._audit_service)
         self._tabs.addTab(self._proxy_tab, "Proxy")
-        self._target_tab_index = self._tabs.addTab(self._target_tab, "Target")
         self._tabs.addTab(self._repeater_tab, "Repeater")
         self._tabs.addTab(self._intruder_tab, "Intruder")
         self._collab_tab_index = self._tabs.addTab(
@@ -224,11 +209,11 @@ class MainWindow(QMainWindow):
         # Proxy controls. One button toggles start/stop.
         self._proxy_tab.toggle_btn.clicked.connect(self._on_toggle_proxy)
         self._proxy_tab.clear_btn.clicked.connect(self._on_clear)
-        # Tab-bar Clear History button (two-click confirm before it fires).
+        # Tab-bar Clear History button (popup confirmation before it fires).
         self._proxy_tab.clear_history_requested.connect(self._on_clear)
         self._proxy_tab.ca_btn.clicked.connect(self._on_show_ca)
         self._proxy_tab.browser_integration_requested.connect(self._on_show_browser_integration)
-        self._target_tab.scope_changed.connect(self._on_scope_changed)
+        self._proxy_tab.scope_changed.connect(self._on_scope_changed)
 
         # Engine signals.
         self._engine.flow_captured.connect(self._on_flow_captured)
@@ -243,7 +228,6 @@ class MainWindow(QMainWindow):
         self._audit_tab.body_provider = self._body_of
         self._audit_tab.active_changed.connect(self._on_active_audit_changed)
         self.active_scan_result.connect(self._on_active_scan_result)
-        self._target_tab.set_body_provider(self._body_of)
         self._proxy_tab.history.send_to_repeater.connect(self._send_to_repeater)
         self._proxy_tab.history.send_to_intruder.connect(self._send_to_intruder)
         self._proxy_tab.history.metadata_changed.connect(self._on_history_metadata_changed)
@@ -305,21 +289,13 @@ class MainWindow(QMainWindow):
         self._proxy_tab.toggle_btn.setEnabled(False)
         self._engine.start()
 
-    @Slot(list, list, list, list, list, list, list)
-    def _on_scope_changed(self, include_scope: list[str], exclude_scope: list[str],
-                          include_paths: list[str], exclude_paths: list[str],
-                          include_regex: list[str], exclude_regex: list[str],
-                          sitemaps: list[str]) -> None:
+    @Slot(list, list)
+    def _on_scope_changed(self, include_scope: list[str],
+                          exclude_scope: list[str]) -> None:
         self._config.proxy.include_scope = list(include_scope)
         self._config.proxy.exclude_scope = list(exclude_scope)
-        self._config.proxy.include_paths = list(include_paths)
-        self._config.proxy.exclude_paths = list(exclude_paths)
-        self._config.proxy.include_regex = list(include_regex)
-        self._config.proxy.exclude_regex = list(exclude_regex)
-        self._config.proxy.sitemaps = list(sitemaps)
-        self._engine.set_scope(include_scope, exclude_scope, include_paths,
-                                exclude_paths, include_regex, exclude_regex)
-        self._scope_refresh_timer.start()
+        self._engine.set_scope(include_scope, exclude_scope)
+        self._refresh_history_scope()
 
     def _on_stop(self) -> None:
         self._proxy_tab.set_status("Stopping proxy...")
@@ -404,7 +380,6 @@ class MainWindow(QMainWindow):
         # view, so do not retain large payloads in the Qt model.
         summary = replace(record, request_body_inline=None, response_body_inline=None)
         self._model.upsert_record(summary)
-        self._target_tab.add_record(summary, defer=True)
 
     @Slot(bool)
     def _on_active_audit_changed(self, enabled: bool) -> None:
@@ -429,9 +404,7 @@ class MainWindow(QMainWindow):
 
     def _persist(self, record: FlowRecord) -> None:
         record.scope = host_matches_scope(
-            record.host, self._config.proxy.include_scope, self._config.proxy.exclude_scope,
-            record.path, self._config.proxy.include_paths, self._config.proxy.exclude_paths,
-            self._config.proxy.include_regex, self._config.proxy.exclude_regex,
+            record.host, self._config.proxy.include_scope, self._config.proxy.exclude_scope
         )
         limit = self._config.body_inline_limit
         if record.request_body_inline and len(record.request_body_inline) > limit:
@@ -448,25 +421,17 @@ class MainWindow(QMainWindow):
 
     def _refresh_history_scope(self) -> None:
         """Reclassify existing rows when target scope rules change."""
-        records = self._model.all_records()
-        if not records:
-            records = self._repo.list_summaries()
-            self._model.load_records(records)
-            self._target_tab.set_records(records)
-        changed = []
+        records = self._repo.list_all()
         for record in records:
             in_scope = host_matches_scope(
                 record.host,
                 self._config.proxy.include_scope,
                 self._config.proxy.exclude_scope,
-                record.path, self._config.proxy.include_paths,
-                self._config.proxy.exclude_paths, self._config.proxy.include_regex,
-                self._config.proxy.exclude_regex,
             )
             if record.scope != in_scope:
                 record.scope = in_scope
-                changed.append(record)
-        self._repo.update_scopes(changed)
+                self._repo.update(record)
+        self._model.load_records(records)
         if hasattr(self._proxy_tab, "history"):
             self._proxy_tab.history._apply_filters()
 
@@ -538,7 +503,7 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def _on_history_metadata_changed(self, record: FlowRecord) -> None:
-        self._repo.update_metadata(record)
+        self._repo.update(record)
         self._model.upsert_record(record)
 
     @Slot(str, str)
@@ -592,7 +557,6 @@ class MainWindow(QMainWindow):
 
     @Slot(int)
     def _on_tab_changed(self, index: int) -> None:
-        self._target_tab.set_active(index == self._target_tab_index)
         if index == self._collab_tab_index:
             self._tabs.setTabText(self._collab_tab_index, "Collaborator")
 
