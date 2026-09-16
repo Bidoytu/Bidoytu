@@ -35,6 +35,15 @@ export type RepeaterTab = {
   result?: Detail
   busy: boolean
   error?: string
+  history?: RepeaterRevision[]
+  historyIndex?: number
+}
+export type RepeaterRevision = { request: string; result: Detail }
+export type RepeaterGroup = {
+  name: string
+  color: string
+  tabIds: number[]
+  collapsed: boolean
 }
 export type IntruderTab = {
   id: number
@@ -88,6 +97,21 @@ export const newTab = (id: number): RepeaterTab => ({
   request: 'GET / HTTP/1.1\r\nHost: example.com\r\nAccept: */*\r\n\r\n',
   busy: false,
 })
+
+function nextRepeaterCopyName(name: string, tabs: RepeaterTab[]) {
+  const stem = name.replace(/\s*\(\d+\)\s*$/, '').trim() || 'Request'
+  const pattern = new RegExp(
+    `^${stem.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\s*\\((\\d+)\\)$`,
+  )
+  const used = new Set<number>()
+  for (const tab of tabs) {
+    const match = tab.name.trim().match(pattern)
+    if (match) used.add(Number(match[1]))
+  }
+  let index = 1
+  while (used.has(index)) index += 1
+  return `${stem} (${index})`
+}
 export const newIntruderTab = (id: number): IntruderTab => ({
   id,
   name: `Attack ${id}`,
@@ -125,6 +149,7 @@ export function useWorkspace() {
   const [port, setPort] = useState(8080)
   const [verifyTLS, setVerifyTLS] = useState(true)
   const [tabs, setTabs] = useState<RepeaterTab[]>([newTab(1)])
+  const [groups, setGroups] = useState<RepeaterGroup[]>([])
   const [activeTab, setActiveTab] = useState(1)
   const tabSequence = useRef(1)
   const [interceptText, setInterceptText] = useState('')
@@ -150,6 +175,7 @@ export function useWorkspace() {
   const [split, setSplit] = useState(51)
   const [interceptSplit, setInterceptSplit] = useState(51)
   const [sessionLoaded, setSessionLoaded] = useState(false)
+  const sendRun = useRef(0)
   const historyRef = useRef<HTMLDivElement>(null)
   const interceptRef = useRef<HTMLDivElement>(null)
   // Refs for values accessed by the stable keyboard listener (empty deps array).
@@ -202,6 +228,7 @@ export function useWorkspace() {
     api
       .request<{
         tabs?: RepeaterTab[]
+        groups?: RepeaterGroup[]
         intruderTabs?: IntruderTab[]
         port?: number
         verifyTLS?: boolean
@@ -221,6 +248,18 @@ export function useWorkspace() {
           setTabs(saved.tabs.map((tab) => ({ ...tab, busy: false })))
           setActiveTab(saved.tabs[0].id)
           tabSequence.current = Math.max(...saved.tabs.map((tab) => tab.id))
+        }
+        if (Array.isArray(saved.groups)) {
+          setGroups(
+            saved.groups
+              .filter((group) => typeof group.name === 'string' && typeof group.color === 'string')
+              .map((group) => ({
+                name: group.name,
+                color: group.color,
+                tabIds: Array.isArray(group.tabIds) ? group.tabIds.filter(Number.isInteger) : [],
+                collapsed: Boolean(group.collapsed),
+              })),
+          )
         }
         if (
           Array.isArray(saved.intruderTabs) &&
@@ -259,7 +298,15 @@ export function useWorkspace() {
     const timer = setTimeout(() => {
       void run(() =>
         api.request('workspace.save', {
-          tabs: tabs.map(({ id, name, url, request }) => ({ id, name, url, request })),
+          tabs: tabs.map(({ id, name, url, request, history, historyIndex }) => ({
+            id,
+            name,
+            url,
+            request,
+            history,
+            historyIndex,
+          })),
+          groups,
           intruderTabs: intruderTabs.map(({ id, name, url, request, payloads }) => ({
             id,
             name,
@@ -273,7 +320,7 @@ export function useWorkspace() {
       )
     }, 350)
     return () => clearTimeout(timer)
-  }, [tabs, intruderTabs, port, verifyTLS, sessionLoaded, run])
+  }, [tabs, groups, intruderTabs, port, verifyTLS, sessionLoaded, run])
   useEffect(() => {
     let alive = true
     const unsubscribe = api.onEvent((event) => {
@@ -511,10 +558,12 @@ export function useWorkspace() {
       {
         ...current,
         id,
-        name: `${current.name} copy`,
+        name: nextRepeaterCopyName(current.name, prev),
         busy: false,
         result: undefined,
         error: undefined,
+        history: [],
+        historyIndex: undefined,
       },
     ])
     setActiveTab(id)
@@ -553,26 +602,69 @@ export function useWorkspace() {
   function updateIntruderTab(patch: Partial<IntruderTab>, id = activeIntruderTab) {
     setIntruderTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
   }
-  async function sendRequest() {
-    const tab = requestTab
-    if (tab.busy) return
+  async function sendRequestForTab(id: number, run = sendRun.current) {
+    const tab = tabs.find((item) => item.id === id)
+    if (!tab || tab.busy) return
     updateTab({ busy: true, error: undefined, result: undefined }, tab.id)
     try {
-      updateTab(
-        {
-          result: await api.request<Detail>('repeater.send', {
-            url: tab.url,
-            request: tab.request,
-            verify_tls: verifyTLS,
+      const result = await api.request<Detail>('repeater.send', {
+        url: tab.url,
+        request: tab.request,
+        verify_tls: verifyTLS,
+      })
+      if (run === sendRun.current) {
+        setTabs((prev) =>
+          prev.map((item) => {
+            if (item.id !== tab.id) return item
+            const history = item.history ?? []
+            const index = item.historyIndex ?? history.length - 1
+            const nextHistory = [...history.slice(0, index + 1), { request: tab.request, result }]
+            return { ...item, result, history: nextHistory, historyIndex: nextHistory.length - 1 }
           }),
-        },
-        tab.id,
-      )
+        )
+      }
     } catch (e) {
-      updateTab({ error: e instanceof Error ? e.message : String(e) }, tab.id)
+      if (run === sendRun.current)
+        updateTab({ error: e instanceof Error ? e.message : String(e) }, tab.id)
     } finally {
-      updateTab({ busy: false }, tab.id)
+      if (run === sendRun.current) updateTab({ busy: false }, tab.id)
     }
+  }
+  async function sendRequest() {
+    const tab = requestTab
+    if (tab?.busy) return
+    await sendRequestForTab(tab.id)
+  }
+  async function sendGroup(
+    tabIds: number[],
+    mode: 'sequence-single' | 'sequence-separate' | 'parallel',
+  ) {
+    const run = ++sendRun.current
+    if (mode === 'parallel') {
+      await Promise.all(tabIds.map((id) => sendRequestForTab(id, run)))
+      return
+    }
+    for (const id of tabIds) {
+      if (run !== sendRun.current) return
+      await sendRequestForTab(id, run)
+    }
+  }
+  function cancelRequest() {
+    ++sendRun.current
+    setTabs((prev) => prev.map((tab) => (tab.busy ? { ...tab, busy: false } : tab)))
+  }
+  function navigateRepeaterHistory(delta: -1 | 1) {
+    const tab = requestTab
+    const history = tab.history ?? []
+    if (history.length < 2) return
+    const currentIndex = tab.historyIndex ?? history.length - 1
+    const nextIndex = Math.max(0, Math.min(history.length - 1, currentIndex + delta))
+    if (nextIndex === currentIndex) return
+    const revision = history[nextIndex]
+    updateTab(
+      { request: revision.request, result: revision.result, historyIndex: nextIndex },
+      tab.id,
+    )
   }
   function setAttackRequest(value: string) {
     updateIntruderTab({ request: value })
@@ -673,7 +765,9 @@ export function useWorkspace() {
     element.setPointerCapture(e.pointerId)
     const move = (event: PointerEvent) => {
       const rect = interceptRef.current!.getBoundingClientRect()
-      setInterceptSplit(Math.min(78, Math.max(22, ((event.clientY - rect.top) / rect.height) * 100)))
+      setInterceptSplit(
+        Math.min(78, Math.max(22, ((event.clientY - rect.top) / rect.height) * 100)),
+      )
     }
     const stop = () => {
       element.removeEventListener('pointermove', move)
@@ -737,6 +831,8 @@ export function useWorkspace() {
     setVerifyTLS,
     tabs,
     setTabs,
+    groups,
+    setGroups,
     activeTab,
     setActiveTab,
     tabSequence,
@@ -808,6 +904,9 @@ export function useWorkspace() {
     duplicateRepeaterTab,
     intruderToRepeater,
     sendRequest,
+    sendGroup,
+    cancelRequest,
+    navigateRepeaterHistory,
     toggleProxy,
     interceptToggle,
     resolveIntercept,
