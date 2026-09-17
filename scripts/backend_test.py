@@ -20,10 +20,13 @@ from bidoytu.storage.models import FlowRecord
 class BackendTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory()
+        # TemporaryDirectory.name is a string; normalize it once at the test
+        # boundary so all backend paths remain pathlib.Path objects.
+        self.data_dir = Path(self.temp.name).expanduser().resolve()
         self.events = []
         async def emit(event):
             self.events.append(event)
-        self.service = ApplicationService(Path(self.temp.name), emit)
+        self.service = ApplicationService(self.data_dir, emit)
         await self.service.open()
         # The desktop backend auto-starts the default listener. Stop it here so
         # these focused tests can choose their own ports explicitly.
