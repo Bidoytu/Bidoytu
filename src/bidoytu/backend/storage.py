@@ -15,6 +15,22 @@ from bidoytu.storage.repository import FlowRepository
 
 PREVIEW_LIMIT = 256 * 1024
 
+_BINARY_RESPONSE_TYPES = (
+    "image/", "video/", "audio/", "font/", "application/wasm",
+    "application/octet-stream", "application/pdf", "application/zip",
+    "application/gzip", "application/x-7z-compressed", "application/x-rar-compressed",
+)
+_BINARY_RESPONSE_EXTENSIONS = frozenset({
+    "avif", "bmp", "gif", "ico", "jpeg", "jpg", "png", "svgz", "webp",
+    "avi", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "ogv", "webm",
+    "flac", "m4a", "mp3", "ogg", "wav", "woff", "woff2", "ttf", "otf",
+})
+
+
+def _binary_response(record: FlowRecord) -> bool:
+    mime = record.mime_type.casefold()
+    return mime.startswith(_BINARY_RESPONSE_TYPES) or record.extension.casefold() in _BINARY_RESPONSE_EXTENSIONS
+
 
 def summary(record: FlowRecord) -> dict:
     fields = ("id", "flow_id", "method", "scheme", "host", "port", "path",
@@ -117,6 +133,10 @@ class Storage:
         binary = False
         for side in ("request", "response"):
             body = getattr(record, f"{side}_body_inline") or b""
+            if side == "response" and _binary_response(record):
+                binary = True
+                bodies[side] = b""
+                continue
             path = getattr(record, f"{side}_body_path")
             if path:
                 # Validate persisted paths before reading potentially imported data.
@@ -133,11 +153,14 @@ class Storage:
             except UnicodeDecodeError:
                 binary = True
             bodies[side] = body[:PREVIEW_LIMIT]
+        response_text = build_response_text(record.http_version, record.status_code,
+            record.reason, record.response_headers, bodies["response"]) if record.status_code else ""
+        if _binary_response(record) and record.status_code:
+            response_text += f"<{record.response_body_size} bytes>"
         return {**summary(record), "request": build_request_text(
             record.method, record.path, record.http_version, record.request_headers,
             bodies["request"], record.host, record.port, record.scheme),
-            "response": build_response_text(record.http_version, record.status_code,
-                record.reason, record.response_headers, bodies["response"]) if record.status_code else "",
+            "response": response_text,
             "truncated": truncated, "binary": binary}
 
     def metadata(self, flow_id: str, bookmarked: bool, notes: str):

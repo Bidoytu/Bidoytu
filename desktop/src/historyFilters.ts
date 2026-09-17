@@ -13,6 +13,7 @@ export type HistoryFilters = {
   parameterizedOnly: boolean
   notesOnly: boolean
   highlightedOnly: boolean
+  hideBrowserNoise: boolean
   regex: boolean
   caseSensitive: boolean
   negativeSearch: boolean
@@ -38,13 +39,16 @@ export const EMPTY_HISTORY_FILTERS: HistoryFilters = {
   parameterizedOnly: false,
   notesOnly: false,
   highlightedOnly: false,
+  hideBrowserNoise: true,
   regex: false,
   caseSensitive: false,
   negativeSearch: false,
   showExtensions: '',
   hideExtensions: '',
   listenerPort: '',
-  mimeTypes: ['html', 'script', 'xml', 'css', 'other text', 'images', 'flash', 'other binary'],
+  // Keep the history useful for application/API traffic by default. Resource
+  // types can be restored from Advanced filter when needed.
+  mimeTypes: ['html', 'xml', 'other text'],
   statusClasses: ['2xx', '3xx', '4xx', '5xx'],
 }
 
@@ -82,6 +86,7 @@ export function filterChips(filters: HistoryFilters): FilterChip[] {
   flag('parameterizedOnly', filters.parameterizedOnly, 'Parameterized')
   flag('notesOnly', filters.notesOnly, 'Notes')
   flag('highlightedOnly', filters.highlightedOnly, 'Highlighted')
+  flag('hideBrowserNoise', filters.hideBrowserNoise, 'Hide browser noise')
   flag('regex', filters.regex, 'Regex')
   flag('caseSensitive', filters.caseSensitive, 'Case sensitive')
   flag('negativeSearch', filters.negativeSearch, 'Negative search')
@@ -158,6 +163,7 @@ export function historyFilterPayload(filters: HistoryFilters): Record<string, un
     parameterized_only: filters.parameterizedOnly,
     notes_only: filters.notesOnly,
     highlighted_only: filters.highlightedOnly,
+    hide_browser_noise: filters.hideBrowserNoise,
     regex: filters.regex,
     case_sensitive: filters.caseSensitive,
     negative_search: filters.negativeSearch,
