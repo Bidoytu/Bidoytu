@@ -1,6 +1,6 @@
 import { Binary, Braces, Copy, FileCode2 } from 'lucide-react'
 import { api } from './api'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 export type ContextMenuItem = {
   label: string
@@ -259,6 +259,26 @@ function buildHexLines(value: string) {
   return { lines, bytes: bytes.length }
 }
 
+const PAYLOAD_POSITION_RE = /§[^§]*§/g
+
+function PayloadMarkerLine({ line }: { line: string }) {
+  const parts = line.split(PAYLOAD_POSITION_RE)
+  const matches = line.match(PAYLOAD_POSITION_RE) ?? []
+  if (!matches.length) return <>{line || ' '}</>
+  const result: ReactNode[] = []
+  parts.forEach((part, index) => {
+    if (part) result.push(<Fragment key={`text-${index}`}>{part}</Fragment>)
+    if (index < matches.length) {
+      result.push(
+        <span className="payload-position-highlight" key={`position-${index}`}>
+          {matches[index]}
+        </span>,
+      )
+    }
+  })
+  return <>{result}</>
+}
+
 // Renders a single line of an HTTP message with syntax coloring for the
 // request/status line, header names, header values, and cookie key/value pairs.
 function HttpLine({ line, first }: { line: string; first: boolean }) {
@@ -344,6 +364,8 @@ export function Editor({
   actions,
   disabled = false,
   textareaRef,
+  rawOnly = false,
+  highlightPayloadPositions = false,
 }: {
   title: string
   value: string
@@ -352,8 +374,10 @@ export function Editor({
   actions?: ReactNode
   disabled?: boolean
   textareaRef?: React.Ref<HTMLTextAreaElement>
+  rawOnly?: boolean
+  highlightPayloadPositions?: boolean
 }) {
-  const [view, setView] = useState<EditorView>('pretty')
+  const [view, setView] = useState<EditorView>(rawOnly ? 'raw' : 'pretty')
   const [wrap, setWrap] = useState(true)
   const [copied, setCopied] = useState(false)
   const [copyFailed, setCopyFailed] = useState(false)
@@ -371,6 +395,9 @@ export function Editor({
   const windowSize = Math.ceil(viewportHeight / 20) + 16
   const visibleLines = lines.slice(firstLine, firstLine + windowSize)
   const visibleHex = hex ? hex.lines.slice(firstLine, firstLine + windowSize) : []
+  useEffect(() => {
+    if (rawOnly && view !== 'raw') setView('raw')
+  }, [rawOnly, view])
   useEffect(() => {
     setScrollTop(0)
     if (viewport.current) viewport.current.scrollTop = 0
@@ -397,29 +424,29 @@ export function Editor({
           <FileCode2 size={14} />
           {title}
         </span>
-        <button
+        {!rawOnly && <button
           className={view === 'pretty' ? 'tab active' : 'tab'}
           aria-pressed={view === 'pretty'}
           onClick={() => setView('pretty')}
         >
           <Braces size={12} />
           Pretty
-        </button>
-        <button
+        </button>}
+        {!rawOnly && <button
           className={view === 'raw' ? 'tab active' : 'tab'}
           aria-pressed={view === 'raw'}
           onClick={() => setView('raw')}
         >
           Raw
-        </button>
-        <button
+        </button>}
+        {!rawOnly && <button
           className={view === 'hex' ? 'tab active' : 'tab'}
           aria-pressed={view === 'hex'}
           onClick={() => setView('hex')}
         >
           <Binary size={12} />
           Hex
-        </button>
+        </button>}
         <span className="grow" />
         {hint && <small className="editor-hint">{hint}</small>}
         {actions}
@@ -463,7 +490,11 @@ export function Editor({
               {editorValue ? (
                 editorValue.split('\n').map((line, index) => (
                   <div className="editable-code-line" key={index}>
-                    <HttpLine line={line} first={index === 0} />
+                    {highlightPayloadPositions ? (
+                      <PayloadMarkerLine line={line} />
+                    ) : (
+                      <HttpLine line={line} first={index === 0} />
+                    )}
                   </div>
                 ))
               ) : (
