@@ -66,6 +66,20 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
             sock.bind(("127.0.0.1", 0))
             return sock.getsockname()[1]
 
+    async def start_proxy(self):
+        """Start the proxy while tolerating the free-port TOCTOU race in CI."""
+        last_error = None
+        for _ in range(10):
+            port = self.free_port()
+            try:
+                await self.service.dispatch("proxy.start", {"port": port})
+                return port
+            except ValueError as exc:
+                if "already in use" not in str(exc):
+                    raise
+                last_error = exc
+        raise RuntimeError("Could not find an available proxy port") from last_error
+
     def replay_params(self, path="/"):
         return {"url": f"http://127.0.0.1:{self.origin_port}",
                 "request": f"GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{self.origin_port}\r\n\r\n"}
@@ -84,8 +98,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
             await self.service.dispatch("decoder.transform", {"operation": "exec"})
 
     async def test_proxy_capture_edit_forward_response_drop_and_restart(self):
-        port = self.free_port()
-        await self.service.dispatch("proxy.start", {"port": port})
+        port = await self.start_proxy()
         self.assertTrue(self.service.state()["running"])
         async with httpx.AsyncClient(proxy=f"http://127.0.0.1:{port}", trust_env=False, timeout=10) as client:
             response = await client.get(f"http://127.0.0.1:{self.origin_port}/gzip")
@@ -114,7 +127,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(httpx.HTTPError):
                 await request
         await self.service.dispatch("proxy.stop", {})
-        await self.service.dispatch("proxy.start", {"port": port})
+        port = await self.start_proxy()
         self.assertTrue(self.service.state()["running"])
 
     async def test_scope_audit_and_payload_run(self):
