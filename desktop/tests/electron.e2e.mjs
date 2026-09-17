@@ -80,6 +80,9 @@ try {
   await new Promise((resolve) => reservation.close(resolve))
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await page.getByRole('spinbutton', { name: 'Proxy port' }).fill(String(proxyPort))
+  // Proxy controls live in the Proxy view; Settings only edits the shared
+  // listener configuration.
+  await page.getByRole('button', { name: /^Proxy/ }).click()
   await page.getByRole('button', { name: 'Start proxy', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Stop proxy', exact: true })).toBeVisible({
     timeout: 30000,

@@ -77,9 +77,12 @@ def _existing(candidates: list[str | Path]) -> list[Path]:
     found: list[Path] = []
     seen: set[str] = set()
     for candidate in candidates:
-        path = Path(candidate) if isinstance(candidate, Path) else shutil.which(candidate)
-        if path is None:
+        located = candidate if isinstance(candidate, Path) else shutil.which(candidate)
+        if located is None:
             continue
+        # shutil.which() returns str; normalize every candidate before using
+        # pathlib methods so discovery is consistent across operating systems.
+        path = Path(located)
         try:
             resolved = path.resolve()
         except OSError:
