@@ -53,7 +53,10 @@ export type Finding = {
 }
 export type JobResult = {
   index: number
+  // Combined payloads joined for display (e.g. "admin | 42"); `payloads` holds
+  // the individual per-position values.
   payload: string
+  payloads?: string[]
   flow_id?: string
   status_code?: number
   duration_ms?: number

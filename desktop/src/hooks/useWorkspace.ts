@@ -39,6 +39,39 @@ export type RepeaterGroup = {
   tabIds: number[]
   collapsed: boolean
 }
+// The four classic Intruder attack strategies. The wire values match the
+// backend constants in bidoytu.net.attack.
+export type AttackType = 'sniper' | 'battering_ram' | 'pitchfork' | 'cluster_bomb'
+export const ATTACK_TYPES: {
+  value: AttackType
+  label: string
+  description: string
+}[] = [
+  {
+    value: 'sniper',
+    label: 'Sniper',
+    description:
+      'Inserts each payload into each position one at a time, using a single payload set.',
+  },
+  {
+    value: 'battering_ram',
+    label: 'Battering ram',
+    description:
+      'Simultaneously places the same payload into all positions, using a single payload set.',
+  },
+  {
+    value: 'pitchfork',
+    label: 'Pitchfork',
+    description:
+      'Allocate a payload set to each position. Iterates through each set in parallel.',
+  },
+  {
+    value: 'cluster_bomb',
+    label: 'Cluster bomb',
+    description:
+      'Allocate a payload set to each position. Iterates through all combinations of each set.',
+  },
+]
 export type PayloadType =
   | 'Simple list'
   | 'Runtime file'
@@ -87,8 +120,10 @@ export type IntruderTab = {
   name: string
   url: string
   request: string
-  payloads: string
-  config: PayloadConfig
+  attackType: AttackType
+  // One payload-set config per position. Sniper and battering ram only use
+  // configs[0]; pitchfork and cluster bomb use one set per marked position.
+  configs: PayloadConfig[]
   results: JobResult[]
 }
 export type ProxyView = 'History' | 'Intercept'
@@ -175,10 +210,55 @@ export const newIntruderTab = (id: number): IntruderTab => ({
   name: `Attack ${id}`,
   url: 'https://example.com',
   request: 'GET /?q=§value§ HTTP/1.1\r\nHost: example.com\r\n\r\n',
-  payloads: '',
-  config: defaultPayloadConfig(),
+  attackType: 'sniper',
+  configs: [defaultPayloadConfig()],
   results: [],
 })
+
+// Sniper and battering ram use a single shared payload set; pitchfork and
+// cluster bomb use one set per position. This returns how many payload sets an
+// attack of the given type needs for a template with `positions` markers.
+export function payloadSetCount(attackType: AttackType, positions: number): number {
+  if (attackType === 'sniper' || attackType === 'battering_ram') return 1
+  return Math.max(1, positions)
+}
+
+// Total number of requests a configured attack will send. Mirrors the
+// backend's count_jobs so the UI can preview the run size.
+export function intruderRequestCount(tab: IntruderTab): number {
+  const positions = countPayloadPositions(tab.request)
+  if (positions === 0) return 0
+  const needed = payloadSetCount(tab.attackType, positions)
+  const configs = reconcileConfigs(tab.configs, tab.attackType, positions).slice(0, needed)
+  const counts = configs.map((config) => generatePayloads(config).length)
+  if (counts.some((c) => c === 0)) return 0
+  switch (tab.attackType) {
+    case 'sniper':
+      return counts[0] * positions
+    case 'battering_ram':
+      return counts[0]
+    case 'pitchfork':
+      return Math.min(...counts)
+    case 'cluster_bomb':
+      return counts.reduce((total, c) => total * c, 1)
+    default:
+      return 0
+  }
+}
+
+// Ensure a tab has exactly the payload-set configs its attack type + position
+// count require, preserving any already-entered configs.
+export function reconcileConfigs(
+  configs: PayloadConfig[],
+  attackType: AttackType,
+  positions: number,
+): PayloadConfig[] {
+  const needed = payloadSetCount(attackType, positions)
+  const next = configs.slice(0, needed)
+  while (next.length < needed) next.push(defaultPayloadConfig())
+  if (next.length === 0) next.push(defaultPayloadConfig())
+  return next
+}
 
 // Count the number of payload positions in a request template. A position is
 // any span between a pair of § markers (an unpaired trailing § is ignored).
@@ -421,12 +501,20 @@ export function useWorkspace() {
       .request<{
         tabs?: RepeaterTab[]
         groups?: RepeaterGroup[]
-        intruderTabs?: IntruderTab[]
+        // Loaded loosely: older sessions stored a single `config`/`payloads`
+        // rather than `attackType`/`configs`, so we migrate per-tab below.
+        intruderTabs?: (Partial<IntruderTab> & {
+          id: number
+          request: string
+          url: string
+          config?: Partial<PayloadConfig>
+          payloads?: string
+        })[]
         port?: number
         verifyTLS?: boolean
-      }>('workspace.load')
+      } | null>('workspace.load')
       .then((saved) => {
-        if (!alive) return
+        if (!alive || !saved) return
         if (
           Array.isArray(saved.tabs) &&
           saved.tabs.length &&
@@ -464,23 +552,41 @@ export function useWorkspace() {
           )
         ) {
           setIntruderTabs(
-            saved.intruderTabs.map((tab) => ({
-              ...newIntruderTab(tab.id),
-              ...tab,
-              payloads: typeof tab.payloads === 'string' ? tab.payloads : '',
-              config: {
+            saved.intruderTabs.map((tab) => {
+              const base = newIntruderTab(tab.id)
+              // Prefer the new multi-set shape; fall back to migrating an older
+              // single `config`/`payloads` tab into one payload set.
+              const rawConfigs = Array.isArray(tab.configs)
+                ? tab.configs
+                : [
+                    {
+                      ...(tab.config && typeof tab.config === 'object' ? tab.config : {}),
+                      list:
+                        tab.config && typeof tab.config.list === 'string'
+                          ? tab.config.list
+                          : typeof tab.payloads === 'string'
+                            ? tab.payloads
+                            : '',
+                    },
+                  ]
+              const configs = rawConfigs.map((c) => ({
                 ...defaultPayloadConfig(),
-                ...(tab.config && typeof tab.config === 'object' ? tab.config : {}),
-                // Older sessions only stored `payloads`; seed the Simple list.
-                list:
-                  tab.config && typeof tab.config.list === 'string'
-                    ? tab.config.list
-                    : typeof tab.payloads === 'string'
-                      ? tab.payloads
-                      : '',
-              },
-              results: [],
-            })),
+                ...(c && typeof c === 'object' ? c : {}),
+              }))
+              const attackType: AttackType = ATTACK_TYPES.some((a) => a.value === tab.attackType)
+                ? (tab.attackType as AttackType)
+                : base.attackType
+              return {
+                ...base,
+                id: tab.id,
+                name: typeof tab.name === 'string' ? tab.name : base.name,
+                url: tab.url,
+                request: tab.request,
+                attackType,
+                configs: configs.length ? configs : [defaultPayloadConfig()],
+                results: [],
+              }
+            }),
           )
           setActiveIntruderTab(saved.intruderTabs[0].id)
           intruderSequence.current = Math.max(...saved.intruderTabs.map((tab) => tab.id))
@@ -510,13 +616,13 @@ export function useWorkspace() {
             historyIndex,
           })),
           groups,
-          intruderTabs: intruderTabs.map(({ id, name, url, request, payloads, config }) => ({
+          intruderTabs: intruderTabs.map(({ id, name, url, request, attackType, configs }) => ({
             id,
             name,
             url,
             request,
-            payloads,
-            config,
+            attackType,
+            configs,
           })),
           port,
           verifyTLS,
@@ -586,7 +692,7 @@ export function useWorkspace() {
         sort_direction: historySort.direction,
       })
       .then((result) => {
-        if (alive && requestSequence === historyRequestSequence.current) {
+        if (result && alive && requestSequence === historyRequestSequence.current) {
           setFlows(result.items)
           setTotal(result.total)
           setUnfilteredTotal(result.unfiltered)
@@ -605,20 +711,20 @@ export function useWorkspace() {
     if (scrollRef.current) scrollRef.current.scrollTop = 0
   }, [page, debouncedQuery, debouncedFilters])
   useEffect(() => {
-    if (view !== 'Proxy' || proxyView !== 'History' || !selectedId) return
+    if (!online || view !== 'Proxy' || proxyView !== 'History' || !selectedId) return
     let alive = true
     api
       .request<Detail>('history.detail', { flow_id: selectedId })
       .then((detail) => {
-        if (alive) setSelected(detail)
+        if (alive && detail) setSelected(detail)
       })
       .catch(() => {})
     return () => {
       alive = false
     }
-  }, [revision, selectedId, view, proxyView])
+  }, [online, revision, selectedId, view, proxyView])
   useEffect(() => {
-    if (view !== 'Proxy' || proxyView !== 'Intercept' || !pending) {
+    if (!online || view !== 'Proxy' || proxyView !== 'Intercept' || !pending) {
       setInterceptDetail(null)
       return
     }
@@ -628,7 +734,7 @@ export function useWorkspace() {
     api
       .request<Detail>('history.detail', { flow_id: pending.flow_id })
       .then((detail) => {
-        if (alive) {
+        if (alive && detail) {
           const text = pending.phase === 'response' ? detail.response : detail.request
           setInterceptText(text)
           setInterceptOriginal(text)
@@ -641,16 +747,20 @@ export function useWorkspace() {
     return () => {
       alive = false
     }
-  }, [view, proxyView, pending?.flow_id, pending?.phase])
+  }, [online, view, proxyView, pending?.flow_id, pending?.phase])
   useEffect(() => {
     if (!online) return
     if (view === 'Live audit')
-      void run(async () => setFindings(await api.request<Finding[]>('audit.list')))
+      void run(async () => {
+        const findings = await api.request<Finding[] | null>('audit.list')
+        if (findings) setFindings(findings)
+      })
     if (view === 'Intruder' && intruderRunningId != null)
       void run(async () => {
-        const { items } = await api.request<{ items: JobResult[] }>('intruder.results')
+        const result = await api.request<{ items: JobResult[] } | null>('intruder.results')
+        if (!result) return
         setIntruderTabs((prev) =>
-          prev.map((tab) => (tab.id === intruderRunningId ? { ...tab, results: items } : tab)),
+          prev.map((tab) => (tab.id === intruderRunningId ? { ...tab, results: result.items } : tab)),
         )
       })
   }, [view, online, revision, run, intruderRunningId])
@@ -669,6 +779,30 @@ export function useWorkspace() {
   }, [theme])
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
+      // Scope Ctrl/Cmd+A to the box in focus. Inside a text field the browser
+      // already selects only that field. Inside a read-only viewer we select
+      // just that region's contents; everywhere else select-all is suppressed
+      // so it can't sweep the whole page.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !e.shiftKey) {
+        const active = document.activeElement as HTMLElement | null
+        if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')) {
+          return
+        }
+        const anchor =
+          active ?? (window.getSelection()?.anchorNode as Node | null)?.parentElement ?? null
+        const region = anchor
+          ? (anchor.closest('.code-view, .hex-view') as HTMLElement | null)
+          : null
+        e.preventDefault()
+        if (region) {
+          const selection = window.getSelection()
+          const range = document.createRange()
+          range.selectNodeContents(region)
+          selection?.removeAllRanges()
+          selection?.addRange(range)
+        }
+        return
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setView('Proxy')
@@ -908,11 +1042,20 @@ export function useWorkspace() {
   function setAttackUrl(value: string) {
     updateIntruderTab({ url: value })
   }
-  function setPayloads(value: string) {
-    updateIntruderTab({ payloads: value })
+  function setAttackType(attackType: AttackType) {
+    const positions = countPayloadPositions(intruderTab.request)
+    updateIntruderTab({
+      attackType,
+      configs: reconcileConfigs(intruderTab.configs, attackType, positions),
+    })
   }
-  function setPayloadConfig(patch: Partial<PayloadConfig>) {
-    updateIntruderTab({ config: { ...intruderTab.config, ...patch } })
+  // Patch the payload-set config at `index` (which position/set is being
+  // edited). Reconciles the set list first so the index is always valid.
+  function setPayloadConfig(patch: Partial<PayloadConfig>, index = 0) {
+    const positions = countPayloadPositions(intruderTab.request)
+    const configs = reconcileConfigs(intruderTab.configs, intruderTab.attackType, positions)
+    const next = configs.map((config, i) => (i === index ? { ...config, ...patch } : config))
+    updateIntruderTab({ configs: next })
   }
   function setResults(value: JobResult[]) {
     updateIntruderTab({ results: value })
@@ -932,16 +1075,31 @@ export function useWorkspace() {
   }
   async function startIntruder() {
     const tab = intruderTab
-    const payloads = generatePayloads(tab.config)
-    if (!payloads.length) {
-      setError('Add at least one payload value before starting a run.')
+    const positions = countPayloadPositions(tab.request)
+    if (positions === 0) {
+      setError('Mark at least one payload position with § before starting a run.')
+      return
+    }
+    // Build one materialised payload set per position the attack needs. Sniper
+    // and battering ram only use the first set.
+    const needed = payloadSetCount(tab.attackType, positions)
+    const configs = reconcileConfigs(tab.configs, tab.attackType, positions).slice(0, needed)
+    const sets = configs.map((config) => generatePayloads(config))
+    const emptyAt = sets.findIndex((values) => values.length === 0)
+    if (emptyAt !== -1) {
+      setError(
+        needed === 1
+          ? 'Add at least one payload value before starting a run.'
+          : `Payload set ${emptyAt + 1} is empty. Add at least one value to every set.`,
+      )
       return
     }
     try {
       await api.request('intruder.start', {
         url: tab.url,
         request: tab.request,
-        payloads,
+        attack_type: tab.attackType,
+        sets,
         verify_tls: verifyTLS,
       })
     } catch (e) {
@@ -1139,14 +1297,21 @@ export function useWorkspace() {
     setAttackRequest,
     attackUrl: intruderTab.url,
     setAttackUrl,
-    payloads: intruderTab.payloads,
-    setPayloads,
-    payloadConfig: intruderTab.config,
+    attackType: intruderTab.attackType,
+    setAttackType,
+    // Configs reconciled to the current attack type + position count, so the
+    // view always sees exactly the payload sets it should render.
+    payloadConfigs: reconcileConfigs(
+      intruderTab.configs,
+      intruderTab.attackType,
+      countPayloadPositions(intruderTab.request),
+    ),
     setPayloadConfig,
     addPayloadPoint,
     clearPayloadPoints,
-    payloadCount: generatePayloads(intruderTab.config).length,
     payloadPositions: countPayloadPositions(intruderTab.request),
+    // Total requests the current configuration will send.
+    intruderRequestCount: intruderRequestCount(intruderTab),
     results: intruderTab.results,
     setResults,
     intruderTabs,

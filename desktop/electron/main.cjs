@@ -106,6 +106,19 @@ async function startBackend(sessionPath) {
   }
 }
 
+// Terminate any browsers the current session launched and wait for them to
+// exit before the backend goes away. Called on every shutdown path so a
+// launched browser is always closed before the app quits, and so its profile
+// files are released before a session directory is removed on Windows.
+async function stopBrowsers() {
+  if (!backend) return
+  try {
+    await backend.request('browser.stop')
+  } catch {
+    // Best effort: the backend may already be gone or never opened a browser.
+  }
+}
+
 async function stopBackend() {
   if (!backend) return
   const current = backend
@@ -121,10 +134,16 @@ async function removeWithRetry(path) {
     } catch (error) {
       const retryable = process.platform === 'win32' &&
         (error.code === 'EBUSY' || error.code === 'EPERM' || error.code === 'ENOTEMPTY')
-      if (!retryable || attempt >= 20) throw error
+      // ~15s of retries: browser child processes can hold profile SQLite files
+      // for several seconds after taskkill returns before Windows releases them.
+      if (!retryable || attempt >= 60) throw error
       await new Promise((resolve) => setTimeout(resolve, 250))
     }
   }
+}
+
+function maximizeWindow() {
+  if (window && !window.isDestroyed() && !window.isMaximized()) window.maximize()
 }
 
 function createWindow() {
@@ -180,10 +199,23 @@ else {
       trusted(event)
       if (!METHODS.has(method) || !params || typeof params !== 'object' || Array.isArray(params))
         throw new Error('Invalid desktop command')
-      // The renderer probes state while the startup session picker is visible.
-      // A missing backend is expected at that point, not an application error.
-      if (!backend && method === 'state') return null
-      if (!backend) throw new Error('Open a session before using the workspace.')
+      // The renderer probes state and polls read-only data while the startup
+      // session picker is visible, and briefly during a session switch/close
+      // window before it observes the backend going offline. A missing backend
+      // is expected for these, so resolve quietly instead of throwing (which
+      // Electron would log as a handler error).
+      if (!backend) {
+        const idleSafe = new Set([
+          'state',
+          'history.list',
+          'history.detail',
+          'intruder.results',
+          'audit.list',
+          'workspace.load',
+        ])
+        if (idleSafe.has(method)) return null
+        throw new Error('Open a session before using the workspace.')
+      }
       await backend.ready
       return backend.request(method, params)
     })
@@ -199,6 +231,7 @@ else {
       await stopBackend()
       activeSession = item
       await startBackend(join(sessionsDir, item.id))
+      maximizeWindow()
       event.sender.send('session:opened', item)
       return item
     })
@@ -219,6 +252,7 @@ else {
       await stopBackend()
       activeSession = item
       await startBackend(join(sessionsDir, item.id))
+      maximizeWindow()
       event.sender.send('session:opened', item)
       return item
     })
@@ -280,6 +314,10 @@ else {
     // database handle prevents recursive removal.
     closing = true
     try {
+      // Terminate any browsers this session launched before stopping the
+      // backend, so their profile files are released ahead of directory
+      // removal (avoids Windows EBUSY on locked SQLite files).
+      await stopBrowsers()
       await stopBackend()
       if (decision === 'save' && activeSession) {
         activeSession.updated_at = new Date().toISOString()
@@ -301,7 +339,10 @@ else {
     if (!closing && backend) {
       event.preventDefault()
       closing = true
-      backend.stop().finally(() => app.quit())
+      // Close the launched browser(s) first, then stop the engine, then quit.
+      stopBrowsers()
+        .then(stopBackend)
+        .finally(() => app.quit())
     }
   })
 }

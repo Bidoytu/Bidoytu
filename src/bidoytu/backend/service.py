@@ -21,7 +21,17 @@ from bidoytu.storage.advanced_history import filter_spec_from_dict
 from bidoytu.storage.models import FlowRecord
 from bidoytu.proxy.engine import ProxyService
 from bidoytu.browser_integration import discover_browsers, launch_browser, stop_browser
-from bidoytu.net.attack import MARKER as PAYLOAD_MARKER, find_markers
+from bidoytu.net.attack import (
+    ATTACK_TYPES,
+    BATTERING_RAM,
+    MARKER as PAYLOAD_MARKER,
+    PayloadSet,
+    SNIPER,
+    count_jobs,
+    find_markers,
+    iter_jobs,
+)
+from bidoytu.net.payloads import GEN_LIST, GeneratorSpec
 from .storage import Storage, summary
 
 
@@ -180,22 +190,32 @@ class ApplicationService:
         self.job_state = "running"
         self.job_results = []
         self.changed()
-        # A payload position is any span between a pair of § markers. Every
-        # position receives the same payload for a given request (battering-ram
-        # style), so we splice the value into each marker right-to-left to keep
-        # the earlier offsets valid.
+        # A payload position is any span between a pair of § markers. The attack
+        # type decides how the configured payload sets are combined across those
+        # positions (sniper / battering ram / pitchfork / cluster bomb); the
+        # engine in bidoytu.net.attack yields one fully-substituted request per
+        # job. Each set is a plain list of strings materialised by the frontend.
         clean_text, markers = find_markers(str(params["request"]))
+        attack_type = str(params.get("attack_type", BATTERING_RAM))
+        sets = [
+            PayloadSet(generator=GeneratorSpec(kind=GEN_LIST, items=list(values)))
+            for values in params["_payload_sets"]
+        ]
         try:
             # Sequential execution deliberately provides predictable rate and cancellation.
-            for index, payload in enumerate(params["payloads"]):
-                request = clean_text
-                for marker in sorted(markers, key=lambda m: m.start, reverse=True):
-                    request = request[:marker.start] + str(payload) + request[marker.end:]
+            for job in iter_jobs(clean_text, markers, attack_type, sets):
+                index = job.index + 1
+                payloads = list(job.payloads)
+                payload = " | ".join(payloads)
                 try:
-                    result = await self.send({**params, "request": request}, "Intruder")
-                    self.job_results.append({"index": index + 1, "payload": payload, **summary_from_detail(result)})
+                    result = await self.send({**params, "request": job.request_text}, "Intruder")
+                    self.job_results.append({
+                        "index": index, "payload": payload, "payloads": payloads,
+                        **summary_from_detail(result)})
                 except Exception as exc:
-                    self.job_results.append({"index": index + 1, "payload": payload, "error": str(exc)})
+                    self.job_results.append({
+                        "index": index, "payload": payload, "payloads": payloads,
+                        "error": str(exc)})
                 self.changed()
                 await asyncio.sleep(0.1)
             self.job_state = "complete"
@@ -295,12 +315,44 @@ class ApplicationService:
         if method == "intruder.start":
             if self.job_state == "running":
                 raise ValueError("An Intruder run is already active")
-            payloads = p.get("payloads", [])
-            if not isinstance(payloads, list) or not 1 <= len(payloads) <= 1000 or any(not isinstance(v, str) or len(v) > 4096 for v in payloads):
-                raise ValueError("Provide 1–1000 text payloads, each up to 4096 characters")
             _, markers = find_markers(str(p.get("request", "")))
             if not markers:
                 raise ValueError("Mark at least one payload position with § markers")
+            attack_type = str(p.get("attack_type", BATTERING_RAM))
+            if attack_type not in ATTACK_TYPES:
+                raise ValueError("Unknown attack type")
+            # Accept the new per-position `sets` (list of string lists) and fall
+            # back to a single flat `payloads` list (legacy battering ram).
+            raw_sets = p.get("sets")
+            if raw_sets is None:
+                raw_sets = [p.get("payloads", [])]
+            if not isinstance(raw_sets, list) or not raw_sets:
+                raise ValueError("Provide at least one payload set")
+
+            def _clean(values):
+                if not isinstance(values, list) or any(
+                    not isinstance(v, str) or len(v) > 4096 for v in values
+                ):
+                    raise ValueError("Each payload must be text up to 4096 characters")
+                return values
+
+            sets = [_clean(values) for values in raw_sets]
+            if any(len(values) == 0 for values in sets):
+                raise ValueError("Every payload set needs at least one value")
+            # Sniper and battering ram only ever consume the first set.
+            if attack_type in (SNIPER, BATTERING_RAM):
+                sets = sets[:1]
+
+            total = count_jobs(attack_type, markers, [
+                PayloadSet(generator=GeneratorSpec(kind=GEN_LIST, items=values))
+                for values in sets
+            ])
+            if total is not None and total > 100000:
+                raise ValueError(
+                    f"This configuration would send {total:,} requests. "
+                    "Reduce your payload sets (limit 100,000).")
+
+            p = {**p, "attack_type": attack_type, "_payload_sets": sets}
             self.job_state = "running"
             self.jobs["intruder"] = asyncio.create_task(self._run_job(p))
             return True
@@ -354,16 +406,26 @@ class ApplicationService:
                 self.config.ca_cert_pem, self.config.ca_cert_cer)
             self.browser_processes.append(process)
             return {"name": browser.name, "trust_method": trust_method}
+        if method == "browser.stop":
+            # Terminate every browser this session launched and wait for the
+            # processes to release their profile files. The desktop host calls
+            # this before removing a session directory so Windows does not fail
+            # to unlink locked SQLite files (EBUSY).
+            await self._stop_browsers()
+            return True
         raise ValueError(f"Unknown method: {method}")
+
+    async def _stop_browsers(self):
+        await asyncio.gather(*(asyncio.to_thread(stop_browser, process)
+                               for process in self.browser_processes), return_exceptions=True)
+        self.browser_processes.clear()
 
     async def close(self):
         for task in self.jobs.values():
             task.cancel()
         await asyncio.gather(*self.jobs.values(), return_exceptions=True)
         await self.proxy.stop()
-        await asyncio.gather(*(asyncio.to_thread(stop_browser, process)
-                               for process in self.browser_processes), return_exceptions=True)
-        self.browser_processes.clear()
+        await self._stop_browsers()
         await self.queue.join()
         self.writer.cancel()
         self.notifier.cancel()

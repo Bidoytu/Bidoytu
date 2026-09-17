@@ -129,6 +129,35 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.service.dispatch("audit.list", {}))
         self.assertIn("127.0.0.1", self.service.config.proxy_scope_path.read_text())
 
+    async def test_intruder_attack_types(self):
+        two_pos = self.replay_params("/?a=§x§&b=§y§")
+        # Sniper: one set (2 values), two positions -> 2 * 2 = 4 requests.
+        await self.service.dispatch("intruder.start",
+            {**two_pos, "attack_type": "sniper", "sets": [["1", "2"]]})
+        await self.wait_for(lambda: self.service.job_state == "complete")
+        sniper = await self.service.dispatch("intruder.results", {})
+        self.assertEqual(len(sniper["items"]), 4)
+
+        # Pitchfork: two sets advanced in lockstep -> min(2, 2) = 2 requests.
+        await self.service.dispatch("intruder.start",
+            {**two_pos, "attack_type": "pitchfork", "sets": [["1", "2"], ["9", "8"]]})
+        await self.wait_for(lambda: self.service.job_state == "complete")
+        pitchfork = await self.service.dispatch("intruder.results", {})
+        self.assertEqual(len(pitchfork["items"]), 2)
+        self.assertEqual(pitchfork["items"][0]["payloads"], ["1", "9"])
+
+        # Cluster bomb: cartesian product -> 2 * 2 = 4 requests.
+        await self.service.dispatch("intruder.start",
+            {**two_pos, "attack_type": "cluster_bomb", "sets": [["1", "2"], ["9", "8"]]})
+        await self.wait_for(lambda: self.service.job_state == "complete")
+        cluster = await self.service.dispatch("intruder.results", {})
+        self.assertEqual(len(cluster["items"]), 4)
+
+        # Unknown attack type is rejected.
+        with self.assertRaises(ValueError):
+            await self.service.dispatch("intruder.start",
+                {**two_pos, "attack_type": "nope", "sets": [["1"]]})
+
     async def test_advanced_history_filters(self):
         records = [
             FlowRecord(flow_id="f1", method="GET", scheme="http", host="a.example", path="/index.html",

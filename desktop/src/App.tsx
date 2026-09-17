@@ -4,7 +4,6 @@ import {
   Check,
   CircleHelp,
   Globe2,
-  Fingerprint,
   Folder,
   Layers3,
   LockKeyhole,
@@ -70,19 +69,21 @@ function SessionPicker({
   onCreate,
   onDelete,
   onClose,
+  opening,
 }: {
   sessions: WorkspaceSession[]
   onOpen: (session: WorkspaceSession) => void
   onCreate: (name: string) => void
   onDelete: (session: WorkspaceSession) => void
   onClose: () => void
+  opening: boolean
 }) {
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('New session')
   return (
     <div className="session-picker">
       <div className="session-picker-card">
-        <button className="session-picker-close" aria-label="Close" onClick={onClose}><X size={17} /></button>
+        <button className="session-picker-close" aria-label="Close" disabled={opening} onClick={onClose}><X size={17} /></button>
         <div className="empty-icon"><Layers3 size={26} /></div>
         <h1>Choose a session</h1>
         <p>History, requests, scope, and tool state are saved per session. The proxy CA is shared globally.</p>
@@ -93,18 +94,23 @@ function SessionPicker({
                 <strong>{session.name}</strong>
                 <small>Updated {new Date(session.updated_at).toLocaleString()}</small>
               </div>
-              <Button className="primary" onClick={() => onOpen(session)}>Open</Button>
-              {!session.protected && <Button className="subtle" onClick={() => onDelete(session)}>Delete</Button>}
+              <Button className="primary" disabled={opening} onClick={() => onOpen(session)}>Open</Button>
+              {!session.protected && <Button className="subtle" disabled={opening} onClick={() => onDelete(session)}>Delete</Button>}
             </div>
           ))}
           {!sessions.length && <p className="muted">No saved sessions yet.</p>}
         </div>
-        {!creating ? <Button className="primary session-create" onClick={() => setCreating(true)}><Layers3 size={14} /> Create session</Button> : (
+        {!creating ? <Button className="primary session-create" disabled={opening} onClick={() => setCreating(true)}><Layers3 size={14} /> Create session</Button> : (
           <form className="session-create-form" onSubmit={(event) => { event.preventDefault(); if (name.trim()) onCreate(name.trim()) }}>
-            <input autoFocus aria-label="Session name" value={name} maxLength={120} onChange={(event) => setName(event.target.value)} />
-            <Button className="subtle" type="button" onClick={() => setCreating(false)}>Cancel</Button>
-            <Button className="primary" type="submit" disabled={!name.trim()}>Create</Button>
+            <input autoFocus aria-label="Session name" value={name} maxLength={120} disabled={opening} onChange={(event) => setName(event.target.value)} />
+            <Button className="subtle" type="button" disabled={opening} onClick={() => setCreating(false)}>Cancel</Button>
+            <Button className="primary" type="submit" disabled={opening || !name.trim()}>Create</Button>
           </form>
+        )}
+        {opening && (
+          <div className="session-loading-bar" role="progressbar" aria-label="Opening session">
+            <span />
+          </div>
         )}
       </div>
     </div>
@@ -118,8 +124,6 @@ export function App() {
     setView,
     state,
     setState,
-    online,
-    connecting,
     error,
     setError,
     notice,
@@ -140,6 +144,9 @@ export function App() {
   const [sessionError, setSessionError] = useState('')
   const [closeRequested, setCloseRequested] = useState(false)
   const [closing, setClosing] = useState(false)
+  // True while a session backend is starting up (after clicking Open/Create),
+  // used to show the loading bar at the bottom of the session picker.
+  const [openingSession, setOpeningSession] = useState(false)
 
   useEffect(() => {
     api.listSessions().then(setSessions).catch((e) => setSessionError(e.message))
@@ -149,16 +156,30 @@ export function App() {
   }, [])
 
   async function createSession(name: string) {
+    setOpeningSession(true)
+    setSessionError('')
     try {
       const created = await api.createSession(name)
       setSessions((current) => [created, ...current])
       setActiveSession(created)
-    } catch (e) { setSessionError(e instanceof Error ? e.message : String(e)) }
+    } catch (e) {
+      setSessionError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setOpeningSession(false)
+    }
   }
 
   async function openSession(session: WorkspaceSession) {
-    try { await api.openSession(session.id); setActiveSession(session); setSessionError('') }
-    catch (e) { setSessionError(e instanceof Error ? e.message : String(e)) }
+    setOpeningSession(true)
+    setSessionError('')
+    try {
+      await api.openSession(session.id)
+      setActiveSession(session)
+    } catch (e) {
+      setSessionError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setOpeningSession(false)
+    }
   }
 
   async function deleteSession(session: WorkspaceSession) {
@@ -168,7 +189,7 @@ export function App() {
   }
 
   if (!activeSession) return <>
-    <SessionPicker sessions={sessions} onOpen={openSession} onCreate={createSession} onDelete={deleteSession} onClose={() => api.window('close')} />
+    <SessionPicker sessions={sessions} onOpen={openSession} onCreate={createSession} onDelete={deleteSession} onClose={() => api.window('close')} opening={openingSession} />
     {sessionError && <div className="session-error">{sessionError}</div>}
   </>
 
@@ -259,30 +280,6 @@ export function App() {
           })}
         </nav>
         <div className="sidebar-bottom">
-          <div className="engine-card">
-            <div className="inline">
-              <span className={`dot ${online ? 'green' : ''}`} />
-              <strong>Python engine</strong>
-              <span className="engine-tag">ASYNC</span>
-            </div>
-            <span>
-              {connecting ? 'Connecting…' : online ? 'Connected via private IPC' : 'Engine offline'}
-            </span>
-            <div className="engine-activity">
-              <i />
-              <i />
-              <i />
-              <i />
-              <i />
-              <i />
-              <i />
-              <i />
-              <i />
-              <i />
-              <i />
-              <i />
-            </div>
-          </div>
           <button
             className={`nav-item ${view === 'Settings' ? 'active' : ''}`}
             onClick={() => setView('Settings')}
@@ -295,10 +292,6 @@ export function App() {
             <span>Quick start</span>
             <ArrowRight size={13} />
           </button>
-          <div className="sidebar-signature">
-            <Fingerprint size={15} />
-            <span>Hack that shi</span>
-          </div>
         </div>
       </aside>
       <main className="main">
@@ -338,11 +331,6 @@ export function App() {
         {view === 'Settings' && <SettingsView workspace={workspace} />}{' '}
       </main>
       <footer className="statusbar">
-        <span>
-          <span className={`dot ${online ? 'green' : ''}`} />
-          {online ? 'Engine connected' : connecting ? 'Connecting to engine' : 'Engine offline'}
-        </span>
-        <span className="status-divider" />
         <span>
           <LockKeyhole size={11} />
           Local workspace

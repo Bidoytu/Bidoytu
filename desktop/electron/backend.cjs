@@ -24,6 +24,7 @@ const METHODS = new Set([
   'workspace.save',
   'browser.list',
   'browser.open',
+  'browser.stop',
 ])
 
 class Backend extends EventEmitter {

@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import {
   Crosshair,
   Eraser,
@@ -15,7 +15,13 @@ import { api } from '../api'
 import { Button, Editor } from '../components'
 
 import type { WorkspaceController } from '../hooks/useWorkspace'
-import { newIntruderTab, type PayloadType } from '../hooks/useWorkspace'
+import {
+  ATTACK_TYPES,
+  generatePayloads,
+  newIntruderTab,
+  payloadSetCount,
+  type PayloadType,
+} from '../hooks/useWorkspace'
 import { IntruderRunModal } from './IntruderRunModal'
 
 const PAYLOAD_TYPES: PayloadType[] = [
@@ -54,12 +60,14 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
     setAttackRequest,
     attackUrl,
     setAttackUrl,
-    payloadConfig,
+    attackType,
+    setAttackType,
+    payloadConfigs,
     setPayloadConfig,
     addPayloadPoint,
     clearPayloadPoints,
-    payloadCount,
     payloadPositions,
+    intruderRequestCount,
     intruderTabs,
     setIntruderTabs,
     activeIntruderTab,
@@ -72,14 +80,21 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
   } = workspace
   const requestRef = useRef<HTMLTextAreaElement>(null)
   const running = state.job_state === 'running'
-  const config = payloadConfig
+  // Which payload set the editor is currently targeting. Sniper/battering ram
+  // only have one; pitchfork/cluster bomb have one per position.
+  const [activeSet, setActiveSet] = useState(0)
+  const setCount = payloadSetCount(attackType, payloadPositions)
+  const usesMultipleSets = setCount > 1
+  const setIndex = Math.min(activeSet, payloadConfigs.length - 1)
+  const config = payloadConfigs[setIndex] ?? payloadConfigs[0]
+  const payloadCount = generatePayloads(config).length
   const supported = SUPPORTED_TYPES.has(config.type)
   const usesList =
     config.type === 'Simple list' ||
     config.type === 'Username generator' ||
     !SUPPORTED_TYPES.has(config.type)
-  // A run needs at least one payload position and one generated payload.
-  const requestCount = payloadPositions > 0 ? payloadCount : 0
+  const requestCount = intruderRequestCount
+  const patchConfig = (patch: Partial<typeof config>) => setPayloadConfig(patch, setIndex)
 
   const insertPayloadPoint = () => {
     const el = requestRef.current
@@ -153,6 +168,25 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
             onChange={(e) => setAttackUrl(e.target.value)}
           />
         </label>
+        <label className="attack-type-field">
+          <span>Attack type</span>
+          <select
+            aria-label="Attack type"
+            value={attackType}
+            disabled={running}
+            title={ATTACK_TYPES.find((a) => a.value === attackType)?.description}
+            onChange={(e) => {
+              setAttackType(e.target.value as (typeof ATTACK_TYPES)[number]['value'])
+              setActiveSet(0)
+            }}
+          >
+            {ATTACK_TYPES.map((a) => (
+              <option key={a.value} value={a.value} title={a.description}>
+                {a.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <span className="muted">{state.job_state}</span>
         {running ? (
           <Button className="danger" onClick={() => void run(() => api.request('intruder.cancel'))}>
@@ -212,15 +246,26 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
             </small>
           </div>
           <div className="payload-config-body">
+            <p className="attack-type-note">
+              {ATTACK_TYPES.find((a) => a.value === attackType)?.description}
+            </p>
             <div className="payload-field">
-              <label htmlFor="payload-position">Payload position</label>
+              <label htmlFor="payload-position">Payload set</label>
               <select
                 id="payload-position"
-                value={config.position}
-                disabled={running}
-                onChange={(e) => setPayloadConfig({ position: e.target.value })}
+                value={setIndex}
+                disabled={running || !usesMultipleSets}
+                onChange={(e) => setActiveSet(Number(e.target.value))}
               >
-                <option>All payload positions</option>
+                {usesMultipleSets ? (
+                  Array.from({ length: setCount }, (_, i) => (
+                    <option key={i} value={i}>
+                      Position {i + 1}
+                    </option>
+                  ))
+                ) : (
+                  <option value={0}>All payload positions</option>
+                )}
               </select>
             </div>
             <div className="payload-field">
@@ -229,7 +274,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                 id="payload-type"
                 value={config.type}
                 disabled={running}
-                onChange={(e) => setPayloadConfig({ type: e.target.value as PayloadType })}
+                onChange={(e) => patchConfig({ type: e.target.value as PayloadType })}
               >
                 {PAYLOAD_TYPES.map((type) => (
                   <option key={type} value={type}>
@@ -268,7 +313,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                 }
                 value={config.list}
                 disabled={running}
-                onChange={(e) => setPayloadConfig({ list: e.target.value })}
+                onChange={(e) => patchConfig({ list: e.target.value })}
               />
             )}
 
@@ -281,7 +326,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                     value={config.numberType}
                     disabled={running}
                     onChange={(e) =>
-                      setPayloadConfig({
+                      patchConfig({
                         numberType: e.target.value as 'Sequential' | 'Random',
                       })
                     }
@@ -296,7 +341,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                     type="number"
                     value={config.from}
                     disabled={running}
-                    onChange={(e) => setPayloadConfig({ from: Number(e.target.value) })}
+                    onChange={(e) => patchConfig({ from: Number(e.target.value) })}
                   />
                 </div>
                 <div className="payload-field">
@@ -305,7 +350,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                     type="number"
                     value={config.to}
                     disabled={running}
-                    onChange={(e) => setPayloadConfig({ to: Number(e.target.value) })}
+                    onChange={(e) => patchConfig({ to: Number(e.target.value) })}
                   />
                 </div>
                 {config.numberType === 'Sequential' ? (
@@ -315,7 +360,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                       type="number"
                       value={config.step}
                       disabled={running}
-                      onChange={(e) => setPayloadConfig({ step: Number(e.target.value) })}
+                      onChange={(e) => patchConfig({ step: Number(e.target.value) })}
                     />
                   </div>
                 ) : (
@@ -325,7 +370,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                       type="number"
                       value={config.howMany}
                       disabled={running}
-                      onChange={(e) => setPayloadConfig({ howMany: Number(e.target.value) })}
+                      onChange={(e) => patchConfig({ howMany: Number(e.target.value) })}
                     />
                   </div>
                 )}
@@ -339,7 +384,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                         name="number-base"
                         checked={config.numberBase === 'Decimal'}
                         disabled={running}
-                        onChange={() => setPayloadConfig({ numberBase: 'Decimal' })}
+                        onChange={() => patchConfig({ numberBase: 'Decimal' })}
                       />
                       Decimal
                     </label>
@@ -349,7 +394,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                         name="number-base"
                         checked={config.numberBase === 'Hex'}
                         disabled={running}
-                        onChange={() => setPayloadConfig({ numberBase: 'Hex' })}
+                        onChange={() => patchConfig({ numberBase: 'Hex' })}
                       />
                       Hex
                     </label>
@@ -362,7 +407,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                     min={0}
                     value={config.minIntegerDigits}
                     disabled={running}
-                    onChange={(e) => setPayloadConfig({ minIntegerDigits: Number(e.target.value) })}
+                    onChange={(e) => patchConfig({ minIntegerDigits: Number(e.target.value) })}
                   />
                 </div>
               </>
@@ -377,7 +422,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                     type="date"
                     value={config.dateFrom}
                     disabled={running}
-                    onChange={(e) => setPayloadConfig({ dateFrom: e.target.value })}
+                    onChange={(e) => patchConfig({ dateFrom: e.target.value })}
                   />
                 </div>
                 <div className="payload-field">
@@ -386,7 +431,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                     type="date"
                     value={config.dateTo}
                     disabled={running}
-                    onChange={(e) => setPayloadConfig({ dateTo: e.target.value })}
+                    onChange={(e) => patchConfig({ dateTo: e.target.value })}
                   />
                 </div>
                 <div className="payload-field">
@@ -396,7 +441,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                     min={1}
                     value={config.dateStep}
                     disabled={running}
-                    onChange={(e) => setPayloadConfig({ dateStep: Number(e.target.value) })}
+                    onChange={(e) => patchConfig({ dateStep: Number(e.target.value) })}
                   />
                 </div>
                 <div className="payload-field">
@@ -404,7 +449,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                   <input
                     value={config.dateFormat}
                     disabled={running}
-                    onChange={(e) => setPayloadConfig({ dateFormat: e.target.value })}
+                    onChange={(e) => patchConfig({ dateFormat: e.target.value })}
                   />
                 </div>
               </>
@@ -418,7 +463,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                   <input
                     value={config.charset}
                     disabled={running}
-                    onChange={(e) => setPayloadConfig({ charset: e.target.value })}
+                    onChange={(e) => patchConfig({ charset: e.target.value })}
                   />
                 </div>
                 <div className="payload-field">
@@ -428,7 +473,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                     min={1}
                     value={config.minLength}
                     disabled={running}
-                    onChange={(e) => setPayloadConfig({ minLength: Number(e.target.value) })}
+                    onChange={(e) => patchConfig({ minLength: Number(e.target.value) })}
                   />
                 </div>
                 <div className="payload-field">
@@ -438,7 +483,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                     min={1}
                     value={config.maxLength}
                     disabled={running}
-                    onChange={(e) => setPayloadConfig({ maxLength: Number(e.target.value) })}
+                    onChange={(e) => patchConfig({ maxLength: Number(e.target.value) })}
                   />
                 </div>
               </>
@@ -454,7 +499,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                     min={1}
                     value={config.nullCount}
                     disabled={running}
-                    onChange={(e) => setPayloadConfig({ nullCount: Number(e.target.value) })}
+                    onChange={(e) => patchConfig({ nullCount: Number(e.target.value) })}
                   />
                 </div>
               </>
