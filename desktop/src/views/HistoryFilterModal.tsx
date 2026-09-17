@@ -127,6 +127,12 @@ export function HistoryFilterModal({
           <div className="filter-column">
             <FilterSection title="Request type">
               <CheckRow
+                label="Hide browser noise"
+                hint="Favicons, source maps, HMR, analytics"
+                checked={filters.hideBrowserNoise}
+                onChange={(value) => onChange({ hideBrowserNoise: value })}
+              />
+              <CheckRow
                 label="In-scope items only"
                 checked={filters.inScopeOnly}
                 onChange={(value) => onChange({ inScopeOnly: value })}

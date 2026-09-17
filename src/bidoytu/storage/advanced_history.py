@@ -48,6 +48,7 @@ class FilterSpec:
     hide_extensions: str = ""
     notes_only: bool = False
     highlighted_only: bool = False
+    hide_browser_noise: bool = False
     bookmarked_only: bool = False
     listener_port: str = ""
     # The desktop filter UI always sends these arrays. Empty means "match
@@ -68,7 +69,7 @@ def filter_spec_from_dict(data: dict) -> FilterSpec:
     boolean_fields = {
         "regex", "case_sensitive", "negative_search", "in_scope_only",
         "hide_without_responses", "parameterized_only", "notes_only",
-        "highlighted_only", "bookmarked_only",
+        "highlighted_only", "bookmarked_only", "hide_browser_noise",
     }
     clean: dict = {}
     for key, value in data.items():
@@ -191,7 +192,9 @@ def matches(record: FlowRecord, spec: FilterSpec) -> bool:
                   "xml" if "xml" in mime else "css" if mime == "text/css" else
                   "images" if mime.startswith("image/") else
                   "flash" if "flash" in mime or "shockwave" in mime else
-                  "other text" if mime.startswith("text/") else "other binary")
+                  "other text" if (mime.startswith("text/") or
+                                    "json" in mime or "graphql" in mime or
+                                    "x-www-form-urlencoded" in mime) else "other binary")
         if bucket not in {item.lower() for item in spec.mime_types}:
             return False
     if spec.status_classes:
@@ -210,6 +213,8 @@ def matches(record: FlowRecord, spec: FilterSpec) -> bool:
     if spec.notes_only and not record.notes.strip():
         return False
     if spec.highlighted_only and not (record.interesting or record.color):
+        return False
+    if spec.hide_browser_noise and is_browser_noise(record):
         return False
     if spec.listener_port and str(record.port) != spec.listener_port.strip():
         return False
@@ -233,6 +238,28 @@ def matches(record: FlowRecord, spec: FilterSpec) -> bool:
     if spec.query and not query_matches(record, spec.query):
         return False
     return True
+
+
+_NOISY_HOSTS = (
+    "google-analytics.com", "googletagmanager.com", "doubleclick.net",
+    "analytics.google.com", "connect.facebook.net", "hotjar.com",
+    "fullstory.com", "segment.io", "segment.com",
+)
+_NOISY_PATHS = (
+    "/favicon.ico", "/favicon.png", "/browserconfig.xml", "/site.webmanifest",
+    "/__webpack_hmr", "/sockjs-node", "/livereload", "/_next/webpack-hmr",
+)
+
+
+def is_browser_noise(record: FlowRecord) -> bool:
+    """Identify common browser/tooling chatter without dropping captured data."""
+    host = record.host.casefold().rstrip(".")
+    path = record.path.casefold().split("?", 1)[0]
+    if any(host == noisy or host.endswith("." + noisy) for noisy in _NOISY_HOSTS):
+        return True
+    if path in _NOISY_PATHS or path.endswith((".map", ".hot-update.json")):
+        return True
+    return False
 
 
 def query_matches(record: FlowRecord, query: str) -> bool:

@@ -177,6 +177,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(await total({"status_classes": ["4xx"]}), 1)
         self.assertEqual(await total({"mime_types": ["images"]}), 1)
+        self.assertEqual(await total({"mime_types": ["other text"]}), 1)
         self.assertEqual(await total({"size": ">1000"}), 2)
         self.assertEqual(await total({"hide_extensions": "png"}), 2)
         self.assertEqual(await total({"show_extensions": "html"}), 1)
@@ -191,6 +192,12 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await total({"bogus": "x"}), 3)
         listing = await self.service.dispatch("history.list", {"bookmarked": True})
         self.assertEqual(listing["total"], 0)
+        self.assertEqual(await total({"hide_browser_noise": True}), 3)
+        noisy = FlowRecord(flow_id="noise", method="GET", scheme="https", host="www.google-analytics.com",
+                           path="/collect", status_code=204, content_type="text/plain")
+        await self.service.storage.call(self.service.storage.save, noisy)
+        self.assertEqual(await total({"hide_browser_noise": True}), 3)
+        self.assertEqual(await total({"hide_browser_noise": False}), 4)
 
     async def test_lazy_preview_pagination_validation_and_no_qt(self):
         self.assertFalse(any(key.startswith("PySide6") for key in sys.modules))
@@ -207,6 +214,12 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         binary = FlowRecord(flow_id="binary", response_body_inline=b"\xff\x00", status_code=200)
         await self.service.storage.call(self.service.storage.save, binary)
         self.assertTrue((await self.service.dispatch("history.detail", {"flow_id": "binary"}))["binary"])
+        image = FlowRecord(flow_id="webp", path="/hero.webp", content_type="image/webp",
+                           response_body_inline=b"not loaded", response_body_size=987654, status_code=200)
+        await self.service.storage.call(self.service.storage.save, image)
+        image_detail = await self.service.dispatch("history.detail", {"flow_id": "webp"})
+        self.assertIn("<987654 bytes>", image_detail["response"])
+        self.assertNotIn("not loaded", image_detail["response"])
         with self.assertRaises(ValueError):
             await self.service.dispatch("proxy.start", {"port": 80})
         with self.assertRaises(ValueError):
