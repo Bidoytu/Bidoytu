@@ -97,7 +97,13 @@ async function startBackend(sessionPath) {
     if (!closing && backend === instance && window && !window.isDestroyed())
       window.webContents.send('backend:event', { type: 'offline', message: error.message })
   })
-  instance.ready.catch(() => {})
+  try {
+    await instance.ready
+    return instance
+  } catch (error) {
+    if (backend === instance) backend = undefined
+    throw error
+  }
 }
 
 async function stopBackend() {
@@ -105,6 +111,20 @@ async function stopBackend() {
   const current = backend
   backend = undefined
   await current.stop()
+}
+
+async function removeWithRetry(path) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rm(path, { recursive: true, force: true })
+      return
+    } catch (error) {
+      const retryable = process.platform === 'win32' &&
+        (error.code === 'EBUSY' || error.code === 'EPERM' || error.code === 'ENOTEMPTY')
+      if (!retryable || attempt >= 20) throw error
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+  }
 }
 
 function createWindow() {
@@ -178,7 +198,7 @@ else {
       await writeSessions([...(await readSessions()), item])
       await stopBackend()
       activeSession = item
-      startBackend(join(sessionsDir, item.id))
+      await startBackend(join(sessionsDir, item.id))
       event.sender.send('session:opened', item)
       return item
     })
@@ -198,7 +218,7 @@ else {
       if (!item) throw new Error('That session no longer exists.')
       await stopBackend()
       activeSession = item
-      startBackend(join(sessionsDir, item.id))
+      await startBackend(join(sessionsDir, item.id))
       event.sender.send('session:opened', item)
       return item
     })
@@ -258,18 +278,24 @@ else {
     // Release SQLite/WAL and other session files before discard tries to remove
     // the directory. This is especially important on Windows, where an open
     // database handle prevents recursive removal.
-    await stopBackend()
-    if (decision === 'save' && activeSession) {
-      activeSession.updated_at = new Date().toISOString()
-      await writeSessions((await readSessions()).map((entry) => entry.id === activeSession.id ? activeSession : entry))
-    }
-    if (decision === 'discard' && activeSession && !activeSession.protected) {
-      await rm(join(sessionsDir, activeSession.id), { recursive: true, force: true })
-      await writeSessions((await readSessions()).filter((entry) => entry.id !== activeSession.id))
-    }
     closing = true
-    window.destroy()
-    return true
+    try {
+      await stopBackend()
+      if (decision === 'save' && activeSession) {
+        activeSession.updated_at = new Date().toISOString()
+        await writeSessions((await readSessions()).map((entry) => entry.id === activeSession.id ? activeSession : entry))
+      }
+      if (decision === 'discard' && activeSession && !activeSession.protected) {
+        await removeWithRetry(join(sessionsDir, activeSession.id))
+        await writeSessions((await readSessions()).filter((entry) => entry.id !== activeSession.id))
+      }
+      window.destroy()
+      return true
+    } catch (error) {
+      closing = false
+      closePromptPending = true
+      throw error
+    }
   })
   app.on('before-quit', (event) => {
     if (!closing && backend) {

@@ -198,6 +198,13 @@ def stop_browser(process: subprocess.Popen) -> None:
             ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
             capture_output=True, check=False,
         )
+        # taskkill can return before descendants have released profile files.
+        # Wait for the launched process to observe termination before the
+        # Electron host removes the session directory on Windows.
+        try:
+            process.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            pass
         return
     process.terminate()
     try:
