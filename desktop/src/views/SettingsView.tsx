@@ -1,11 +1,4 @@
-import {
-  ArrowDownToLine,
-  ArrowLeftRight,
-  Folder,
-  Layers3,
-  SlidersHorizontal,
-  Terminal,
-} from 'lucide-react'
+import { ArrowDownToLine, Folder, SlidersHorizontal } from 'lucide-react'
 import { api } from '../api'
 import { Button, Toggle } from '../components'
 
@@ -101,22 +94,6 @@ export function SettingsView({ workspace }: { workspace: WorkspaceController }) 
           />
         </div>
       </section>
-      <div className="architecture-card">
-        <div>
-          <Terminal size={21} />
-          <strong>Python</strong>
-          <span>Async networking · mitmproxy · SQLite</span>
-        </div>
-        <div className="architecture-pipe">
-          <ArrowLeftRight size={20} />
-          <span>Private IPC</span>
-        </div>
-        <div>
-          <Layers3 size={21} />
-          <strong>Electron</strong>
-          <span>React · TypeScript · sandboxed renderer</span>
-        </div>
-      </div>
     </div>
   )
 }

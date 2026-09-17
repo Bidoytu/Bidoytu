@@ -78,9 +78,7 @@
   --success: #46c46f;
   color-scheme: dark;
 }
-:root[data-theme='dark'] .architecture-card {
-  border: 1px solid var(--hairline);
-}
+
 :root[data-theme='dark'] .nav-item.active {
   color: var(--on-primary);
 }
@@ -2042,40 +2040,6 @@ tr:hover td {
   border-radius: var(--r-pill);
   white-space: nowrap;
 }
-.architecture-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding: 32px;
-  background: var(--block-navy);
-  border-radius: var(--r-lg);
-  color: var(--inverse-ink);
-}
-.architecture-card > div {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-.architecture-card svg {
-  color: var(--inverse-ink);
-}
-.architecture-card strong {
-  font-size: 16px;
-  font-weight: 480;
-  color: var(--inverse-ink);
-}
-.architecture-card span {
-  font: 400 11px var(--mono);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  color: var(--inverse-ink);
-  opacity: 0.7;
-}
-.architecture-pipe svg {
-  opacity: 0.6;
-}
-
 /* ---------- Findings ---------- */
 .findings-scroll {
   overflow: auto;
