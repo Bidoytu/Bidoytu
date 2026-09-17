@@ -1,10 +1,19 @@
-import { ArrowLeftRight, List } from 'lucide-react'
+import { ArrowLeftRight, Globe2, List, LoaderCircle, Play, Square } from 'lucide-react'
 import type { WorkspaceController } from '../hooks/useWorkspace'
+import { Button } from '../components'
 import { HistoryView } from './HistoryView'
 import { InterceptView } from './InterceptView'
 
-export function ProxyView({ workspace }: { workspace: WorkspaceController }) {
-  const { proxyView, setProxyView, state } = workspace
+export function ProxyView({
+  workspace,
+  browserBusy,
+  onOpenBrowser,
+}: {
+  workspace: WorkspaceController
+  browserBusy: boolean
+  onOpenBrowser: () => void
+}) {
+  const { proxyView, setProxyView, state, online, busy, toggleProxy } = workspace
 
   return (
     <div className="proxy-workspace">
@@ -28,6 +37,32 @@ export function ProxyView({ workspace }: { workspace: WorkspaceController }) {
           Intercept
           {state.pending.length > 0 && <b className="nav-badge">{state.pending.length}</b>}
         </button>
+        <span className="grow" />
+        <span className={`connection-label ${state.running ? 'connected' : ''}`}>
+          <span className={`dot ${state.running ? 'green' : ''}`} />
+          {state.running ? `Listening on ${state.host}:${state.port}` : 'Proxy stopped'}
+        </span>
+        <Button
+          className={state.running ? 'subtle' : 'primary'}
+          disabled={!online || busy}
+          onClick={toggleProxy}
+        >
+          {busy ? (
+            <LoaderCircle className="spin" size={13} />
+          ) : state.running ? (
+            <Square size={11} />
+          ) : (
+            <Play size={13} />
+          )}{' '}
+          {state.running ? 'Stop proxy' : 'Start proxy'}
+        </Button>
+        <Button
+          className="subtle"
+          disabled={!online || !state.running || browserBusy}
+          onClick={onOpenBrowser}
+        >
+          <Globe2 size={13} /> Open browser
+        </Button>
       </div>
       {proxyView === 'History' ? (
         <HistoryView workspace={workspace} />

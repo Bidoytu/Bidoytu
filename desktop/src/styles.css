@@ -555,27 +555,6 @@ kbd {
   flex-direction: column;
   background: var(--canvas);
 }
-.workspace-topbar {
-  height: 60px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--hairline);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 28px;
-  gap: 12px;
-}
-.breadcrumbs {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 13px;
-  color: #6b6b6b;
-}
-.breadcrumbs strong {
-  font-weight: 480;
-  color: var(--ink);
-}
 .connection-label {
   display: flex;
   align-items: center;
@@ -624,6 +603,12 @@ kbd {
 }
 .button.primary:hover:not(:disabled) {
   background: #1a1a1a;
+}
+:root[data-theme='dark'] .button.primary:hover:not(:disabled) {
+  background: #e4e4e4;
+}
+:root[data-theme='dark'] .button.primary:active:not(:disabled) {
+  background: #d0d0d0;
 }
 .button.primary kbd {
   color: rgba(255, 255, 255, 0.7);
@@ -776,7 +761,7 @@ h1 {
   padding: 0 16px;
   text-align: left;
   width: 100%;
-  height: 38px;
+  height: 24px;
   font-size: 13px;
   border-bottom: 1px solid var(--hairline-soft);
   background: var(--canvas);
@@ -1038,6 +1023,22 @@ h1 {
   border-bottom: 1px solid var(--hairline-soft);
   flex-shrink: 0;
 }
+.editor-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 10px;
+  color: var(--ink);
+  font-weight: 480;
+  white-space: nowrap;
+}
+.editor-title svg {
+  color: #6b6b6b;
+}
+.editor-hint {
+  font: 400 11px var(--mono);
+  color: #6b6b6b;
+}
 .tab {
   display: flex;
   align-items: center;
@@ -1140,6 +1141,57 @@ h1 {
 }
 .code-text {
   color: var(--ink);
+}
+/* HTTP syntax tokens (request/status line, header name/value, cookies) */
+.tok-method {
+  color: #1f7a4d;
+  font-weight: 600;
+}
+.tok-path {
+  color: var(--ink);
+}
+.tok-version {
+  color: #6b6b6b;
+}
+.tok-status {
+  color: #b3245e;
+  font-weight: 600;
+}
+.tok-reason {
+  color: #6b6b6b;
+}
+.tok-header-name {
+  color: #5b3ca8;
+  font-weight: 500;
+}
+.tok-header-value {
+  color: var(--ink);
+  font-weight: 400;
+}
+.tok-punct {
+  color: #9a9a9a;
+}
+.tok-cookie-name {
+  color: #2b6b8a;
+  font-weight: 500;
+}
+.tok-cookie-value {
+  color: #7a5a00;
+}
+:root[data-theme='dark'] .tok-method {
+  color: #6fce9b;
+}
+:root[data-theme='dark'] .tok-status {
+  color: #f07a9e;
+}
+:root[data-theme='dark'] .tok-header-name {
+  color: #b39cf0;
+}
+:root[data-theme='dark'] .tok-cookie-name {
+  color: #79c0e0;
+}
+:root[data-theme='dark'] .tok-cookie-value {
+  color: #e0b45c;
 }
 .code-placeholder {
   color: #9a9a9a;
@@ -1351,7 +1403,8 @@ h1 {
   padding: 0 16px;
   border-bottom: 1px solid var(--hairline-soft);
   text-align: left;
-  min-height: 38px;
+  min-height: 24px;
+  height: 24px;
   color: var(--ink);
 }
 .intercept-table-row {
@@ -1904,6 +1957,12 @@ td {
   color: var(--ink);
   max-width: 300px;
   overflow-wrap: anywhere;
+}
+/* Match the Intruder results rows to the HTTP history row height. */
+.results-panel td,
+.results-panel th {
+  padding: 0 16px;
+  height: 24px;
 }
 tr:hover td {
   background: var(--surface-soft);
@@ -2529,9 +2588,6 @@ tr:hover td {
   .tool-workspace {
     margin-left: 18px;
     margin-right: 18px;
-  }
-  .workspace-topbar {
-    padding: 0 20px;
   }
   .traffic-row {
     grid-template-columns: 38px 64px minmax(85px, 0.9fr) minmax(110px, 1.5fr) 56px 66px 62px 16px;

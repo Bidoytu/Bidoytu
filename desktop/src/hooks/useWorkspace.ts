@@ -808,8 +808,8 @@ export function useWorkspace() {
     element.addEventListener('pointerup', stop)
   }
 
-  const trafficStart = Math.max(0, Math.floor(scrollTop / 35) - 5)
-  const visibleTraffic = flows.slice(trafficStart, trafficStart + 35)
+  const trafficStart = Math.max(0, Math.floor(scrollTop / 24) - 5)
+  const visibleTraffic = flows.slice(trafficStart, trafficStart + 50)
   const Icon = icons[view]
   return {
     view,

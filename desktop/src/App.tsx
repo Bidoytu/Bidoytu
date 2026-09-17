@@ -2,20 +2,16 @@ import {
   Activity,
   ArrowRight,
   Check,
-  ChevronRight,
   CircleHelp,
   Globe2,
   Fingerprint,
   Folder,
   Layers3,
-  LoaderCircle,
   LockKeyhole,
   Maximize2,
   Minus,
-  Play,
   Radio,
   Settings2,
-  Square,
   X,
 } from 'lucide-react'
 import { api } from './api'
@@ -128,14 +124,12 @@ export function App() {
     setError,
     notice,
     setNotice,
-    busy,
     page,
     port,
     findings,
     showHelp,
     setShowHelp,
     pending,
-    toggleProxy,
   } = workspace
   const [showBrowsers, setShowBrowsers] = useState(false)
   const [browsers, setBrowsers] = useState<BrowserInfo[]>([])
@@ -304,46 +298,11 @@ export function App() {
           </button>
           <div className="sidebar-signature">
             <Fingerprint size={15} />
-            <span>Built for the curious.</span>
+            <span>Hack that shi</span>
           </div>
         </div>
       </aside>
       <main className="main">
-        <div className="workspace-topbar">
-          <div className="breadcrumbs">
-            <Folder size={14} />
-            <span>{activeSession.name}</span>
-            <ChevronRight size={12} />
-            <strong>{view}</strong>
-          </div>
-          <div className="inline">
-            <span className={`connection-label ${state.running ? 'connected' : ''}`}>
-              <span className={`dot ${state.running ? 'green' : ''}`} />
-              {state.running ? `Listening on ${state.host}:${state.port}` : 'Proxy stopped'}
-            </span>
-            <Button
-              className={state.running ? 'subtle' : 'primary'}
-              disabled={!online || busy}
-              onClick={toggleProxy}
-            >
-              {busy ? (
-                <LoaderCircle className="spin" size={13} />
-              ) : state.running ? (
-                <Square size={11} />
-              ) : (
-                <Play size={13} />
-              )}{' '}
-              {state.running ? 'Stop proxy' : 'Start proxy'}
-            </Button>
-            <Button
-              className="subtle"
-              disabled={!online || !state.running || browserBusy}
-              onClick={openBrowserPicker}
-            >
-              <Globe2 size={13} /> Open browser
-            </Button>
-          </div>
-        </div>
         {(error || state.error) && (
           <div className="error-banner" role="alert">
             <Activity size={15} />
@@ -365,7 +324,13 @@ export function App() {
             {notice}
           </div>
         )}
-        {view === 'Proxy' && <ProxyView workspace={workspace} />}
+        {view === 'Proxy' && (
+          <ProxyView
+            workspace={workspace}
+            browserBusy={browserBusy}
+            onOpenBrowser={openBrowserPicker}
+          />
+        )}
         {view === 'Repeater' && <RepeaterView workspace={workspace} />}
         {view === 'Intruder' && <IntruderView workspace={workspace} />}
         {view === 'Scope' && <ScopeView workspace={workspace} />}

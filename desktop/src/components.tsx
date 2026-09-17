@@ -259,6 +259,79 @@ function buildHexLines(value: string) {
   return { lines, bytes: bytes.length }
 }
 
+// Renders a single line of an HTTP message with syntax coloring for the
+// request/status line, header names, header values, and cookie key/value pairs.
+function HttpLine({ line, first }: { line: string; first: boolean }) {
+  if (!line) return <span className="code-text"> </span>
+
+  // First line: request line (GET /path HTTP/2.0) or status line (HTTP/2.0 200 OK).
+  if (first) {
+    if (/^HTTP\//i.test(line)) {
+      const [version, status, ...reason] = line.split(' ')
+      return (
+        <span className="code-first">
+          <span className="tok-version">{version}</span>{' '}
+          <span className="tok-status">{status}</span>
+          {reason.length ? <span className="tok-reason"> {reason.join(' ')}</span> : null}
+        </span>
+      )
+    }
+    const [method, path, ...rest] = line.split(' ')
+    return (
+      <span className="code-first">
+        <span className="tok-method">{method}</span>
+        {path != null ? <span className="tok-path"> {path}</span> : null}
+        {rest.length ? <span className="tok-version"> {rest.join(' ')}</span> : null}
+      </span>
+    )
+  }
+
+  // Header line: name: value
+  const separator = line.indexOf(':')
+  if (separator > 0 && /^[\w-]+$/.test(line.slice(0, separator))) {
+    const name = line.slice(0, separator)
+    const value = line.slice(separator + 1)
+    const isCookie = /^(cookie|set-cookie)$/i.test(name)
+    return (
+      <span className="code-header">
+        <span className="tok-header-name">{name}</span>
+        <span className="tok-punct">:</span>
+        {isCookie ? <CookieValue value={value} /> : <span className="tok-header-value">{value}</span>}
+      </span>
+    )
+  }
+
+  return <span className="code-text">{line}</span>
+}
+
+// Colors cookie key=value pairs so names like "session" stand out from values.
+function CookieValue({ value }: { value: string }) {
+  const leading = value.match(/^\s*/)?.[0] ?? ''
+  const pairs = value.slice(leading.length).split(/;\s*/)
+  return (
+    <span className="tok-header-value">
+      {leading}
+      {pairs.map((pair, index) => {
+        const eq = pair.indexOf('=')
+        return (
+          <span key={index}>
+            {index > 0 ? <span className="tok-punct">; </span> : null}
+            {eq > 0 ? (
+              <>
+                <span className="tok-cookie-name">{pair.slice(0, eq)}</span>
+                <span className="tok-punct">=</span>
+                <span className="tok-cookie-value">{pair.slice(eq + 1)}</span>
+              </>
+            ) : (
+              pair
+            )}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
 export function Editor({
   title,
   value,
@@ -312,17 +385,11 @@ export function Editor({
         : value
   return (
     <section className="editor">
-      <div className="panel-title">
-        <span>
+      <div className="editor-toolbar">
+        <span className="editor-title">
           <FileCode2 size={14} />
           {title}
         </span>
-        <div className="inline">
-          {hint && <small>{hint}</small>}
-          {actions}
-        </div>
-      </div>
-      <div className="editor-toolbar">
         <button
           className={view === 'pretty' ? 'tab active' : 'tab'}
           aria-pressed={view === 'pretty'}
@@ -346,6 +413,9 @@ export function Editor({
           <Binary size={12} />
           Hex
         </button>
+        <span className="grow" />
+        {hint && <small className="editor-hint">{hint}</small>}
+        {actions}
         <label className="wrap-toggle">
           <input
             type="checkbox"
@@ -355,7 +425,6 @@ export function Editor({
           />
           Wrap
         </label>
-        <span className="grow" />
         <button
           className="icon-button"
           title={copied ? 'Copied' : 'Copy message'}
@@ -430,17 +499,7 @@ export function Editor({
                   {lines.map((line, index) => (
                     <div className="code-line wrap" key={index}>
                       <span className="line-number">{index + 1}</span>
-                      <span
-                        className={
-                          index === 0
-                            ? 'code-first'
-                            : line.match(/^[\w-]+:/)
-                              ? 'code-header'
-                              : 'code-text'
-                        }
-                      >
-                        {line || ' '}
-                      </span>
+                      <HttpLine line={line} first={index === 0} />
                     </div>
                   ))}
                 </div>
@@ -450,17 +509,7 @@ export function Editor({
                     {visibleLines.map((line, index) => (
                       <div className="code-line" key={firstLine + index}>
                         <span className="line-number">{firstLine + index + 1}</span>
-                        <span
-                          className={
-                            firstLine + index === 0
-                              ? 'code-first'
-                              : line.match(/^[\w-]+:/)
-                                ? 'code-header'
-                                : 'code-text'
-                          }
-                        >
-                          {line || ' '}
-                        </span>
+                        <HttpLine line={line} first={firstLine + index === 0} />
                       </div>
                     ))}
                   </div>

@@ -186,8 +186,8 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
           onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
         >
           {flows.length ? (
-            <div style={{ height: flows.length * 35, position: 'relative' }}>
-              <div style={{ position: 'absolute', top: trafficStart * 35, left: 0, right: 0 }}>
+            <div style={{ height: flows.length * 24, position: 'relative' }}>
+              <div style={{ position: 'absolute', top: trafficStart * 24, left: 0, right: 0 }}>
                 {visibleTraffic.map((flow) => (
                   <button
                     className={`traffic-row ${selectedId === flow.flow_id ? 'selected-row' : ''}`}
