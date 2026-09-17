@@ -1100,6 +1100,16 @@ h1 {
   color: transparent;
   background: var(--selection);
 }
+.payload-position-highlight {
+  /* Keep the overlay exactly width-identical to the transparent textarea.
+     Padding/display changes here shift the visual text after markers and make
+     later mouse selections appear to insert at the wrong character. */
+  display: inline;
+  color: #241600;
+  background: #f6c453;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(151, 94, 0, 0.55), 0 0 10px rgba(246, 196, 83, 0.28);
+}
 .editor-body textarea.wrap-editor {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1977,6 +1987,43 @@ h1 {
 .payload-field > label {
   color: #6b6b6b;
 }
+.payload-position-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: -4px 0 2px 142px;
+}
+.payload-position-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  color: var(--ink);
+  font: 400 11px var(--mono);
+  text-align: left;
+  cursor: pointer;
+}
+.payload-position-list button:hover:not(:disabled),
+.payload-position-list button.active {
+  border-color: #d49a21;
+  background: rgba(246, 196, 83, 0.16);
+}
+.payload-position-list button code {
+  max-width: 55%;
+  overflow: hidden;
+  color: #a56b00;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.payload-position-shared {
+  color: #6b6b6b;
+  font: 400 11px var(--mono);
+}
 .payload-field select,
 .payload-field input {
   width: 100%;
@@ -2101,6 +2148,31 @@ h1 {
   overflow: hidden;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
   animation: appear 0.18s ease-out;
+}
+.intruder-run-modal:focus {
+  outline: none;
+}
+.intruder-run-minimized {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 110;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--canvas);
+  color: var(--ink);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+  cursor: pointer;
+}
+.intruder-run-minimized:hover {
+  border-color: var(--primary);
+  background: var(--surface-soft);
 }
 .intruder-run-head {
   display: flex;

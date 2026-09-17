@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import {
   Crosshair,
   Eraser,
+  Eye,
   Globe2,
   Layers3,
   LoaderCircle,
@@ -62,6 +63,8 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
     setAttackUrl,
     attackType,
     setAttackType,
+    concurrency,
+    setIntruderConcurrency,
     payloadConfigs,
     setPayloadConfig,
     addPayloadPoint,
@@ -73,13 +76,14 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
     activeIntruderTab,
     setActiveIntruderTab,
     intruderSequence,
-    intruderRunningId,
+    intruderRunningIds,
     startIntruder,
+    cancelIntruder,
+    openIntruderResults,
     duplicateIntruderTab,
-    run,
   } = workspace
   const requestRef = useRef<HTMLTextAreaElement>(null)
-  const running = state.job_state === 'running'
+  const running = workspace.intruderTab.runState === 'running' || workspace.intruderTab.runState === 'queued'
   // Which payload set the editor is currently targeting. Sniper/battering ram
   // only have one; pitchfork/cluster bomb have one per position.
   const [activeSet, setActiveSet] = useState(0)
@@ -87,6 +91,7 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
   const usesMultipleSets = setCount > 1
   const setIndex = Math.min(activeSet, payloadConfigs.length - 1)
   const config = payloadConfigs[setIndex] ?? payloadConfigs[0]
+  const markedValues = attackRequest.match(/\u00a7[^\u00a7]*\u00a7/g) ?? []
   const payloadCount = generatePayloads(config).length
   const supported = SUPPORTED_TYPES.has(config.type)
   const usesList =
@@ -114,17 +119,27 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
             key={tab.id}
           >
             <button onClick={() => setActiveIntruderTab(tab.id)}>
-              {tab.id === intruderRunningId && running ? (
+              {intruderRunningIds.includes(tab.id) ? (
                 <LoaderCircle size={13} className="spin" />
               ) : (
                 <Zap size={12} />
               )}
               <span>{tab.name}</span>
             </button>
+            {tab.attackId && tab.results.length > 0 && (
+              <button
+                className="icon-button request-tab-results"
+                aria-label={`View results for ${tab.name}`}
+                title="View attack results"
+                onClick={() => openIntruderResults(tab.id)}
+              >
+                <Eye size={12} />
+              </button>
+            )}
             {intruderTabs.length > 1 && (
               <button
                 aria-label={`Close ${tab.name}`}
-                disabled={running}
+                disabled={tab.runState === 'running' || tab.runState === 'queued'}
                 onClick={() => {
                   setIntruderTabs(intruderTabs.filter((t) => t.id !== tab.id))
                   if (tab.id === activeIntruderTab)
@@ -139,7 +154,6 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
         <button
           className="icon-button"
           aria-label="New Intruder attack"
-          disabled={running}
           onClick={() => {
             const id = ++intruderSequence.current
             setIntruderTabs((prev) => [...prev, newIntruderTab(id)])
@@ -152,7 +166,6 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
           className="icon-button"
           aria-label="Duplicate Intruder attack"
           title="Duplicate attack (Ctrl+I)"
-          disabled={running}
           onClick={duplicateIntruderTab}
         >
           <Layers3 size={15} />
@@ -187,9 +200,21 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
             ))}
           </select>
         </label>
+        <label className="attack-type-field" title="Maximum number of Intruder requests in flight">
+          <span>Concurrency</span>
+          <input
+            aria-label="Intruder concurrency"
+            type="number"
+            min={1}
+            max={64}
+            value={concurrency}
+            disabled={running}
+            onChange={(e) => setIntruderConcurrency(Number(e.target.value))}
+          />
+        </label>
         <span className="muted">{state.job_state}</span>
         {running ? (
-          <Button className="danger" onClick={() => void run(() => api.request('intruder.cancel'))}>
+          <Button className="danger" onClick={() => void cancelIntruder()}>
             <Square size={12} />
             Cancel run
           </Button>
@@ -214,7 +239,15 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                 : 'Select text, then add a payload position'}
             </span>
             <span className="grow" />
-            <Button className="subtle" disabled={running} onClick={insertPayloadPoint}>
+            <Button
+              className="subtle"
+              disabled={running}
+              // Preserve the textarea selection. Without this, the browser
+              // can collapse the selection when focus moves to the button,
+              // causing markers to be inserted at the wrong offset.
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={insertPayloadPoint}
+            >
               <Plus size={13} />
               Add §
             </Button>
@@ -233,6 +266,8 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
             onChange={setAttackRequest}
             disabled={running}
             textareaRef={requestRef}
+            rawOnly
+            highlightPayloadPositions
           />
         </section>
         <section className="payload-config">
@@ -255,6 +290,11 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                 id="payload-position"
                 value={setIndex}
                 disabled={running || !usesMultipleSets}
+                title={
+                  usesMultipleSets
+                    ? 'Choose the payload set assigned to each marked position'
+                    : 'Sniper and Battering ram use one shared payload set'
+                }
                 onChange={(e) => setActiveSet(Number(e.target.value))}
               >
                 {usesMultipleSets ? (
@@ -267,6 +307,25 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
                   <option value={0}>All payload positions</option>
                 )}
               </select>
+            </div>
+            <div className="payload-position-list" aria-label="Payload positions">
+              {usesMultipleSets ? (
+                markedValues.map((value, index) => (
+                  <button
+                    type="button"
+                    key={index}
+                    className={index === setIndex ? 'active' : ''}
+                    disabled={running}
+                    onClick={() => setActiveSet(index)}
+                    title={`Edit payload set for position ${index + 1}: ${value}`}
+                  >
+                    <span>Position {index + 1}</span>
+                    <code>{value.slice(1, -1) || '(empty)'}</code>
+                  </button>
+                ))
+              ) : (
+                <span className="payload-position-shared">Shared set for all positions</span>
+              )}
             </div>
             <div className="payload-field">
               <label htmlFor="payload-type">Payload type</label>
@@ -492,11 +551,11 @@ export function IntruderView({ workspace }: { workspace: WorkspaceController }) 
             {config.type === 'Null payloads' && (
               <>
                 <div className="payload-section-title">Null payloads</div>
-                <div className="payload-field">
-                  <label>How many</label>
-                  <input
-                    type="number"
-                    min={1}
+                  <div className="payload-field">
+                    <label>How many</label>
+                    <input
+                      type="number"
+                      min={1}
                     value={config.nullCount}
                     disabled={running}
                     onChange={(e) => patchConfig({ nullCount: Number(e.target.value) })}
