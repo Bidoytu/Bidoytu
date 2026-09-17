@@ -127,16 +127,25 @@ async function stopBackend() {
 }
 
 async function removeWithRetry(path) {
+  let lastError
   for (let attempt = 0; ; attempt += 1) {
     try {
       await rm(path, { recursive: true, force: true })
-      return
+      return true
     } catch (error) {
+      lastError = error
       const retryable = process.platform === 'win32' &&
         (error.code === 'EBUSY' || error.code === 'EPERM' || error.code === 'ENOTEMPTY')
       // ~15s of retries: browser child processes can hold profile SQLite files
       // for several seconds after taskkill returns before Windows releases them.
-      if (!retryable || attempt >= 60) throw error
+      if (!retryable || attempt >= 60) {
+        // A browser profile can remain locked briefly even after its process
+        // tree has been terminated. Do not turn that cleanup race into a
+        // failed app shutdown; the session is removed from the registry below
+        // and the orphaned profile can be removed once Windows releases it.
+        console.warn(`Could not remove session directory ${path}: ${lastError.message}`)
+        return false
+      }
       await new Promise((resolve) => setTimeout(resolve, 250))
     }
   }
