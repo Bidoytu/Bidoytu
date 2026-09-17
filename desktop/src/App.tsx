@@ -158,7 +158,6 @@ export function App() {
     try {
       const created = await api.createSession(name)
       setSessions((current) => [created, ...current])
-      await api.openSession(created.id)
       setActiveSession(created)
     } catch (e) { setSessionError(e instanceof Error ? e.message : String(e)) }
   }
