@@ -1,0 +1,7 @@
+node_modules
+desktop/dist
+release
+build
+graphify-out
+venv
+test-results

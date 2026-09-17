@@ -21,19 +21,27 @@ changed, how it was tested, and any security or compatibility considerations.
 
 ## Local setup
 
-Requires Python 3.11 or newer.
+Requires Python 3.11 or newer and Node 24 LTS for the Electron desktop.
 
     python -m venv .venv
     .venv\Scripts\Activate.ps1
-    python -m pip install -e ".[dev]"
+    python -m pip install -e ".[dev,legacy]"
+    npm ci
+    npm run dev
 
-Run the application with bidoytu or python -m bidoytu.
+Use `npm run build` then `npm start` for the compiled desktop. `bidoytu-legacy`
+starts the optional Qt application. See [the architecture guide](docs/hybrid-architecture.md)
+for process boundaries and the migration feature matrix.
 
 ## Checks
 
 Run these before opening a pull request:
 
     python -m compileall -q src
+    python scripts/backend_test.py
+    npm test
+    npm run build
+    npm run test:e2e
     python scripts/smoke_test.py
 
 Run the relevant live check when changing proxy, interception, response

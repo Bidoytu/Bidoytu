@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -144,6 +145,12 @@ class InterceptView(QWidget):
         self._editor.setContextMenuPolicy(Qt.CustomContextMenu)
         self._editor.customContextMenuRequested.connect(self._on_context_menu)
         self._response_view = MessageView(read_only=True)
+        self._response_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._response_view.customContextMenuRequested.connect(self._on_context_menu)
+
+        # Keyboard shortcuts: Ctrl+R -> Repeater, Ctrl+I -> Intruder.
+        self._add_shortcut("Ctrl+R", self._emit_send_to_repeater)
+        self._add_shortcut("Ctrl+I", self._emit_send_to_intruder)
 
         msg_splitter = QSplitter(Qt.Horizontal)
         msg_splitter.addWidget(self._pane("Request", self._editor))
@@ -622,6 +629,23 @@ class InterceptView(QWidget):
 
     # -- context menu / send-to -----------------------------------------------
 
+    def _add_shortcut(self, seq: str, handler) -> None:
+        action = QAction(self)
+        action.setShortcut(QKeySequence(seq))
+        action.setShortcutContext(Qt.WidgetWithChildrenShortcut)
+        action.triggered.connect(handler)
+        self.addAction(action)
+
+    def _emit_send_to_repeater(self) -> None:
+        record = self._current_as_record()
+        if record is not None:
+            self.send_to_repeater.emit(record)
+
+    def _emit_send_to_intruder(self) -> None:
+        record = self._current_as_record()
+        if record is not None:
+            self.send_to_intruder.emit(record)
+
     def _on_context_menu(self, pos) -> None:
         record = self._current_as_record()
         menu = QMenu(self)
@@ -637,7 +661,14 @@ class InterceptView(QWidget):
         # Disable when there is nothing to send.
         act_rep.setEnabled(record is not None)
         act_int.setEnabled(record is not None)
-        chosen = menu.exec(self._editor.viewport().mapToGlobal(pos))
+        # Determine which view triggered the menu so the popup appears at the
+        # correct screen position.
+        sender = self.sender()
+        if sender is not None and hasattr(sender, "viewport"):
+            global_pos = sender.viewport().mapToGlobal(pos)
+        else:
+            global_pos = self._editor.viewport().mapToGlobal(pos)
+        chosen = menu.exec(global_pos)
         if act_resp is not None and chosen == act_resp:
             self._arm_response_intercept()
             return

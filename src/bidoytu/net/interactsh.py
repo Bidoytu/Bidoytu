@@ -36,6 +36,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Callable, Optional
+from urllib.parse import urlencode, urlsplit
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
@@ -231,6 +232,8 @@ class InteractshClient:
         servers: list[str],
         token: str,
         on_done: Callable[[bool, str], None],
+        *,
+        allow_http_fallback: bool = True,
     ) -> None:
         """Generate a keypair and register against the first working server.
 
@@ -261,7 +264,8 @@ class InteractshClient:
                 candidates.append(entry.rstrip("/"))
             else:
                 candidates.append(f"https://{entry}".rstrip("/"))
-                candidates.append(f"http://{entry}".rstrip("/"))
+                if allow_http_fallback:
+                    candidates.append(f"http://{entry}".rstrip("/"))
 
         if not candidates:
             on_done(False, "No Interactsh servers configured")
@@ -273,7 +277,7 @@ class InteractshClient:
             "correlation-id": self._correlation_id,
         }).encode("utf-8")
 
-        self._try_register(candidates, 0, payload, on_done)
+        self._try_register(candidates, 0, payload, on_done, [])
 
     def _try_register(
         self,
@@ -281,9 +285,14 @@ class InteractshClient:
         index: int,
         payload: bytes,
         on_done: Callable[[bool, str], None],
+        failures: list[str],
     ) -> None:
         if index >= len(candidates):
-            on_done(False, "Could not register with any Interactsh server")
+            detail = "; ".join(failures[-3:])
+            message = "Could not register with any Interactsh server"
+            if detail:
+                message += f": {detail}"
+            on_done(False, message)
             return
         base = candidates[index]
         headers = [("Content-Type", "application/json")]
@@ -291,12 +300,13 @@ class InteractshClient:
             headers.append(("Authorization", self._token))
 
         def _cb(result: HttpResult, base=base) -> None:
-            ok, done = self._handle_register_result(base, result)
+            ok, done, detail = self._handle_register_result(base, result)
             if done:
-                on_done(ok, base if ok else "")
+                on_done(ok, base if ok else detail)
                 return
+            failures.append(f"{base}: {detail}")
             # Try the next candidate.
-            self._try_register(candidates, index + 1, payload, on_done)
+            self._try_register(candidates, index + 1, payload, on_done, failures)
 
         self._sender.send(
             "POST", f"{base}/register", headers, payload, _cb,
@@ -305,25 +315,59 @@ class InteractshClient:
 
     def _handle_register_result(
         self, base: str, result: HttpResult
-    ) -> tuple[bool, bool]:
-        """Return (ok, done). ``done`` short-circuits trying more servers."""
+    ) -> tuple[bool, bool, str]:
+        """Return ``(ok, done, detail)`` for one registration attempt."""
         if not result.ok:
-            return (False, False)  # network error -> try next candidate
+            return (False, False, result.error or "network error")
         if result.status_code == 401:
             # Auth failure is terminal; more servers won't help with this token.
-            return (False, True)
+            return (False, True, f"{base} returned HTTP 401 (authentication failed)")
         if result.status_code != 200:
-            return (False, False)
+            return (False, False, f"HTTP {result.status_code}")
         try:
             data = json.loads(result.body.decode("utf-8", errors="replace"))
         except (ValueError, UnicodeError):
-            return (False, False)
+            return (False, False, "invalid JSON response")
         if data.get("message") == "registration successful":
             with self._lock:
                 self._server = base
                 self._registered = True
-            return (True, True)
-        return (False, False)
+            return (True, True, "registration successful")
+        return (False, False, str(data.get("message") or "unexpected registration response"))
+
+    def keep_alive(self, on_done: Callable[[bool, str], None]) -> None:
+        """Refresh the server-side session without generating a new identity."""
+        if not self._registered or not self._server:
+            on_done(False, "not registered")
+            return
+        payload = json.dumps({
+            "public-key": self._public_key_b64,
+            "secret-key": self._secret,
+            "correlation-id": self._correlation_id,
+        }).encode("utf-8")
+        headers = [("Content-Type", "application/json")]
+        if self._token:
+            headers.append(("Authorization", self._token))
+
+        def _cb(result: HttpResult) -> None:
+            if not result.ok:
+                on_done(False, result.error or "keep-alive failed")
+            elif result.status_code == 401:
+                with self._lock:
+                    self._registered = False
+                on_done(False, "authentication failed")
+            elif result.status_code not in (200, 400):
+                if result.status_code == 404:
+                    with self._lock:
+                        self._registered = False
+                on_done(False, f"keep-alive returned {result.status_code}")
+            else:
+                on_done(True, "")
+
+        self._sender.send(
+            "POST", f"{self._server}/register", headers, payload, _cb,
+            verify=self._server.startswith("https://"), follow_redirects=False,
+        )
 
     def restore(self, info: SessionInfo, on_done: Callable[[bool, str], None]) -> None:
         """Restore a persisted session and re-register to keep it alive."""
@@ -386,8 +430,10 @@ class InteractshClient:
             base64.b32encode(os.urandom(NONCE_LENGTH))
             .decode("ascii").lower().rstrip("=")[:NONCE_LENGTH]
         )
-        netloc = self._server.split("://", 1)[-1]
-        return f"{self._correlation_id}{nonce}.{netloc}"
+        hostname = urlsplit(self._server).hostname
+        if not hostname:
+            raise InteractshError("registered server has no valid hostname")
+        return f"{self._correlation_id}{nonce}.{hostname}"
 
     # -- polling -------------------------------------------------------------
 
@@ -396,7 +442,8 @@ class InteractshClient:
         if not self._registered or not self._server:
             on_done([], "not registered")
             return
-        url = f"{self._server}/poll?id={self._correlation_id}&secret={self._secret}"
+        query = urlencode({"id": self._correlation_id, "secret": self._secret})
+        url = f"{self._server}/poll?{query}"
         headers: list[tuple[str, str]] = []
         if self._token:
             headers.append(("Authorization", self._token))

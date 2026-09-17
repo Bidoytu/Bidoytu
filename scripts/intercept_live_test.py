@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from PySide6.QtCore import QCoreApplication, QTimer
 from bidoytu.config import ProxyConfig
-from bidoytu.proxy.engine import ProxyEngine
+from bidoytu.ui.qt_proxy_engine import ProxyEngine
 
 PORT = 8907
 app = QCoreApplication(sys.argv)

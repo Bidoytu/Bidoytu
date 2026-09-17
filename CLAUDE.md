@@ -1,5 +1,21 @@
 # CLAUDE.md
 
+## Bidoytu 2 architecture update
+
+The primary desktop is now `desktop/` (Electron + React + TypeScript). The
+headless Python entry is `bidoytu.backend`; `proxy/engine.py` exports the
+Qt-free async `ProxyService`. The old `ProxyEngine(QThread)` lives in
+`ui/qt_proxy_engine.py` for the optional `bidoytu-legacy` application.
+
+Read `docs/hybrid-architecture.md` for current boundaries, private stdio RPC,
+resource limits, security and migration coverage. Do not add Qt to the backend
+or expose Node/IPC primitives to renderer content. Keep captured content inert.
+
+For hybrid changes run `python scripts/backend_test.py`, `npm test`,
+`npm run build`, and `npm run test:e2e`. Run the legacy smoke test when modifying
+shared modules. `npm run package:dir` produces a self-contained Electron app.
+The historical Qt-specific guidance below applies only to the compatibility UI.
+
 Guidance for AI coding assistants (Claude and others) working in this
 repository. Read this before making changes.
 

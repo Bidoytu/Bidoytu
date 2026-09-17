@@ -1,10 +1,12 @@
 """Main application window.
 
-Top-level layout is a QTabWidget with four tabs:
+Top-level layout is a QTabWidget with six tabs:
     - Proxy        : proxy controls + HTTP History / Intercept sub-tabs
+    - Target       : sitemap review + target scope configuration
     - Repeater     : edit and resend requests
     - Intruder     : automated fuzzing (positions, payloads, attack runner)
     - Collaborator : out-of-band (OAST) interaction listener via Interactsh
+    - Live audit   : opt-in passive findings from captured proxy traffic
 
 The window owns the ProxyEngine, the storage objects, and the shared async
 HTTP sender, and wires proxy signals to persistence, the history model, and the
@@ -14,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from PySide6.QtCore import QTimer, Slot
+from PySide6.QtCore import QTimer, Signal, Slot
 from PySide6.QtGui import QActionGroup, QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -28,23 +30,28 @@ from bidoytu.config import AppConfig
 from bidoytu.config import host_matches_scope
 from bidoytu.resources import logo_path
 from bidoytu.net.async_sender import AsyncHttpSender
-from bidoytu.proxy.engine import ProxyEngine
+from bidoytu.audit.service import LiveAuditService
+from bidoytu.audit.active_scan import ActiveScanResult, ActiveScanWorker
+from bidoytu.ui.qt_proxy_engine import ProxyEngine
 from bidoytu.storage.body_store import BodyStore
 from bidoytu.storage.models import FlowRecord
 from bidoytu.storage.repository import FlowRepository
 from bidoytu.net.interactsh import InteractshError
 from bidoytu.ui.collaborator_tab import CollaboratorTab
+from bidoytu.ui.audit_tab import LiveAuditTab
 from bidoytu.ui.flow_table_model import FlowTableModel
 from bidoytu.ui.intruder_tab import IntruderTab
 from bidoytu.ui.message_view import MessageView
 from bidoytu.ui.proxy_tab import ProxyTab
-from bidoytu.ui.target_tab import TargetTab
 from bidoytu.ui.repeater_tab import RepeaterTab
+from bidoytu.ui.target_tab import TargetTab
 from bidoytu.ui.theme import DARK, LIGHT, apply_theme, current_mode, save_theme
 from bidoytu.workspace import Workspace, WorkspaceManager
 
 
 class MainWindow(QMainWindow):
+    active_scan_result = Signal(object)
+
     def __init__(
         self,
         config: AppConfig,
@@ -67,6 +74,10 @@ class MainWindow(QMainWindow):
         self._engine = ProxyEngine(config.proxy, confdir=str(config.confdir))
         self._sender = AsyncHttpSender()
         self._sender.start()
+        self._audit_service = LiveAuditService()
+        # Active workers emit through this Qt signal; the connected slot below
+        # therefore always updates the issue model on the UI thread.
+        self._active_scan = ActiveScanWorker(self.active_scan_result.emit)
 
         # Name alone in the title bar; the logo is set as the window icon.
         title = __app_name__
@@ -108,6 +119,7 @@ class MainWindow(QMainWindow):
         self._repeater_tab = RepeaterTab(self._sender)
         self._intruder_tab = IntruderTab(self._sender)
         self._collaborator_tab = CollaboratorTab(self._sender, config.collaborator)
+        self._audit_tab = LiveAuditTab(self._audit_service)
         self._tabs.addTab(self._proxy_tab, "Proxy")
         self._target_tab_index = self._tabs.addTab(self._target_tab, "Target")
         self._tabs.addTab(self._repeater_tab, "Repeater")
@@ -115,6 +127,7 @@ class MainWindow(QMainWindow):
         self._collab_tab_index = self._tabs.addTab(
             self._collaborator_tab, "Collaborator"
         )
+        self._tabs.addTab(self._audit_tab, "Live audit")
         self.setCentralWidget(self._tabs)
 
         # Let Repeater/Intruder request editors insert a fresh Collaborator
@@ -212,7 +225,7 @@ class MainWindow(QMainWindow):
         # Proxy controls. One button toggles start/stop.
         self._proxy_tab.toggle_btn.clicked.connect(self._on_toggle_proxy)
         self._proxy_tab.clear_btn.clicked.connect(self._on_clear)
-        # Tab-bar Clear History button (two-click confirm before it fires).
+        # Tab-bar Clear History button (popup confirmation before it fires).
         self._proxy_tab.clear_history_requested.connect(self._on_clear)
         self._proxy_tab.ca_btn.clicked.connect(self._on_show_ca)
         self._proxy_tab.browser_integration_requested.connect(self._on_show_browser_integration)
@@ -228,6 +241,9 @@ class MainWindow(QMainWindow):
 
         # History body provider + send-to actions.
         self._proxy_tab.history.body_provider = self._body_of
+        self._audit_tab.body_provider = self._body_of
+        self._audit_tab.active_changed.connect(self._on_active_audit_changed)
+        self.active_scan_result.connect(self._on_active_scan_result)
         self._target_tab.set_body_provider(self._body_of)
         self._proxy_tab.history.send_to_repeater.connect(self._send_to_repeater)
         self._proxy_tab.history.send_to_intruder.connect(self._send_to_intruder)
@@ -369,12 +385,40 @@ class MainWindow(QMainWindow):
         # copy, so the panel must read it while it is still present.
         if is_response:
             self._proxy_tab.intercept.on_response(record)
+        # Scope is normally persisted below. Calculate it before the passive
+        # audit too, so excluded traffic can never produce a live finding.
+        record.scope = host_matches_scope(
+            record.host, self._config.proxy.include_scope, self._config.proxy.exclude_scope,
+            record.path, self._config.proxy.include_paths, self._config.proxy.exclude_paths,
+            self._config.proxy.include_regex, self._config.proxy.exclude_regex,
+        )
+        audit_item, audit_issues = self._audit_service.analyze(record, is_response)
+        if self._audit_service.enabled:
+            self._audit_tab.add(audit_item, audit_issues)
+        if not is_response:
+            self._active_scan.submit(record)
         self._persist(record)
-        # The table and site map never render bodies. Keep only metadata in
-        # their long-lived models; detail panes load the selected body lazily.
+        # Keep the in-memory table and site map synchronized with the durable
+        # history.  The repository is the source of truth across restarts, but
+        # the live UI model must also receive each request/response event.
+        # Bodies are loaded lazily from the body store/repository by the detail
+        # view, so do not retain large payloads in the Qt model.
         summary = replace(record, request_body_inline=None, response_body_inline=None)
         self._model.upsert_record(summary)
         self._target_tab.add_record(summary, defer=True)
+
+    @Slot(bool)
+    def _on_active_audit_changed(self, enabled: bool) -> None:
+        self._active_scan.set_enabled(enabled)
+        if enabled:
+            self._audit_tab._status.setText(
+                "On — passive audit plus active verification for safe methods"
+            )
+
+    @Slot(object)
+    def _on_active_scan_result(self, result: ActiveScanResult) -> None:
+        """Marshal a worker finding back to the Qt-owned issue model."""
+        self._audit_tab.add_active_issue(result.issue)
 
     @Slot(object)
     def _on_flow_intercepted(self, record: FlowRecord) -> None:
@@ -385,11 +429,6 @@ class MainWindow(QMainWindow):
         self._proxy_tab.intercept.enqueue_response(record)
 
     def _persist(self, record: FlowRecord) -> None:
-        record.scope = host_matches_scope(
-            record.host, self._config.proxy.include_scope, self._config.proxy.exclude_scope,
-            record.path, self._config.proxy.include_paths, self._config.proxy.exclude_paths,
-            self._config.proxy.include_regex, self._config.proxy.exclude_regex,
-        )
         limit = self._config.body_inline_limit
         if record.request_body_inline and len(record.request_body_inline) > limit:
             record.request_body_path = self._body_store.store(record.request_body_inline)
@@ -467,6 +506,7 @@ class MainWindow(QMainWindow):
         self._repo.clear()
         self._model.clear()
         self._proxy_tab.history.clear_detail()
+        self._audit_tab.clear()
 
     def _body_of(self, record: FlowRecord, response: bool) -> bytes | None:
         inline = record.response_body_inline if response else record.request_body_inline
@@ -494,7 +534,7 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def _on_history_metadata_changed(self, record: FlowRecord) -> None:
-        self._repo.update_metadata(record)
+        self._repo.update(record)
         self._model.upsert_record(record)
 
     @Slot(str, str)
@@ -586,6 +626,7 @@ class MainWindow(QMainWindow):
         if not discard:
             self._save_workspace_state()
         self._collaborator_tab.shutdown()
+        self._active_scan.stop()
         from bidoytu.browser_integration import stop_browser
 
         for process in getattr(self, "_browser_processes", []):

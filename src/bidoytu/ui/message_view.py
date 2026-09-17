@@ -15,7 +15,7 @@ from typing import Callable
 
 from PySide6.QtCore import QRect, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QPainter
-from PySide6.QtWidgets import QMenu, QPlainTextEdit, QSizePolicy, QWidget
+from PySide6.QtWidgets import QMenu, QPlainTextEdit, QSizePolicy, QTextEdit, QWidget
 
 from bidoytu.ui.body_format import format_body
 from bidoytu.ui.highlighter import HttpHighlighter
@@ -96,6 +96,18 @@ class MessageView(QPlainTextEdit):
         self.blockCountChanged.connect(lambda _: self._update_line_number_area_width())
         self.updateRequest.connect(self._update_line_number_area)
         self._update_line_number_area_width()
+
+    def setPlainText(self, text: str) -> None:  # noqa: N802 (Qt override)
+        """Set raw message text and immediately apply HTTP highlighting.
+
+        Most panes use :meth:`show_message`, but editable/intermediate views
+        also receive complete raw messages through ``setPlainText``. Keeping
+        the re-highlight here makes the shared ``MessageView`` contract hold
+        for every request/response surface, regardless of which caller
+        populated it.
+        """
+        super().setPlainText(text)
+        self._highlighter.rehighlight()
 
     def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt override)
         # Pin the minimum width small so a long unwrapped line can never force
@@ -213,6 +225,23 @@ class MessageView(QPlainTextEdit):
         self._last_body = None
         self._last_content_type = ""
         self.clear()
+
+    def set_evidence(self, snippets: list[str]) -> None:
+        """Highlight passive-audit evidence in the currently shown message."""
+        selections = []
+        document = self.document()
+        for snippet in snippets:
+            if not snippet:
+                continue
+            cursor = document.find(snippet)
+            if cursor.isNull():
+                continue
+            selection = QTextEdit.ExtraSelection()
+            selection.cursor = cursor
+            selection.format.setBackground(QColor("#fbbf24"))
+            selection.format.setForeground(QColor("#111827"))
+            selections.append(selection)
+        self.setExtraSelections(selections)
 
     def set_theme(self, mode: str) -> None:
         """Re-color the syntax highlighter for a new theme mode."""

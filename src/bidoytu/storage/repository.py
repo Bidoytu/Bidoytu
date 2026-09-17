@@ -110,7 +110,13 @@ class FlowRepository:
             return conn
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+        # Keep SQLite from queueing indefinitely under concurrent proxy/UI
+        # access.  The page cache is bounded so a large history cannot consume
+        # unbounded process memory, while WAL/NORMAL keeps writes lightweight.
+        conn = sqlite3.connect(
+            str(self._db_path), check_same_thread=False,
+            timeout=5.0, cached_statements=128,
+        )
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -163,6 +169,9 @@ class FlowRepository:
         cur.execute("PRAGMA journal_mode=WAL;")
         cur.execute("PRAGMA synchronous=NORMAL;")
         cur.execute("PRAGMA foreign_keys=ON;")
+        cur.execute("PRAGMA busy_timeout=5000;")
+        cur.execute("PRAGMA cache_size=-8192;")
+        cur.execute("PRAGMA temp_store=MEMORY;")
         cur.close()
 
     # -- writes ---------------------------------------------------------------
@@ -216,16 +225,22 @@ class FlowRepository:
 
     def upsert(self, record: FlowRecord) -> int:
         """Insert if new, otherwise update. Returns the row id."""
-        # A response arrives as a second capture event for a request.  Looking
-        # up only its primary key avoids reading the prior request/response
-        # BLOBs merely to decide between INSERT and UPDATE.
-        existing = self._conn.execute(
-            "SELECT id FROM flows WHERE flow_id = ?", (record.flow_id,)
+        # One SQLite statement handles both request/response events.  This
+        # removes a SELECT and avoids a race between the existence check and
+        # the write when another connection is reading the history.
+        values = [getattr(record, col) for col in _COLUMNS]
+        placeholders = ", ".join("?" for _ in _COLUMNS)
+        cols = ", ".join(_COLUMNS)
+        assignments = ", ".join(
+            f"{col} = excluded.{col}" for col in _COLUMNS if col != "flow_id"
+        )
+        row = self._conn.execute(
+            f"INSERT INTO flows ({cols}) VALUES ({placeholders}) "
+            f"ON CONFLICT(flow_id) DO UPDATE SET {assignments} RETURNING id",
+            values,
         ).fetchone()
-        if existing is None:
-            return self.insert(record)
-        record.id = int(existing["id"])
-        self.update(record)
+        self._conn.commit()
+        record.id = int(row["id"])
         return record.id
 
     def clear(self) -> None:

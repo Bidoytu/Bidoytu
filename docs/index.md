@@ -1,5 +1,10 @@
 # Bidoytu documentation
 
+> This wiki describes the optional **legacy Qt application**. For Bidoytu 2's
+> Electron desktop, read [the hybrid architecture guide](hybrid-architecture.md)
+> and [desktop build instructions](electron-release.md). Features described here
+> are not all exposed in Electron.
+
 > A focused desktop HTTP interception and testing workspace for authorized security work.
 
 Bidoytu is a Python desktop application for inspecting, modifying, and replaying HTTP traffic through a local [mitmproxy](https://mitmproxy.org/) engine. It brings live history, request and response interception, Repeater workflows, an Intruder foundation, and an out-of-band Collaborator workflow into one PySide6 interface.
@@ -126,9 +131,57 @@ Intruder is the automated attack surface. A request can be loaded from History o
 
 Implementation: [`ui/intruder_tab.py`](../src/bidoytu/ui/intruder_tab.py), [`ui/intruder_session.py`](../src/bidoytu/ui/intruder_session.py), and [`ui/attack_runner.py`](../src/bidoytu/ui/attack_runner.py).
 
+### Live audit
+
+Live audit is an opt-in, passive review of in-scope traffic already flowing
+through the proxy. It never sends probes, follows links, starts browser
+automation, or modifies traffic. The tab separates Summary, Audit items, and
+Issues; selecting an issue opens its advisory, the captured request and
+response, and the path from observed evidence to the finding. Evidence matches
+are highlighted in the appropriate message pane.
+
+The initial detector set covers transport and browser-security headers, CSP,
+cookie attributes, CORS policy, cache directives, technology disclosure,
+sensitive URL parameters, verbose errors, directory listings, password form
+autocomplete, and mixed-content references. Findings are review items based on
+captured evidence, not proof that an issue is exploitable.
+
+An adjacent active-verification switch can replay only in-scope GET, HEAD, and
+OPTIONS requests through a bounded worker. It uses a unique reflection marker
+and a diagnostic quote to identify candidates for reflected XSS and SQL error
+handling. State-changing methods are skipped to avoid turning a live audit into
+an unreviewed mutation workflow. This is intentionally narrower than Burp's
+full active scanner; Scrapy/Playwright workers will remain a separate future
+opt-in subsystem.
+
+Implementation: [`audit/service.py`](../src/bidoytu/audit/service.py),
+[`ui/audit_tab.py`](../src/bidoytu/ui/audit_tab.py), and
+[`ui/audit_model.py`](../src/bidoytu/ui/audit_model.py).
+
+The **Vulnerability catalog** sub-section mirrors the six entries currently
+listed in PortSwigger's Scanner catalog: XSS, SQL injection, CSRF, XXE,
+directory traversal, and SSRF. Each local advisory includes aliases, summary,
+impact, detection guidance, prevention, current Bidoytu coverage, and a link
+to the full PortSwigger reference. The catalog is a reference view; it does
+not imply that every entry is automatically confirmed by the live scanner.
+
 ### Collaborator
 
 Collaborator integrates with an Interactsh-compatible out-of-band service. The tab manages registration and polling, displays received interactions, and provides fresh payload hosts to Repeater and Intruder request editors.
+
+After registration, one payload is automatically created and copied to the
+clipboard. Use **New payload** when a separate hostname is needed; bulk payload
+generation is intentionally avoided to keep the workflow simple.
+
+Polling is guarded against overlapping requests and the session is refreshed with
+keep-alive registration. If a session expires, the tab attempts to register a new
+session automatically. HTTPS registration is used by default; HTTP fallback must
+be explicitly enabled for a trusted self-hosted server. Saved Windows sessions
+use the current user's DPAPI protection for the private key and token.
+
+The interaction table supports DNS, HTTP(S), SMTP, LDAP, FTP, SMB, and Responder
+filters. Exports include the original interaction metadata, raw request/response,
+payload label, and request-context note.
 
 Use this feature only with an approved server and an authorized test target. A Collaborator payload is intentionally treated as external content and should not be placed into production traffic without explicit authorization.
 
@@ -148,6 +201,7 @@ flowchart LR
     Window --> UI[PySide6 UI tabs]
     Window --> Proxy[ProxyEngine\nQThread + asyncio]
     Window --> Sender[AsyncHttpSender\nthread + asyncio]
+    Window --> Audit[LiveAuditService\npassive checks]
     Window --> Repo[FlowRepository\nSQLite]
     Window --> Bodies[BodyStore\nlarge bodies]
     Proxy --> Mitm[mitmproxy]
@@ -320,4 +374,4 @@ packaging/                 PyInstaller spec and release documentation
 
 ### Source of truth
 
-This wiki describes the current implementation. When behavior changes, update the relevant source documentation and this page together. The generated architecture map in [`graphify-out/`](../graphify-out/) can be used to explore symbol and file relationships when making larger changes.
+This wiki describes the current implementation. When behavior changes, update the relevant source documentation and this page together.
