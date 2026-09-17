@@ -1892,89 +1892,249 @@ h1 {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
 }
-.attack-top {
+/* Two-section Intruder layout: request template + payload configuration. */
+.attack-split {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.8fr);
-  min-height: 220px;
-  height: 44%;
-  border-bottom: 1px solid var(--hairline);
+  grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.9fr);
+  flex: 1;
+  min-height: 0;
 }
-.attack-top > .editor {
+.attack-request {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
   border-right: 1px solid var(--hairline);
 }
-.payload-panel {
+.payload-point-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  flex-shrink: 0;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--canvas);
+}
+.payload-point-bar .button {
+  min-height: 30px;
+  font-size: 13px;
+  padding: 4px 12px;
+}
+.payload-point-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b6b6b;
+  font: 400 11px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.payload-point-hint svg {
+  color: var(--primary);
+}
+.attack-request > .editor {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Payload configuration panel (mirrors the classic Payloads dialog). */
+.payload-config {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  background: var(--canvas);
 }
-.payload-panel p {
+.payload-config-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.payload-field {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
   font-size: 13px;
+  color: var(--ink);
+}
+.payload-field > label {
+  color: #6b6b6b;
+}
+.payload-field select,
+.payload-field input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: 13px;
+}
+.payload-field select:focus,
+.payload-field input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
+}
+.payload-counts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.payload-counts > div {
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  background: var(--surface-soft);
+}
+.payload-counts em {
+  display: block;
+  color: #6b6b6b;
+  font: 400 11px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+.payload-counts strong {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.payload-section-title {
+  font-size: 13px;
+  font-weight: 480;
+  color: var(--ink);
+  padding-top: 4px;
+  border-top: 1px solid var(--hairline-soft);
+  padding-bottom: 2px;
+}
+.payload-note {
+  font-size: 12px;
   line-height: 1.5;
   color: #6b6b6b;
-  padding: 12px 16px;
 }
-.payload-panel textarea {
-  margin: 0 16px;
-  flex: 1;
-  resize: none;
+.payload-list {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
   font: 400 13px/1.7 var(--mono);
   padding: 12px;
+  border: 1px solid var(--hairline);
   border-radius: var(--r-md);
-  min-height: 50px;
+  background: var(--canvas);
+  color: var(--ink);
 }
-.payload-panel > small {
-  padding: 10px 16px;
+.payload-list:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
+}
+.radio-field .radio-group {
+  display: flex;
+  gap: 18px;
+}
+.radio-field .radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+}
+.payload-footnote {
+  color: #6b6b6b;
   font: 400 11px var(--mono);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
 
-/* Results table */
-.results-panel {
-  overflow: auto;
+/* ---------- Intruder run popup (HTTP history style) ---------- */
+.intruder-run-modal {
+  position: relative;
+  width: min(1100px, calc(100vw - 48px));
+  height: min(760px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  animation: appear 0.18s ease-out;
+}
+.intruder-run-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+.intruder-run-head strong {
+  font-size: 15px;
+  font-weight: 480;
+  color: var(--ink);
+}
+.intruder-run-head .muted {
+  font-size: 13px;
+}
+.intruder-run-head .button {
+  min-height: 30px;
+  font-size: 13px;
+  padding: 4px 14px;
+}
+.intruder-run-body {
+  display: grid;
   flex: 1;
   min-height: 0;
 }
-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-  font-size: 13px;
-}
-th {
-  color: #6b6b6b;
-  font: 400 11px var(--mono);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+.intruder-run-body > .split-handle {
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
   background: var(--surface-soft);
 }
-td,
-th {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--hairline-soft);
+.intruder-run-table {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
-td {
-  color: var(--ink);
-  max-width: 300px;
-  overflow-wrap: anywhere;
+.run-row {
+  display: grid;
+  grid-template-columns: 60px minmax(140px, 2fr) 90px 90px 90px;
+  align-items: center;
+  gap: 8px;
 }
-/* Match the Intruder results rows to the HTTP history row height. */
-.results-panel td,
-.results-panel th {
-  padding: 0 16px;
-  height: 24px;
+.run-scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
 }
-tr:hover td {
+.run-scroll .traffic-row:hover {
   background: var(--surface-soft);
 }
-.results-panel > .empty {
+.run-scroll .traffic-row.selected-row {
+  background: var(--block-lime);
+}
+.run-scroll > .empty {
   height: auto;
   min-height: 160px;
 }
-.results-panel .empty-icon {
-  width: 56px;
-  height: 56px;
-  margin-bottom: 14px;
+.intruder-run-inspector {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.intruder-run-inspector .editor-split {
+  flex: 1;
+  min-height: 0;
+}
+.intruder-run-inspector .editor-split > .editor:first-child {
+  border-right: 1px solid var(--hairline);
 }
 
 /* ---------- Settings + scope ---------- */

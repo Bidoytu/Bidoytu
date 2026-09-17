@@ -296,7 +296,11 @@ function HttpLine({ line, first }: { line: string; first: boolean }) {
       <span className="code-header">
         <span className="tok-header-name">{name}</span>
         <span className="tok-punct">:</span>
-        {isCookie ? <CookieValue value={value} /> : <span className="tok-header-value">{value}</span>}
+        {isCookie ? (
+          <CookieValue value={value} />
+        ) : (
+          <span className="tok-header-value">{value}</span>
+        )}
       </span>
     )
   }
@@ -339,6 +343,7 @@ export function Editor({
   hint,
   actions,
   disabled = false,
+  textareaRef,
 }: {
   title: string
   value: string
@@ -346,6 +351,7 @@ export function Editor({
   hint?: string
   actions?: ReactNode
   disabled?: boolean
+  textareaRef?: React.Ref<HTMLTextAreaElement>
 }) {
   const [view, setView] = useState<EditorView>('pretty')
   const [wrap, setWrap] = useState(true)
@@ -448,6 +454,7 @@ export function Editor({
       <div className="editor-body">
         {editable ? (
           <textarea
+            ref={textareaRef}
             aria-label={`${title} editor`}
             spellCheck={false}
             className={wrap ? 'wrap-editor' : undefined}

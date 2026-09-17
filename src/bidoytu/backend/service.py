@@ -21,6 +21,7 @@ from bidoytu.storage.advanced_history import filter_spec_from_dict
 from bidoytu.storage.models import FlowRecord
 from bidoytu.proxy.engine import ProxyService
 from bidoytu.browser_integration import discover_browsers, launch_browser, stop_browser
+from bidoytu.net.attack import MARKER as PAYLOAD_MARKER, find_markers
 from .storage import Storage, summary
 
 
@@ -179,10 +180,17 @@ class ApplicationService:
         self.job_state = "running"
         self.job_results = []
         self.changed()
+        # A payload position is any span between a pair of § markers. Every
+        # position receives the same payload for a given request (battering-ram
+        # style), so we splice the value into each marker right-to-left to keep
+        # the earlier offsets valid.
+        clean_text, markers = find_markers(str(params["request"]))
         try:
             # Sequential execution deliberately provides predictable rate and cancellation.
             for index, payload in enumerate(params["payloads"]):
-                request = params["request"].replace("§payload§", str(payload))
+                request = clean_text
+                for marker in sorted(markers, key=lambda m: m.start, reverse=True):
+                    request = request[:marker.start] + str(payload) + request[marker.end:]
                 try:
                     result = await self.send({**params, "request": request}, "Intruder")
                     self.job_results.append({"index": index + 1, "payload": payload, **summary_from_detail(result)})
@@ -290,8 +298,9 @@ class ApplicationService:
             payloads = p.get("payloads", [])
             if not isinstance(payloads, list) or not 1 <= len(payloads) <= 1000 or any(not isinstance(v, str) or len(v) > 4096 for v in payloads):
                 raise ValueError("Provide 1–1000 text payloads, each up to 4096 characters")
-            if "§payload§" not in str(p.get("request", "")):
-                raise ValueError("Place §payload§ in the request template")
+            _, markers = find_markers(str(p.get("request", "")))
+            if not markers:
+                raise ValueError("Mark at least one payload position with § markers")
             self.job_state = "running"
             self.jobs["intruder"] = asyncio.create_task(self._run_job(p))
             return True

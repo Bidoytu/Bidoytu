@@ -39,12 +39,56 @@ export type RepeaterGroup = {
   tabIds: number[]
   collapsed: boolean
 }
+export type PayloadType =
+  | 'Simple list'
+  | 'Runtime file'
+  | 'Custom iterator'
+  | 'Character substitution'
+  | 'Case modification'
+  | 'Recursive grep'
+  | 'Illegal Unicode'
+  | 'Character blocks'
+  | 'Numbers'
+  | 'Dates'
+  | 'Brute forcer'
+  | 'Null payloads'
+  | 'Character frobber'
+  | 'Bit flipper'
+  | 'Username generator'
+export type NumberFormat = { base: 'Decimal' | 'Hex' }
+export type PayloadConfig = {
+  position: string
+  type: PayloadType
+  // Simple list
+  list: string
+  // Numbers
+  numberType: 'Sequential' | 'Random'
+  from: number
+  to: number
+  step: number
+  howMany: number
+  numberBase: 'Decimal' | 'Hex'
+  minIntegerDigits: number
+  maxIntegerDigits: number
+  // Dates
+  dateFrom: string
+  dateTo: string
+  dateStep: number
+  dateFormat: string
+  // Brute forcer
+  charset: string
+  minLength: number
+  maxLength: number
+  // Null payloads
+  nullCount: number
+}
 export type IntruderTab = {
   id: number
   name: string
   url: string
   request: string
   payloads: string
+  config: PayloadConfig
   results: JobResult[]
 }
 export type ProxyView = 'History' | 'Intercept'
@@ -105,14 +149,158 @@ function nextRepeaterCopyName(name: string, tabs: RepeaterTab[]) {
   while (used.has(index)) index += 1
   return `${stem} (${index})`
 }
+export const defaultPayloadConfig = (): PayloadConfig => ({
+  position: 'All payload positions',
+  type: 'Simple list',
+  list: '',
+  numberType: 'Sequential',
+  from: 1,
+  to: 100,
+  step: 1,
+  howMany: 0,
+  numberBase: 'Decimal',
+  minIntegerDigits: 0,
+  maxIntegerDigits: 2,
+  dateFrom: '2020-01-01',
+  dateTo: '2020-12-31',
+  dateStep: 1,
+  dateFormat: 'yyyy-MM-dd',
+  charset: 'abcdefghijklmnopqrstuvwxyz0123456789',
+  minLength: 1,
+  maxLength: 3,
+  nullCount: 10,
+})
 export const newIntruderTab = (id: number): IntruderTab => ({
   id,
   name: `Attack ${id}`,
   url: 'https://example.com',
-  request: 'GET /?q=§payload§ HTTP/1.1\r\nHost: example.com\r\n\r\n',
+  request: 'GET /?q=§value§ HTTP/1.1\r\nHost: example.com\r\n\r\n',
   payloads: '',
+  config: defaultPayloadConfig(),
   results: [],
 })
+
+// Count the number of payload positions in a request template. A position is
+// any span between a pair of § markers (an unpaired trailing § is ignored).
+export function countPayloadPositions(request: string): number {
+  const matches = request.match(/§[^§]*§/g)
+  return matches ? matches.length : 0
+}
+
+function pad(value: string, length: number): string {
+  return value.length >= length ? value : '0'.repeat(length - value.length) + value
+}
+
+// Deterministically build the list of payload strings from a payload config.
+// The backend accepts a flat list of strings, so every payload type is
+// materialised client-side into that list (capped at 1000 to match the engine).
+export function generatePayloads(config: PayloadConfig): string[] {
+  const cap = 1000
+  const clamp = (values: string[]) => values.slice(0, cap)
+  switch (config.type) {
+    case 'Numbers': {
+      const values: string[] = []
+      const format = (n: number) => {
+        if (config.numberBase === 'Hex') {
+          const hex = Math.round(n).toString(16)
+          return pad(hex, config.minIntegerDigits)
+        }
+        return pad(String(Math.round(n)), config.minIntegerDigits)
+      }
+      if (config.numberType === 'Random') {
+        const count = Math.max(1, Math.min(cap, Math.round(config.howMany) || 1))
+        const lo = Math.min(config.from, config.to)
+        const hi = Math.max(config.from, config.to)
+        for (let i = 0; i < count; i += 1) {
+          values.push(format(lo + Math.random() * (hi - lo)))
+        }
+        return values
+      }
+      const step = config.step || 1
+      const ascending = config.to >= config.from
+      for (
+        let n = config.from;
+        (ascending ? n <= config.to : n >= config.to) && values.length < cap;
+        n += ascending ? Math.abs(step) : -Math.abs(step)
+      ) {
+        values.push(format(n))
+        if (step === 0) break
+      }
+      return values
+    }
+    case 'Dates': {
+      const values: string[] = []
+      const start = new Date(config.dateFrom)
+      const end = new Date(config.dateTo)
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return []
+      const step = Math.max(1, Math.round(config.dateStep) || 1)
+      for (
+        let d = new Date(start);
+        d.getTime() <= end.getTime() && values.length < cap;
+        d.setDate(d.getDate() + step)
+      ) {
+        const yyyy = String(d.getFullYear())
+        const mm = pad(String(d.getMonth() + 1), 2)
+        const dd = pad(String(d.getDate()), 2)
+        values.push(config.dateFormat.replace('yyyy', yyyy).replace('MM', mm).replace('dd', dd))
+      }
+      return values
+    }
+    case 'Null payloads': {
+      const count = Math.max(1, Math.min(cap, Math.round(config.nullCount) || 1))
+      return Array.from({ length: count }, () => '')
+    }
+    case 'Brute forcer': {
+      const chars = Array.from(config.charset)
+      if (!chars.length) return []
+      const values: string[] = []
+      const minLen = Math.max(1, config.minLength)
+      const maxLen = Math.max(minLen, config.maxLength)
+      const build = (prefix: string, length: number) => {
+        if (values.length >= cap) return
+        if (prefix.length === length) {
+          values.push(prefix)
+          return
+        }
+        for (const c of chars) {
+          if (values.length >= cap) return
+          build(prefix + c, length)
+        }
+      }
+      for (let length = minLen; length <= maxLen && values.length < cap; length += 1) {
+        build('', length)
+      }
+      return values
+    }
+    case 'Username generator': {
+      // Treat each input line as a full name and derive common username forms.
+      const names = config.list
+        .split('\n')
+        .map((n) => n.trim())
+        .filter(Boolean)
+      const values: string[] = []
+      for (const name of names) {
+        const parts = name.toLowerCase().split(/\s+/)
+        const first = parts[0] ?? ''
+        const last = parts[parts.length - 1] ?? ''
+        const forms = new Set<string>([
+          name.toLowerCase().replace(/\s+/g, ''),
+          first,
+          last,
+          first && last ? `${first}.${last}` : '',
+          first && last ? `${first}${last}` : '',
+          first && last ? `${first[0]}${last}` : '',
+          first && last ? `${first}_${last}` : '',
+        ])
+        for (const form of forms) if (form) values.push(form)
+      }
+      return clamp(values)
+    }
+    default:
+      // Simple list and every list-backed type share the textarea input.
+      return clamp(config.list.split('\n').filter((line) => line.length > 0))
+  }
+}
 
 export function useWorkspace() {
   const [view, setView] = useState<View>('Proxy')
@@ -160,6 +348,11 @@ export function useWorkspace() {
   const [activeIntruderTab, setActiveIntruderTab] = useState(1)
   const intruderSequence = useRef(1)
   const [intruderRunningId, setIntruderRunningId] = useState<number | null>(null)
+  const [showIntruderRun, setShowIntruderRun] = useState(false)
+  const [runSelectedIndex, setRunSelectedIndex] = useState<number | null>(null)
+  const [runDetail, setRunDetail] = useState<Detail | null>(null)
+  const [runDetailLoading, setRunDetailLoading] = useState(false)
+  const runDetailSequence = useRef(0)
   const [showHelp, setShowHelp] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     typeof localStorage !== 'undefined' && localStorage.getItem('bidoytu.theme') === 'dark'
@@ -275,6 +468,17 @@ export function useWorkspace() {
               ...newIntruderTab(tab.id),
               ...tab,
               payloads: typeof tab.payloads === 'string' ? tab.payloads : '',
+              config: {
+                ...defaultPayloadConfig(),
+                ...(tab.config && typeof tab.config === 'object' ? tab.config : {}),
+                // Older sessions only stored `payloads`; seed the Simple list.
+                list:
+                  tab.config && typeof tab.config.list === 'string'
+                    ? tab.config.list
+                    : typeof tab.payloads === 'string'
+                      ? tab.payloads
+                      : '',
+              },
               results: [],
             })),
           )
@@ -306,12 +510,13 @@ export function useWorkspace() {
             historyIndex,
           })),
           groups,
-          intruderTabs: intruderTabs.map(({ id, name, url, request, payloads }) => ({
+          intruderTabs: intruderTabs.map(({ id, name, url, request, payloads, config }) => ({
             id,
             name,
             url,
             request,
             payloads,
+            config,
           })),
           port,
           verifyTLS,
@@ -706,16 +911,37 @@ export function useWorkspace() {
   function setPayloads(value: string) {
     updateIntruderTab({ payloads: value })
   }
+  function setPayloadConfig(patch: Partial<PayloadConfig>) {
+    updateIntruderTab({ config: { ...intruderTab.config, ...patch } })
+  }
   function setResults(value: JobResult[]) {
     updateIntruderTab({ results: value })
   }
+  // Wrap the current selection in the request template with the payload
+  // marker. Falls back to inserting an empty marker at the caret when nothing
+  // is selected.
+  function addPayloadPoint(start: number, end: number) {
+    const request = intruderTab.request
+    const before = request.slice(0, start)
+    const selected = request.slice(start, end)
+    const after = request.slice(end)
+    updateIntruderTab({ request: `${before}§${selected}§${after}` })
+  }
+  function clearPayloadPoints() {
+    updateIntruderTab({ request: intruderTab.request.replace(/§([^§]*)§/g, '$1') })
+  }
   async function startIntruder() {
     const tab = intruderTab
+    const payloads = generatePayloads(tab.config)
+    if (!payloads.length) {
+      setError('Add at least one payload value before starting a run.')
+      return
+    }
     try {
       await api.request('intruder.start', {
         url: tab.url,
         request: tab.request,
-        payloads: tab.payloads.split('\n').filter(Boolean),
+        payloads,
         verify_tls: verifyTLS,
       })
     } catch (e) {
@@ -725,6 +951,26 @@ export function useWorkspace() {
     setIntruderRunningId(tab.id)
     updateIntruderTab({ results: [] }, tab.id)
     setState((s) => ({ ...s, job_state: 'running' }))
+    setRunSelectedIndex(null)
+    setRunDetail(null)
+    setShowIntruderRun(true)
+  }
+  // Load a single result's request/response for the run popup, mirroring the
+  // history detail behaviour.
+  async function selectRunResult(result: JobResult) {
+    setRunSelectedIndex(result.index)
+    if (!result.flow_id) {
+      setRunDetail(null)
+      return
+    }
+    const sequence = ++runDetailSequence.current
+    setRunDetail(null)
+    setRunDetailLoading(true)
+    await run(async () => {
+      const detail = await api.request<Detail>('history.detail', { flow_id: result.flow_id })
+      if (sequence === runDetailSequence.current) setRunDetail(detail)
+    })
+    if (sequence === runDetailSequence.current) setRunDetailLoading(false)
   }
   async function toggleProxy() {
     setBusy(true)
@@ -895,6 +1141,12 @@ export function useWorkspace() {
     setAttackUrl,
     payloads: intruderTab.payloads,
     setPayloads,
+    payloadConfig: intruderTab.config,
+    setPayloadConfig,
+    addPayloadPoint,
+    clearPayloadPoints,
+    payloadCount: generatePayloads(intruderTab.config).length,
+    payloadPositions: countPayloadPositions(intruderTab.request),
     results: intruderTab.results,
     setResults,
     intruderTabs,
@@ -908,6 +1160,12 @@ export function useWorkspace() {
     startIntruder,
     duplicateIntruderTab,
     repeaterToIntruder,
+    showIntruderRun,
+    setShowIntruderRun,
+    runSelectedIndex,
+    runDetail,
+    runDetailLoading,
+    selectRunResult,
     showHelp,
     setShowHelp,
     theme,
