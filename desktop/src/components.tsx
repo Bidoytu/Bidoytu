@@ -353,6 +353,7 @@ export function Editor({
   const [copyFailed, setCopyFailed] = useState(false)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(900)
+  const [editScroll, setEditScroll] = useState({ top: 0, left: 0 })
   const viewport = useRef<HTMLDivElement>(null)
   const prettyText = useMemo(
     () => (view === 'pretty' ? formatMessage(value) : value),
@@ -447,14 +448,34 @@ export function Editor({
       </div>
       <div className="editor-body">
         {editable ? (
-          <textarea
-            aria-label={`${title} editor`}
-            spellCheck={false}
-            className={wrap ? 'wrap-editor' : undefined}
-            value={editorValue}
-            onChange={(e) => onChange?.(e.target.value)}
-            disabled={disabled}
-          />
+          <div className="editable-code-wrap">
+            <div
+              aria-hidden="true"
+              className={wrap ? 'editable-code-highlight wrap-editor' : 'editable-code-highlight'}
+              style={{ transform: `translate(${-editScroll.left}px, ${-editScroll.top}px)` }}
+            >
+              {editorValue ? (
+                editorValue.split('\n').map((line, index) => (
+                  <div className="editable-code-line" key={index}>
+                    <HttpLine line={line} first={index === 0} />
+                  </div>
+                ))
+              ) : (
+                <span> </span>
+              )}
+            </div>
+            <textarea
+              aria-label={`${title} editor`}
+              spellCheck={false}
+              className={wrap ? 'wrap-editor' : undefined}
+              value={editorValue}
+              onScroll={(e) =>
+                setEditScroll({ top: e.currentTarget.scrollTop, left: e.currentTarget.scrollLeft })
+              }
+              onChange={(e) => onChange?.(e.target.value)}
+              disabled={disabled}
+            />
+          </div>
         ) : view === 'hex' ? (
           <div
             ref={viewport}

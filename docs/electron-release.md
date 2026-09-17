@@ -20,6 +20,8 @@ npm run test:e2e
 Remove-Item Env:BIDOYTU_PACKAGED
 ```
 
-The existing GitHub release workflow now bundles the hybrid application on Windows and Linux. Feature branches and pull requests run checks without publishing. Existing `main` and version-tag release triggers are retained. Python distributions contain the backend and optional legacy UI; the Electron runtime is delivered in desktop artifacts, not the Python wheel.
+The GitHub release workflow bundles the hybrid application on Windows and Linux. A push to `main` updates the rolling pre-release tagged `latest`; pushing a `v*` tag creates a permanent versioned release. Windows publishes an NSIS `.exe` installer and Linux publishes an `.AppImage`. Feature branches and pull requests run checks without publishing. Python distributions contain the backend and optional legacy UI; the Electron runtime is delivered in desktop artifacts, not the Python wheel.
+
+The Electron package uses ASAR and maximum compression, removes package scripts from the runtime archive, and includes only `desktop/electron`, the built renderer, and the packaged Python sidecar. The sidecar spec also excludes unused Qt modules, plugins, translations, and large transitive packages to keep release artifacts small.
 
 Keep `package.json`, `pyproject.toml`, and `src/bidoytu/__init__.py` versions aligned. Supply signing credentials through the release environment for trusted distribution; a successful local build alone is not proof of a signed/notarized release. No signing secrets are stored in this repository. The older `packaging/bidoytu.spec` and `build_release.md` procedures describe Qt compatibility builds.

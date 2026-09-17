@@ -1088,6 +1088,44 @@ h1 {
   white-space: pre;
   tab-size: 2;
 }
+.editable-code-wrap {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--canvas);
+}
+.editable-code-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 100%;
+  padding: 16px;
+  font: 400 13px/1.7 var(--mono);
+  white-space: pre;
+  pointer-events: none;
+}
+.editable-code-highlight.wrap-editor {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.editable-code-line {
+  min-height: 22px;
+  line-height: 22px;
+}
+.editable-code-wrap textarea {
+  position: relative;
+  z-index: 1;
+  color: transparent;
+  caret-color: var(--ink);
+  background: transparent;
+  text-shadow: none;
+}
+.editable-code-wrap textarea::selection {
+  color: transparent;
+  background: var(--primary);
+}
 .editor-body textarea.wrap-editor {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

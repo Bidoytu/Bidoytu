@@ -46,6 +46,9 @@
     "directories": {
       "output": "release"
     },
+    "asar": true,
+    "compression": "maximum",
+    "removePackageScripts": true,
     "files": [
       "desktop/electron/**",
       "desktop/dist/**",

@@ -36,10 +36,10 @@ to main.
 
 3. The `Release` workflow runs, builds both OSes, and creates a
    **Bidoytu v1.0.0** release with two downloads:
-   - `bidoytu-windows.zip`
-   - `bidoytu-linux.zip`
+   - the Windows `.exe` installer
+   - the Linux `.AppImage` package
 
-4. Users unzip and run the `bidoytu` executable inside.
+4. Users run the Windows installer or mark the Linux AppImage executable and launch it.
 
 For later versions, bump the two version fields and push a new `vX.Y.Z` tag.
 

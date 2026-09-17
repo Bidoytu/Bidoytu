@@ -97,6 +97,18 @@ class MessageView(QPlainTextEdit):
         self.updateRequest.connect(self._update_line_number_area)
         self._update_line_number_area_width()
 
+    def setPlainText(self, text: str) -> None:  # noqa: N802 (Qt override)
+        """Set raw message text and immediately apply HTTP highlighting.
+
+        Most panes use :meth:`show_message`, but editable/intermediate views
+        also receive complete raw messages through ``setPlainText``. Keeping
+        the re-highlight here makes the shared ``MessageView`` contract hold
+        for every request/response surface, regardless of which caller
+        populated it.
+        """
+        super().setPlainText(text)
+        self._highlighter.rehighlight()
+
     def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt override)
         # Pin the minimum width small so a long unwrapped line can never force
         # the containing splitter/window to grow horizontally. Height keeps the
