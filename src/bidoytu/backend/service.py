@@ -15,6 +15,7 @@ from urllib.parse import quote, unquote, urlsplit
 import httpx
 
 from bidoytu.audit.service import LiveAuditService
+from bidoytu.collaborator.service import CollaboratorService, OAST_SERVERS
 from bidoytu.config import AppConfig, host_matches_scope
 from bidoytu.http_utils import parse_request_text
 from bidoytu.storage.advanced_history import filter_spec_from_dict
@@ -51,6 +52,7 @@ class ApplicationService:
         self.audit = LiveAuditService()
         self.audit.set_enabled(False)
         self.audit_enabled = False
+        self.collaborator = CollaboratorService(self.changed, not self.config.proxy.ssl_insecure)
         self.findings: dict[str, dict] = {}
         self.clients: dict[bool, httpx.AsyncClient] = {}
         self.jobs: dict[str, asyncio.Task] = {}
@@ -413,6 +415,25 @@ class ApplicationService:
             # to unlink locked SQLite files (EBUSY).
             await self._stop_browsers()
             return True
+        if method == "collaborator.servers":
+            return {"servers": list(OAST_SERVERS), "status": self.collaborator.status()}
+        if method == "collaborator.register":
+            server = str(p.get("server", "")).strip()[:253]
+            token = str(p.get("token", "")).strip()
+            return await self.collaborator.register(server, token)
+        if method == "collaborator.generate":
+            return self.collaborator.generate_domain()
+        if method == "collaborator.poll":
+            return await self.collaborator.poll_now()
+        if method == "collaborator.status":
+            return self.collaborator.status()
+        if method == "collaborator.interactions":
+            return {"items": self.collaborator.interactions, "status": self.collaborator.status()}
+        if method == "collaborator.clear":
+            self.collaborator.clear()
+            return self.collaborator.status()
+        if method == "collaborator.stop":
+            return await self.collaborator.stop()
         raise ValueError(f"Unknown method: {method}")
 
     async def _stop_browsers(self):
@@ -424,6 +445,7 @@ class ApplicationService:
         for task in self.jobs.values():
             task.cancel()
         await asyncio.gather(*self.jobs.values(), return_exceptions=True)
+        await self.collaborator.close()
         await self.proxy.stop()
         await self._stop_browsers()
         await self.queue.join()

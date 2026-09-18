@@ -2,6 +2,7 @@ import {
   ArrowLeftRight,
   Code2,
   Crosshair,
+  Radar,
   Radio,
   Send,
   Settings2,
@@ -16,10 +17,25 @@ import {
   historyFilterPayload,
   type HistoryFilters,
 } from '../historyFilters'
-import type { Detail, EngineState, Finding, Flow, JobResult } from '../types'
+import type {
+  Detail,
+  EngineState,
+  Finding,
+  Flow,
+  JobResult,
+  OastInteraction,
+  OastStatus,
+} from '../types'
 
 export type View =
-  'Proxy' | 'Repeater' | 'Intruder' | 'Scope' | 'Live audit' | 'Decoder' | 'Settings'
+  | 'Proxy'
+  | 'Repeater'
+  | 'Intruder'
+  | 'Collaborator'
+  | 'Scope'
+  | 'Live audit'
+  | 'Decoder'
+  | 'Settings'
 export type RepeaterTab = {
   id: number
   name: string
@@ -148,6 +164,7 @@ export const icons = {
   Proxy: Radio,
   Repeater: Send,
   Intruder: Zap,
+  Collaborator: Radar,
   Scope: Crosshair,
   'Live audit': ShieldCheck,
   Decoder: Code2,
@@ -157,6 +174,7 @@ export const descriptions: Record<View, string> = {
   Proxy: 'Capture, inspect, and shape traffic in flight.',
   Repeater: 'Refine a request. Explore the response.',
   Intruder: 'Controlled payload testing, powered by Python.',
+  Collaborator: 'Detect out-of-band interactions with OAST domains.',
   Scope: 'Define the boundaries of your investigation.',
   'Live audit': 'Evidence from the traffic you already capture.',
   Decoder: 'Make encoded data readable.',
@@ -421,6 +439,13 @@ export function useWorkspace() {
   const [include, setInclude] = useState('')
   const [exclude, setExclude] = useState('')
   const [findings, setFindings] = useState<Finding[]>([])
+  const [oastServers, setOastServers] = useState<string[]>([])
+  const [oastServer, setOastServer] = useState('')
+  const [oastToken, setOastToken] = useState('')
+  const [oastStatus, setOastStatus] = useState<OastStatus | null>(null)
+  const [oastInteractions, setOastInteractions] = useState<OastInteraction[]>([])
+  const [oastSelected, setOastSelected] = useState<string | null>(null)
+  const [oastBusy, setOastBusy] = useState(false)
   const [decoderInput, setDecoderInput] = useState('')
   const [decoderOutput, setDecoderOutput] = useState('')
   const [operation, setOperation] = useState('base64.decode')
@@ -763,7 +788,29 @@ export function useWorkspace() {
           prev.map((tab) => (tab.id === intruderRunningId ? { ...tab, results: result.items } : tab)),
         )
       })
+    if (view === 'Collaborator')
+      void run(async () => {
+        const result = await api.request<{
+          items: OastInteraction[]
+          status: OastStatus
+        } | null>('collaborator.interactions')
+        if (!result) return
+        setOastInteractions(result.items)
+        setOastStatus(result.status)
+      })
   }, [view, online, revision, run, intruderRunningId])
+  useEffect(() => {
+    if (!online || view !== 'Collaborator' || oastServers.length) return
+    void run(async () => {
+      const result = await api.request<{ servers: string[]; status: OastStatus } | null>(
+        'collaborator.servers',
+      )
+      if (!result) return
+      setOastServers(result.servers)
+      setOastStatus(result.status)
+      setOastServer((prev) => prev || result.status.server || result.servers[0] || '')
+    })
+  }, [online, view, run, oastServers.length])
   useEffect(() => {
     if (!notice) return
     const timer = setTimeout(() => setNotice(''), 3500)
@@ -1113,6 +1160,70 @@ export function useWorkspace() {
     setRunDetail(null)
     setShowIntruderRun(true)
   }
+  async function registerOast() {
+    if (!oastServer) {
+      setError('Choose an OAST server before registering.')
+      return
+    }
+    setOastBusy(true)
+    await run(async () => {
+      const status = await api.request<OastStatus>('collaborator.register', {
+        server: oastServer,
+        token: oastToken,
+      })
+      setOastStatus(status)
+      setOastInteractions([])
+      setNotice(`Registered with ${status.server}`)
+    })
+    setOastBusy(false)
+  }
+  async function generateOastDomain() {
+    setOastBusy(true)
+    await run(async () => {
+      await api.request('collaborator.generate')
+      const result = await api.request<{ items: OastInteraction[]; status: OastStatus }>(
+        'collaborator.interactions',
+      )
+      setOastInteractions(result.items)
+      setOastStatus(result.status)
+      const domain = result.status.domains[0]?.domain
+      if (domain) {
+        setOastSelected(domain)
+        void api.copyText(domain)
+        setNotice('Copied new OAST domain to clipboard')
+      }
+    })
+    setOastBusy(false)
+  }
+  async function pollOastNow() {
+    setOastBusy(true)
+    await run(async () => {
+      await api.request('collaborator.poll')
+      const result = await api.request<{ items: OastInteraction[]; status: OastStatus }>(
+        'collaborator.interactions',
+      )
+      setOastInteractions(result.items)
+      setOastStatus(result.status)
+    })
+    setOastBusy(false)
+  }
+  async function clearOastInteractions() {
+    await run(async () => {
+      const status = await api.request<OastStatus>('collaborator.clear')
+      setOastStatus(status)
+      setOastInteractions([])
+    })
+  }
+  async function stopOast() {
+    setOastBusy(true)
+    await run(async () => {
+      const status = await api.request<OastStatus>('collaborator.stop')
+      setOastStatus(status)
+      setOastInteractions([])
+      setOastSelected(null)
+    })
+    setOastBusy(false)
+  }
   // Load a single result's request/response for the run popup, mirroring the
   // history detail behaviour.
   async function selectRunResult(result: JobResult) {
@@ -1287,6 +1398,21 @@ export function useWorkspace() {
     setExclude,
     findings,
     setFindings,
+    oastServers,
+    oastServer,
+    setOastServer,
+    oastToken,
+    setOastToken,
+    oastStatus,
+    oastInteractions,
+    oastSelected,
+    setOastSelected,
+    oastBusy,
+    registerOast,
+    generateOastDomain,
+    pollOastNow,
+    clearOastInteractions,
+    stopOast,
     decoderInput,
     setDecoderInput,
     decoderOutput,

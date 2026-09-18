@@ -1,8 +1,6 @@
 import {
   ArrowRight,
   Bookmark,
-  ChevronLeft,
-  ChevronRight,
   Crosshair,
   Globe2,
   LoaderCircle,
@@ -14,7 +12,6 @@ import {
   ArrowUp,
   ArrowUpDown,
   Trash2,
-  X,
 } from 'lucide-react'
 import { api } from '../api'
 import {
@@ -27,7 +24,6 @@ import {
   duration,
   useContextMenu,
 } from '../components'
-import { filterChips } from '../historyFilters'
 import { HistoryFilterModal } from './HistoryFilterModal'
 
 import type { WorkspaceController } from '../hooks/useWorkspace'
@@ -50,8 +46,6 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
     historySort,
     setHistorySort,
     clearHistory,
-    page,
-    setPage,
     selected,
     setSelected,
     loadingDetail,
@@ -74,7 +68,6 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
     resize,
   } = workspace
   const ctx = useContextMenu()
-  const chips = filterChips(filters)
   const sortHeader = (key: typeof historySort.key, label: string) => {
     const active = historySort.key === key
     const SortIcon = active ? (historySort.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
@@ -151,25 +144,6 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
             Clear history
           </Button>
         </div>
-        {chips.length > 0 && (
-          <div className="filter-chips">
-            <span className="filter-chips-label">Active</span>
-            {chips.map((chip) => (
-              <button
-                key={chip.id}
-                className="filter-chip"
-                title={`Remove filter: ${chip.label}`}
-                onClick={() => updateFilters(chip.clear)}
-              >
-                {chip.label}
-                <X size={11} />
-              </button>
-            ))}
-            <button className="filter-chip-clear" onClick={resetFilters}>
-              Clear all
-            </button>
-          </div>
-        )}
         <div className="traffic-header traffic-row">
           {sortHeader('id', '#')}
           {sortHeader('method', 'Method')}
@@ -278,42 +252,6 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
               )}
             </Empty>
           )}
-        </div>
-        <div className="table-footer">
-          <span>
-            <span className={`dot ${state.running ? 'green' : ''}`} />
-            {state.running ? 'Live capture' : 'Capture paused'}
-            <span className="footer-separator">/</span>
-            {total !== unfilteredTotal ? (
-              <span>
-                <strong>{total.toLocaleString()}</strong> of {unfilteredTotal.toLocaleString()}{' '}
-                requests
-              </span>
-            ) : (
-              <span>
-                <strong>{total.toLocaleString()}</strong> requests
-              </span>
-            )}
-          </span>
-          <div className="inline">
-            <span>
-              {total ? `${page * 100 + 1}–${Math.min((page + 1) * 100, total)}` : '0'} of {total}
-            </span>
-            <button
-              aria-label="Previous page"
-              disabled={page === 0}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <button
-              aria-label="Next page"
-              disabled={(page + 1) * 100 >= total}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
         </div>
       </section>
       <div

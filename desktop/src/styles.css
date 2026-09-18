@@ -1074,8 +1074,12 @@ h1 {
   top: 0;
   left: 0;
   min-width: 100%;
-  padding: 16px;
-  font: 400 13px/1.7 var(--mono);
+  padding: 12px;
+  /* Must match .editable-code-wrap textarea EXACTLY (font, size, line-height,
+     padding) so the transparent caret sits on the same glyph the highlight
+     paints. line-height is an integer px — a unitless/fractional value drifts
+     the caret one line per few dozen lines. */
+  font: 400 12px/18px var(--mono);
   white-space: pre;
   pointer-events: none;
 }
@@ -1085,12 +1089,22 @@ h1 {
   word-break: break-word;
 }
 .editable-code-line {
-  min-height: 22px;
-  line-height: 22px;
+  /* One text row = one line-height. No min-height override: forcing a height
+     that differs from the textarea's line-height is what caused caret drift. */
+  height: 18px;
+  line-height: 18px;
+}
+.editable-code-highlight.wrap-editor .editable-code-line {
+  /* Wrapped rows can span multiple line-heights; let them grow. */
+  height: auto;
+  min-height: 18px;
 }
 .editable-code-wrap textarea {
   position: relative;
   z-index: 1;
+  /* Metrics MUST match .editable-code-highlight exactly (see note there). */
+  padding: 12px;
+  font: 400 12px/18px var(--mono);
   color: transparent;
   caret-color: var(--ink);
   background: transparent;
@@ -3131,4 +3145,191 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.4px;
   color: #6b6b6b;
+}
+
+/* ---------- Collaborator (OAST) ---------- */
+.collaborator-toolbar .collaborator-token {
+  max-width: 260px;
+  flex: 0 1 260px;
+}
+.oast-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: #6b6b6b;
+  white-space: nowrap;
+}
+.oast-status.live {
+  color: var(--ink);
+}
+.oast-error {
+  margin: 10px 16px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--accent-magenta);
+  border-radius: var(--r-md);
+  color: var(--accent-magenta);
+  font-size: 13px;
+}
+.oast-domains {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--canvas);
+  flex-shrink: 0;
+}
+.oast-domains .panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.oast-hint {
+  margin: 0;
+  padding: 8px 16px 14px;
+  font-size: 13px;
+  color: #6b6b6b;
+  line-height: 1.6;
+}
+.oast-domain-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 160px;
+  overflow: auto;
+}
+.oast-domain-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+}
+.oast-domain-list code {
+  flex: 1;
+  min-width: 0;
+  font: 400 13px var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.oast-hits {
+  font: 400 11px var(--mono);
+  color: var(--success);
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--success) 45%, var(--canvas));
+  border-radius: var(--r-pill);
+}
+.oast-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(340px, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+.oast-interactions {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--hairline);
+  background: var(--canvas);
+}
+.oast-interactions .panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.oast-interactions .panel-actions .button {
+  min-height: 22px;
+  padding: 2px 8px;
+  font-size: 12px;
+  gap: 5px;
+}
+.oast-interactions .panel-actions .button svg {
+  width: 12px;
+  height: 12px;
+}
+.oast-table {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.oast-row {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  font-size: 13px;
+  text-align: left;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--hairline-soft, var(--hairline));
+  background: var(--canvas);
+  color: var(--ink);
+  cursor: pointer;
+}
+.oast-row.oast-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  cursor: default;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #6b6b6b;
+}
+.oast-rows {
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+.oast-row:not(.oast-head):hover {
+  background: color-mix(in srgb, var(--ink) 5%, var(--canvas));
+}
+.oast-row.active {
+  background: color-mix(in srgb, var(--ink) 9%, var(--canvas));
+}
+.oast-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.oast-fullid {
+  font: 400 12px var(--mono);
+  color: #6b6b6b;
+}
+.oast-proto {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--hairline);
+  font: 500 11px var(--mono);
+  letter-spacing: 0.3px;
+}
+.oast-proto.proto-dns {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--canvas));
+  color: var(--success);
+}
+.oast-proto.proto-http,
+.oast-proto.proto-https {
+  border-color: color-mix(in srgb, var(--accent-magenta) 45%, var(--canvas));
+  color: var(--accent-magenta);
+}
+.oast-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--canvas);
+}
+.oast-detail > * {
+  flex: 1;
+  min-height: 0;
+}
+.oast-detail > *:first-child {
+  border-bottom: 1px solid var(--hairline);
 }

@@ -212,6 +212,9 @@ else {
           'intruder.results',
           'audit.list',
           'workspace.load',
+          'collaborator.servers',
+          'collaborator.status',
+          'collaborator.interactions',
         ])
         if (idleSafe.has(method)) return null
         throw new Error('Open a session before using the workspace.')

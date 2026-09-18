@@ -63,6 +63,33 @@ export type JobResult = {
   response_body_size?: number
   error?: string
 }
+export type OastDomain = {
+  id: number
+  domain: string
+  created_at: number
+  hits: number
+}
+export type OastStatus = {
+  active: boolean
+  server: string
+  domains: OastDomain[]
+  interaction_count: number
+  poll_interval: number
+  last_poll: number | null
+  error: string
+}
+export type OastInteraction = {
+  protocol: string
+  unique_id: string
+  full_id: string
+  remote_address: string
+  timestamp: string
+  q_type: string | null
+  raw_request: string | null
+  raw_response: string | null
+  smtp_from: string | null
+  received_at: number
+}
 export type EngineEvent =
   { type: 'changed'; data: EngineState } | { type: 'ready'; data: EngineState } | { type: 'offline'; message: string }
 export type WorkspaceSession = {

@@ -18,6 +18,7 @@ import { Button } from './components'
 
 import { icons, useWorkspace, type View } from './hooks/useWorkspace'
 import { AuditView } from './views/AuditView'
+import { CollaboratorView } from './views/CollaboratorView'
 import { DecoderView } from './views/DecoderView'
 import { IntruderView } from './views/IntruderView'
 import { ProxyView } from './views/ProxyView'
@@ -241,7 +242,7 @@ export function App() {
       <aside className="sidebar">
         <div className="nav-label">WORKSPACE</div>
         <nav>
-          {(['Proxy', 'Repeater', 'Intruder'] as View[]).map((item) => {
+          {(['Proxy', 'Repeater', 'Intruder', 'Collaborator'] as View[]).map((item) => {
             const NavIcon = icons[item]
             return (
               <button
@@ -325,6 +326,7 @@ export function App() {
         )}
         {view === 'Repeater' && <RepeaterView workspace={workspace} />}
         {view === 'Intruder' && <IntruderView workspace={workspace} />}
+        {view === 'Collaborator' && <CollaboratorView workspace={workspace} />}
         {view === 'Scope' && <ScopeView workspace={workspace} />}
         {view === 'Live audit' && <AuditView workspace={workspace} />}
         {view === 'Decoder' && <DecoderView workspace={workspace} />}

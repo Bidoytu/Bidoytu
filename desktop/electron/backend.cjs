@@ -25,6 +25,14 @@ const METHODS = new Set([
   'browser.list',
   'browser.open',
   'browser.stop',
+  'collaborator.servers',
+  'collaborator.register',
+  'collaborator.generate',
+  'collaborator.poll',
+  'collaborator.status',
+  'collaborator.interactions',
+  'collaborator.clear',
+  'collaborator.stop',
 ])
 
 class Backend extends EventEmitter {
