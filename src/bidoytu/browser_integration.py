@@ -186,18 +186,53 @@ def launch_browser(browser: BrowserInfo, host: str, port: int, profile_dir: Path
     popen_kwargs = {"close_fds": (os.name != "nt"), "start_new_session": True}
     if os.name == "nt":
         popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    return subprocess.Popen(args, **popen_kwargs), trust_method
+    process = subprocess.Popen(args, **popen_kwargs)
+    # Firefox may replace the initial process with another firefox.exe while
+    # keeping the isolated profile open. Keep the profile path with the
+    # handle so shutdown can find that replacement process on Windows.
+    process._bidoytu_profile = profile_dir  # type: ignore[attr-defined]
+    return process, trust_method
+
+
+def _firefox_processes_for_profile(profile: Path) -> set[int]:
+    """Return Firefox PIDs whose command line references *profile* on Windows."""
+    if os.name != "nt":
+        return set()
+    # WMI exposes the command line for Firefox's replacement/content
+    # processes. Pass the profile through the environment so the PowerShell
+    # query never interpolates a filesystem path into executable code.
+    script = (
+        "$needle = $env:BIDOYTU_PROFILE; "
+        "Get-CimInstance Win32_Process -Filter \"Name='firefox.exe'\" | "
+        "Where-Object { $_.CommandLine -and $_.CommandLine.Contains($needle) } | "
+        "ForEach-Object { $_.ProcessId }"
+    )
+    env = {**os.environ, "BIDOYTU_PROFILE": os.fspath(profile)}
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-Command", script],
+        capture_output=True, text=True, check=False, env=env,
+    )
+    pids: set[int] = set()
+    for line in result.stdout.splitlines():
+        try:
+            pids.add(int(line.strip()))
+        except ValueError:
+            continue
+    return pids
 
 
 def stop_browser(process: subprocess.Popen) -> None:
     """Close a browser process tree launched by Bidoytu."""
-    if process.poll() is not None:
-        return
     if os.name == "nt":
-        subprocess.run(
-            ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
-            capture_output=True, check=False,
-        )
+        pids = {process.pid}
+        profile = getattr(process, "_bidoytu_profile", None)
+        if profile:
+            pids.update(_firefox_processes_for_profile(Path(profile)))
+        for pid in pids:
+            subprocess.run(
+                ["taskkill.exe", "/PID", str(pid), "/T", "/F"],
+                capture_output=True, check=False,
+            )
         # taskkill can return before descendants have released profile files.
         # Wait for the launched process to observe termination before the
         # Electron host removes the session directory on Windows.

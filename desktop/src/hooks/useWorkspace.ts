@@ -137,6 +137,9 @@ export type IntruderTab = {
   url: string
   request: string
   attackType: AttackType
+  concurrency: number
+  attackId?: string
+  runState: 'idle' | 'queued' | 'running' | 'complete' | 'cancelled'
   // One payload-set config per position. Sniper and battering ram only use
   // configs[0]; pitchfork and cluster bomb use one set per marked position.
   configs: PayloadConfig[]
@@ -202,6 +205,21 @@ function nextRepeaterCopyName(name: string, tabs: RepeaterTab[]) {
   while (used.has(index)) index += 1
   return `${stem} (${index})`
 }
+
+function nextIntruderCopyName(name: string, tabs: IntruderTab[]) {
+  const stem = name.replace(/\s*\(\d+\)\s*$/, '').trim() || 'Attack'
+  const pattern = new RegExp(
+    `^${stem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\((\\d+)\\)$`,
+  )
+  const used = new Set<number>()
+  for (const tab of tabs) {
+    const match = tab.name.trim().match(pattern)
+    if (match) used.add(Number(match[1]))
+  }
+  let index = 1
+  while (used.has(index)) index += 1
+  return `${stem} (${index})`
+}
 export const defaultPayloadConfig = (): PayloadConfig => ({
   position: 'All payload positions',
   type: 'Simple list',
@@ -210,7 +228,7 @@ export const defaultPayloadConfig = (): PayloadConfig => ({
   from: 1,
   to: 100,
   step: 1,
-  howMany: 0,
+  howMany: 10,
   numberBase: 'Decimal',
   minIntegerDigits: 0,
   maxIntegerDigits: 2,
@@ -229,6 +247,8 @@ export const newIntruderTab = (id: number): IntruderTab => ({
   url: 'https://example.com',
   request: 'GET /?q=§value§ HTTP/1.1\r\nHost: example.com\r\n\r\n',
   attackType: 'sniper',
+  concurrency: 10,
+  runState: 'idle',
   configs: [defaultPayloadConfig()],
   results: [],
 })
@@ -306,11 +326,14 @@ export function generatePayloads(config: PayloadConfig): string[] {
         return pad(String(Math.round(n)), config.minIntegerDigits)
       }
       if (config.numberType === 'Random') {
-        const count = Math.max(1, Math.min(cap, Math.round(config.howMany) || 1))
+        const count = Math.max(1, Math.min(cap, Math.round(config.howMany) || 10))
         const lo = Math.min(config.from, config.to)
         const hi = Math.max(config.from, config.to)
         for (let i = 0; i < count; i += 1) {
-          values.push(format(lo + Math.random() * (hi - lo)))
+          // Generate an inclusive integer in the requested range. The old
+          // interpolation + round could produce surprising distributions and
+          // only generated one value when the default How many was zero.
+          values.push(format(Math.floor(lo + Math.random() * (hi - lo + 1))))
         }
         return values
       }
@@ -452,12 +475,14 @@ export function useWorkspace() {
   const [intruderTabs, setIntruderTabs] = useState<IntruderTab[]>([newIntruderTab(1)])
   const [activeIntruderTab, setActiveIntruderTab] = useState(1)
   const intruderSequence = useRef(1)
-  const [intruderRunningId, setIntruderRunningId] = useState<number | null>(null)
+  const [intruderRunningIds, setIntruderRunningIds] = useState<number[]>([])
+  const [runTabId, setRunTabId] = useState<number | null>(null)
   const [showIntruderRun, setShowIntruderRun] = useState(false)
   const [runSelectedIndex, setRunSelectedIndex] = useState<number | null>(null)
   const [runDetail, setRunDetail] = useState<Detail | null>(null)
   const [runDetailLoading, setRunDetailLoading] = useState(false)
   const runDetailSequence = useRef(0)
+  const intruderResultsSequence = useRef(0)
   const [showHelp, setShowHelp] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     typeof localStorage !== 'undefined' && localStorage.getItem('bidoytu.theme') === 'dark'
@@ -484,6 +509,8 @@ export function useWorkspace() {
   interceptDetailRef.current = interceptDetail
   const requestTab = tabs.find((t) => t.id === activeTab) ?? tabs[0]
   const intruderTab = intruderTabs.find((t) => t.id === activeIntruderTab) ?? intruderTabs[0]
+  const intruderRunTab =
+    intruderTabs.find((t) => t.id === runTabId) ?? intruderTab
   const requestTabRef = useRef(requestTab)
   requestTabRef.current = requestTab
   const intruderTabRef = useRef(intruderTab)
@@ -594,10 +621,18 @@ export function useWorkspace() {
                             : '',
                     },
                   ]
-              const configs = rawConfigs.map((c) => ({
-                ...defaultPayloadConfig(),
-                ...(c && typeof c === 'object' ? c : {}),
-              }))
+              const configs = rawConfigs.map((c) => {
+                const merged = {
+                  ...defaultPayloadConfig(),
+                  ...(c && typeof c === 'object' ? c : {}),
+                }
+                // Older saved tabs used 0 as the random-count default. A
+                // random number payload must produce a useful batch.
+                if (merged.numberType === 'Random' && (!Number.isFinite(merged.howMany) || merged.howMany < 1)) {
+                  merged.howMany = 10
+                }
+                return merged
+              })
               const attackType: AttackType = ATTACK_TYPES.some((a) => a.value === tab.attackType)
                 ? (tab.attackType as AttackType)
                 : base.attackType
@@ -608,6 +643,12 @@ export function useWorkspace() {
                 url: tab.url,
                 request: tab.request,
                 attackType,
+                concurrency:
+                  typeof tab.concurrency === 'number' &&
+                  Number.isInteger(tab.concurrency) &&
+                  tab.concurrency >= 1
+                    ? Math.min(64, tab.concurrency)
+                    : base.concurrency,
                 configs: configs.length ? configs : [defaultPayloadConfig()],
                 results: [],
               }
@@ -641,12 +682,13 @@ export function useWorkspace() {
             historyIndex,
           })),
           groups,
-          intruderTabs: intruderTabs.map(({ id, name, url, request, attackType, configs }) => ({
+          intruderTabs: intruderTabs.map(({ id, name, url, request, attackType, concurrency, configs }) => ({
             id,
             name,
             url,
             request,
             attackType,
+            concurrency,
             configs,
           })),
           port,
@@ -780,12 +822,43 @@ export function useWorkspace() {
         const findings = await api.request<Finding[] | null>('audit.list')
         if (findings) setFindings(findings)
       })
-    if (view === 'Intruder' && intruderRunningId != null)
+    if (view === 'Intruder' && intruderRunningIds.length) {
+      const requestSequence = ++intruderResultsSequence.current
       void run(async () => {
-        const result = await api.request<{ items: JobResult[] } | null>('intruder.results')
-        if (!result) return
+        const snapshots = await Promise.all(
+          intruderRunningIds.map(async (tabId) => {
+            const tab = intruderTabs.find((item) => item.id === tabId)
+            if (!tab?.attackId) return null
+            const result = await api.request<{ items: JobResult[]; state?: string } | null>(
+              'intruder.results',
+              { attack_id: tab.attackId },
+            )
+            return { tabId, result }
+          }),
+        )
+        // Multiple change events can overlap result requests. Only the newest
+        // snapshot may update the table; otherwise an older partial response
+        // can overwrite the completed run (for example 13 of 20 rows).
+        if (requestSequence !== intruderResultsSequence.current) return
         setIntruderTabs((prev) =>
-          prev.map((tab) => (tab.id === intruderRunningId ? { ...tab, results: result.items } : tab)),
+          prev.map((tab) => {
+            const snapshot = snapshots.find((item) => item?.tabId === tab.id)?.result
+            if (!snapshot) return tab
+            return {
+              ...tab,
+              results: snapshot.items,
+              runState: snapshot.state === 'running' ? 'running' : snapshot.state === 'queued' ? 'queued' : snapshot.state === 'cancelled' ? 'cancelled' : 'complete',
+            }
+          }),
+        )
+        const stillRunning = snapshots
+          .filter((item): item is { tabId: number; result: { items: JobResult[]; state?: string } } => Boolean(item?.result))
+          .filter((item) => item.result.state === 'running' || item.result.state === 'queued')
+          .map((item) => item.tabId)
+        setIntruderRunningIds((current) =>
+          current.length === stillRunning.length && current.every((id, index) => id === stillRunning[index])
+            ? current
+            : stillRunning,
         )
       })
     if (view === 'Collaborator')
@@ -938,7 +1011,10 @@ export function useWorkspace() {
   }
   function addIntruderTab(seed: Partial<IntruderTab>) {
     const id = ++intruderSequence.current
-    setIntruderTabs((prev) => [...prev, { ...newIntruderTab(id), ...seed, id, results: [] }])
+    setIntruderTabs((prev) => [
+      ...prev,
+      { ...newIntruderTab(id), ...seed, id, attackId: undefined, runState: 'idle', results: [] },
+    ])
     setActiveIntruderTab(id)
     setView('Intruder')
   }
@@ -981,7 +1057,14 @@ export function useWorkspace() {
     const id = ++intruderSequence.current
     setIntruderTabs((prev) => [
       ...prev,
-      { ...current, id, name: `${current.name} copy`, results: [] },
+      {
+        ...current,
+        id,
+        name: nextIntruderCopyName(current.name, prev),
+        attackId: undefined,
+        runState: 'idle',
+        results: [],
+      },
     ])
     setActiveIntruderTab(id)
     setView('Intruder')
@@ -1096,6 +1179,36 @@ export function useWorkspace() {
       configs: reconcileConfigs(intruderTab.configs, attackType, positions),
     })
   }
+  async function navigateHistory(delta: -1 | 1) {
+    if (!flows.length) return
+    const current = selectedId ? flows.findIndex((flow) => flow.flow_id === selectedId) : -1
+    const localTarget = current < 0 ? (delta > 0 ? 0 : flows.length - 1) : current + delta
+    if (localTarget >= 0 && localTarget < flows.length) {
+      await selectFlow(flows[localTarget].flow_id)
+      return
+    }
+    const nextPage = page + (delta < 0 ? -1 : 1)
+    if (nextPage < 0 || nextPage * 100 >= total) return
+    const result = await run(() =>
+      api.request<{ items: Flow[]; total: number; unfiltered: number }>('history.list', {
+        query: debouncedQuery,
+        offset: nextPage * 100,
+        limit: 100,
+        filter: historyFilterPayload(debouncedFilters),
+        sort_by: historySort.key,
+        sort_direction: historySort.direction,
+      }),
+    )
+    if (!result?.items?.length) return
+    setPage(nextPage)
+    setFlows(result.items)
+    setTotal(result.total)
+    setUnfilteredTotal(result.unfiltered)
+    await selectFlow(delta < 0 ? result.items[result.items.length - 1].flow_id : result.items[0].flow_id)
+  }
+  function setIntruderConcurrency(value: number) {
+    updateIntruderTab({ concurrency: Math.max(1, Math.min(64, Math.round(value) || 1)) })
+  }
   // Patch the payload-set config at `index` (which position/set is being
   // edited). Reconciles the set list first so the index is always valid.
   function setPayloadConfig(patch: Partial<PayloadConfig>, index = 0) {
@@ -1142,19 +1255,25 @@ export function useWorkspace() {
       return
     }
     try {
-      await api.request('intruder.start', {
+      const started = await api.request<{ attack_id: string }>('intruder.start', {
         url: tab.url,
         request: tab.request,
         attack_type: tab.attackType,
         sets,
+        concurrency: tab.concurrency,
         verify_tls: verifyTLS,
       })
+      if (!started?.attack_id) throw new Error('Intruder backend did not return an attack id')
+      updateIntruderTab(
+        { attackId: started.attack_id, runState: 'running', results: [] },
+        tab.id,
+      )
+      setIntruderRunningIds((current) => [...new Set([...current, tab.id])])
+      setRunTabId(tab.id)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       return
     }
-    setIntruderRunningId(tab.id)
-    updateIntruderTab({ results: [] }, tab.id)
     setState((s) => ({ ...s, job_state: 'running' }))
     setRunSelectedIndex(null)
     setRunDetail(null)
@@ -1424,7 +1543,9 @@ export function useWorkspace() {
     attackUrl: intruderTab.url,
     setAttackUrl,
     attackType: intruderTab.attackType,
+    concurrency: intruderTab.concurrency,
     setAttackType,
+    setIntruderConcurrency,
     // Configs reconciled to the current attack type + position count, so the
     // view always sees exactly the payload sets it should render.
     payloadConfigs: reconcileConfigs(
@@ -1446,7 +1567,9 @@ export function useWorkspace() {
     setActiveIntruderTab,
     intruderSequence,
     intruderTab,
-    intruderRunningId,
+    intruderRunningIds,
+    runTabId,
+    intruderRunTab,
     updateIntruderTab,
     startIntruder,
     duplicateIntruderTab,
@@ -1457,6 +1580,8 @@ export function useWorkspace() {
     runDetail,
     runDetailLoading,
     selectRunResult,
+    cancelIntruder,
+    openIntruderResults,
     showHelp,
     setShowHelp,
     theme,
@@ -1482,6 +1607,7 @@ export function useWorkspace() {
     visibleTraffic,
     Icon,
     selectFlow,
+    navigateHistory,
     toRepeater,
     toIntruder,
     updateTab,

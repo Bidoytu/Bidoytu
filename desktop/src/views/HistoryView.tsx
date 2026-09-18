@@ -63,6 +63,7 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
     trafficStart,
     visibleTraffic,
     selectFlow,
+    navigateHistory,
     toRepeater,
     toIntruder,
     resize,
@@ -90,6 +91,14 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
     <div
       className="history-workspace"
       ref={historyRef}
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        const target = event.target as HTMLElement
+        if (target.closest('input, textarea, select, [contenteditable="true"]')) return
+        if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+        event.preventDefault()
+        void navigateHistory(event.key === 'ArrowUp' ? -1 : 1)
+      }}
       style={{ gridTemplateRows: `${split}% 7px minmax(0, 1fr)` }}
     >
       <section className="traffic-panel">

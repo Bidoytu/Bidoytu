@@ -55,11 +55,18 @@ class ApplicationService:
         self.collaborator = CollaboratorService(self.changed, not self.config.proxy.ssl_insecure)
         self.findings: dict[str, dict] = {}
         self.clients: dict[bool, httpx.AsyncClient] = {}
+        # Intruder attacks are keyed by attack id so minimized tabs can keep
+        # running while another tab starts an independent attack.
         self.jobs: dict[str, asyncio.Task] = {}
-        self.job_results: list[dict] = []
+        self.job_results: dict[str, list[dict]] = {}
+        self.job_states: dict[str, str] = {}
+        self.last_attack_id: str | None = None
         self.job_state = "idle"
         self.error = ""
-        self.network_slots = asyncio.Semaphore(8)
+        # Repeater still shares this pool, while Intruder applies its own
+        # per-run worker limit. Keep the transport pool high enough that the
+        # Intruder setting is meaningful instead of silently capping at 8.
+        self.network_slots = asyncio.Semaphore(64)
         self.browsers = discover_browsers()
         self.browser_processes = []
 
@@ -159,7 +166,7 @@ class ApplicationService:
         if client is None:
             client = self.clients[verify] = httpx.AsyncClient(
                 verify=verify, trust_env=False, timeout=30,
-                limits=httpx.Limits(max_connections=16, max_keepalive_connections=8))
+                limits=httpx.Limits(max_connections=64, max_keepalive_connections=32))
         headers = [(k, v) for k, v in parsed.headers if k.lower() not in
                    {"content-length", "connection", "transfer-encoding", "accept-encoding"}]
         record = FlowRecord(flow_id=str(uuid.uuid4()), method=parsed.method,
@@ -189,8 +196,10 @@ class ApplicationService:
         return await self.storage.call(self.storage.detail, record.flow_id)
 
     async def _run_job(self, params: dict):
+        attack_id = str(params["attack_id"])
+        self.job_states[attack_id] = "running"
+        self.job_results[attack_id] = []
         self.job_state = "running"
-        self.job_results = []
         self.changed()
         # A payload position is any span between a pair of § markers. The attack
         # type decides how the configured payload sets are combined across those
@@ -203,27 +212,60 @@ class ApplicationService:
             PayloadSet(generator=GeneratorSpec(kind=GEN_LIST, items=list(values)))
             for values in params["_payload_sets"]
         ]
-        try:
-            # Sequential execution deliberately provides predictable rate and cancellation.
+        concurrency = max(1, min(64, int(params.get("concurrency", 10))))
+        queue: asyncio.Queue = asyncio.Queue(maxsize=concurrency * 2)
+        workers: list[asyncio.Task] = []
+
+        async def produce():
             for job in iter_jobs(clean_text, markers, attack_type, sets):
-                index = job.index + 1
-                payloads = list(job.payloads)
-                payload = " | ".join(payloads)
+                await queue.put(job)
+            # Only publish sentinels after the complete job stream has been
+            # queued. On cancellation the producer is cancelled directly and
+            # must not block trying to enqueue cleanup markers with no workers.
+            for _ in range(concurrency):
+                await queue.put(None)
+
+        async def worker():
+            while True:
+                job = await queue.get()
                 try:
-                    result = await self.send({**params, "request": job.request_text}, "Intruder")
-                    self.job_results.append({
-                        "index": index, "payload": payload, "payloads": payloads,
-                        **summary_from_detail(result)})
-                except Exception as exc:
-                    self.job_results.append({
-                        "index": index, "payload": payload, "payloads": payloads,
-                        "error": str(exc)})
-                self.changed()
-                await asyncio.sleep(0.1)
-            self.job_state = "complete"
+                    if job is None:
+                        return
+                    index = job.index + 1
+                    payloads = list(job.payloads)
+                    payload = " | ".join(payloads)
+                    try:
+                        result = await self.send({**params, "request": job.request_text}, "Intruder")
+                        self.job_results[attack_id].append({
+                            "index": index, "payload": payload, "payloads": payloads,
+                            **summary_from_detail(result)})
+                    except Exception as exc:
+                        self.job_results[attack_id].append({
+                            "index": index, "payload": payload, "payloads": payloads,
+                            "error": str(exc)})
+                    self.changed()
+                finally:
+                    queue.task_done()
+
+        try:
+            producer = asyncio.create_task(produce())
+            workers = [asyncio.create_task(worker()) for _ in range(concurrency)]
+            await producer
+            await queue.join()
+            await asyncio.gather(*workers)
+            self.job_states[attack_id] = "complete"
         except asyncio.CancelledError:
-            self.job_state = "cancelled"
+            for task in [*workers, locals().get("producer")]:
+                if task is not None and not task.done():
+                    task.cancel()
+            await asyncio.gather(*workers, return_exceptions=True)
+            self.job_states[attack_id] = "cancelled"
+            raise
         finally:
+            self.jobs.pop(attack_id, None)
+            self.job_state = "running" if any(
+                value == "running" for value in self.job_states.values()
+            ) else self.job_states.get(attack_id, "idle")
             self.changed()
 
     async def dispatch(self, method: str, p: dict):
@@ -315,8 +357,6 @@ class ApplicationService:
         if method == "repeater.send":
             return await self.send(p)
         if method == "intruder.start":
-            if self.job_state == "running":
-                raise ValueError("An Intruder run is already active")
             _, markers = find_markers(str(p.get("request", "")))
             if not markers:
                 raise ValueError("Mark at least one payload position with § markers")
@@ -345,6 +385,13 @@ class ApplicationService:
             if attack_type in (SNIPER, BATTERING_RAM):
                 sets = sets[:1]
 
+            try:
+                concurrency = int(p.get("concurrency", 10))
+            except (TypeError, ValueError):
+                raise ValueError("Concurrency must be an integer between 1 and 64") from None
+            if not 1 <= concurrency <= 64:
+                raise ValueError("Concurrency must be between 1 and 64")
+
             total = count_jobs(attack_type, markers, [
                 PayloadSet(generator=GeneratorSpec(kind=GEN_LIST, items=values))
                 for values in sets
@@ -354,16 +401,43 @@ class ApplicationService:
                     f"This configuration would send {total:,} requests. "
                     "Reduce your payload sets (limit 100,000).")
 
-            p = {**p, "attack_type": attack_type, "_payload_sets": sets}
+            attack_id = str(p.get("attack_id") or uuid.uuid4().hex)
+            if attack_id in self.jobs:
+                raise ValueError("This Intruder attack is already running")
+            p = {
+                **p,
+                "attack_type": attack_type,
+                "_payload_sets": sets,
+                "concurrency": concurrency,
+                "attack_id": attack_id,
+            }
+            self.job_states[attack_id] = "queued"
+            self.last_attack_id = attack_id
             self.job_state = "running"
-            self.jobs["intruder"] = asyncio.create_task(self._run_job(p))
-            return True
+            self.jobs[attack_id] = asyncio.create_task(self._run_job(p))
+            return {"attack_id": attack_id}
         if method == "intruder.results":
-            return {"state": self.job_state, "items": self.job_results}
+            attack_id = str(p.get("attack_id", ""))
+            if not attack_id:
+                attack_id = self.last_attack_id or (next(iter(self.job_states)) if len(self.job_states) == 1 else "")
+            if attack_id not in self.job_states:
+                raise ValueError("Unknown Intruder attack")
+            return {
+                "state": self.job_states[attack_id],
+                "items": list(self.job_results.get(attack_id, [])),
+            }
         if method == "intruder.cancel":
-            if task := self.jobs.get("intruder"):
+            attack_id = str(p.get("attack_id", ""))
+            if not attack_id:
+                attack_id = self.last_attack_id or (next(iter(self.jobs)) if len(self.jobs) == 1 else "")
+            if task := self.jobs.get(attack_id):
                 task.cancel()
-                await task
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            elif attack_id in self.job_states and self.job_states[attack_id] == "running":
+                self.job_states[attack_id] = "cancelled"
             return True
         if method == "audit.toggle":
             self.audit_enabled = bool(p["enabled"])
