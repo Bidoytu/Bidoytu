@@ -910,40 +910,6 @@ h1 {
   overflow: hidden;
   background: var(--canvas);
 }
-.inspector-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 44px;
-  border-bottom: 1px solid var(--hairline);
-  padding: 0 14px;
-  flex-shrink: 0;
-}
-.inspector-label {
-  font: 400 11px var(--mono);
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: #6b6b6b;
-  margin-right: 9px;
-}
-.inspector-bar .mono,
-.inspector-bar .muted {
-  font-size: 13px;
-}
-.inspector-bar .button {
-  min-height: 30px;
-  font-size: 13px;
-  padding: 4px 14px;
-}
-.inspector-bar .button.icon-only {
-  width: 30px;
-  min-height: 30px;
-}
-.inspector-bar > .inline:first-child {
-  flex: 1;
-  overflow: hidden;
-}
 .editor-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

@@ -3,7 +3,6 @@ import {
   Bookmark,
   Crosshair,
   Globe2,
-  LoaderCircle,
   LockKeyhole,
   Radio,
   Search,
@@ -31,7 +30,6 @@ import type { WorkspaceController } from '../hooks/useWorkspace'
 export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
   const {
     state,
-    setRevision,
     flows,
     total,
     unfilteredTotal,
@@ -47,8 +45,6 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
     setHistorySort,
     clearHistory,
     selected,
-    setSelected,
-    loadingDetail,
     selectedId,
     port,
     setShowHelp,
@@ -59,7 +55,6 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
     split,
     setSplit,
     historyRef,
-    run,
     trafficStart,
     visibleTraffic,
     selectFlow,
@@ -290,57 +285,6 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
         <span />
       </div>
       <section className="inspector">
-        <div className="inspector-bar">
-          <div className="inline">
-            <span className="inspector-label">INSPECTOR</span>
-            {loadingDetail ? (
-              <LoaderCircle size={13} className="spin" />
-            ) : selected ? (
-              <>
-                <span className={`method method-${selected.method.toLowerCase()}`}>
-                  {selected.method}
-                </span>
-                <span className="mono ellipsis">
-                  {selected.host}
-                  {selected.path}
-                </span>
-              </>
-            ) : (
-              <span className="muted">No request selected</span>
-            )}
-          </div>
-          <div className="inline">
-            {selected?.truncated && (
-              <span className="warning-text">Preview limited to 256 KiB</span>
-            )}
-            <Button
-              className="subtle icon-only"
-              aria-label="Bookmark selected request"
-              disabled={!selected}
-              onClick={() =>
-                void run(async () => {
-                  if (!selected) return
-                  await api.request('history.metadata', {
-                    flow_id: selected.flow_id,
-                    bookmarked: !selected.bookmarked,
-                    notes: selected.notes,
-                  })
-                  setSelected({ ...selected, bookmarked: !selected.bookmarked })
-                  setRevision((v) => v + 1)
-                })
-              }
-            >
-              <Bookmark size={13} fill={selected?.bookmarked ? 'currentColor' : 'none'} />
-            </Button>
-            <Button
-              className="subtle"
-              disabled={!selected || selected.truncated || selected.binary}
-              onClick={() => selected && toRepeater(selected)}
-            >
-              Send to Repeater <ArrowRight size={13} />
-            </Button>
-          </div>
-        </div>
         <div
           className="editor-split"
           onContextMenu={(e) => {
