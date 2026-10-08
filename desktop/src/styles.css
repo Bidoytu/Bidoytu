@@ -305,7 +305,7 @@ kbd {
   min-height: 600px;
   display: grid;
   grid-template-columns: 236px minmax(0, 1fr);
-  grid-template-rows: 48px minmax(0, 1fr) 30px;
+  grid-template-rows: 32px minmax(0, 1fr) 30px;
   overflow: hidden;
   background: var(--canvas);
 }
@@ -317,8 +317,8 @@ kbd {
   align-items: center;
   border-bottom: 1px solid var(--hairline);
   background: var(--canvas);
-  padding-left: 20px;
-  gap: 10px;
+  padding-left: 12px;
+  gap: 7px;
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -343,13 +343,13 @@ kbd {
   vertical-align: middle;
 }
 .title-divider {
-  height: 16px;
+  height: 12px;
   width: 1px;
   background: var(--hairline);
-  margin: 0 6px 0 12px;
+  margin: 0 4px 0 7px;
 }
 .title-context {
-  font-size: 13px;
+  font-size: 12px;
   color: #6b6b6b;
 }
 .title-project {
@@ -358,19 +358,19 @@ kbd {
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: 6px;
+  font-size: 11px;
   color: #6b6b6b;
 }
 .local-pill {
-  font: 400 10px var(--mono);
+  font: 400 9px var(--mono);
   letter-spacing: 0.6px;
   text-transform: uppercase;
   background: var(--surface-soft);
   color: var(--ink);
   border-radius: var(--r-pill);
-  padding: 2px 8px;
-  margin-left: 4px;
+  padding: 1px 6px;
+  margin-left: 2px;
 }
 .window-controls {
   margin-left: auto;
@@ -379,7 +379,7 @@ kbd {
   -webkit-app-region: no-drag;
 }
 .window-controls button {
-  width: 46px;
+  width: 38px;
   display: grid;
   place-items: center;
   color: #6b6b6b;
@@ -665,7 +665,7 @@ h1 {
   display: grid;
   flex: 1;
   min-height: 0;
-  margin: 0 8px 8px;
+  margin: 0;
 }
 .traffic-panel {
   border: 1px solid var(--hairline);
@@ -1307,7 +1307,7 @@ h1 {
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
   overflow: hidden;
-  margin: 0 24px 20px;
+  margin: 0;
   background: var(--canvas);
 }
 .tool-toolbar {
@@ -2228,7 +2228,7 @@ h1 {
 
 /* ---------- Settings + scope ---------- */
 .settings-workspace {
-  padding: 8px 28px 28px;
+  padding: 0;
   overflow: auto;
   flex: 1;
   min-height: 0;
@@ -2857,11 +2857,6 @@ h1 {
   .title-context {
     display: none;
   }
-  .history-workspace,
-  .tool-workspace {
-    margin-left: 18px;
-    margin-right: 18px;
-  }
   .traffic-row {
     grid-template-columns: 38px 64px minmax(85px, 0.9fr) minmax(110px, 1.5fr) 56px 66px 62px 16px;
     padding: 0 12px;
@@ -2908,7 +2903,7 @@ body {
 
 /* Brand logo in the titlebar (replaces the old text wordmark) */
 .brand-logo {
-  height: 22px;
+  height: 16px;
   width: auto;
   object-fit: contain;
   -webkit-app-region: no-drag;
