@@ -38,7 +38,7 @@ export type EngineState = {
   queue_depth: number
   error: string
   data_dir: string
-  scope: { include: string[]; exclude: string[] }
+  scope: { include: string[]; exclude: string[]; drop_out_of_scope?: boolean }
   job_state: string
 }
 export type Finding = {

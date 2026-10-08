@@ -66,6 +66,8 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
     navigateHistory,
     toRepeater,
     toIntruder,
+    addHostToScope,
+    excludeHostFromScope,
     resize,
   } = workspace
   const ctx = useContextMenu()
@@ -200,6 +202,14 @@ export function HistoryView({ workspace }: { workspace: WorkspaceController }) {
                             )
                             toIntruder(detail)
                           },
+                        },
+                        {
+                          label: `Add ${flow.host} to scope`,
+                          onClick: () => void addHostToScope(flow.host),
+                        },
+                        {
+                          label: `Exclude ${flow.host} from scope`,
+                          onClick: () => void excludeHostFromScope(flow.host),
                         },
                         {
                           label: 'Clear all history',

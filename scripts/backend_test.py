@@ -114,6 +114,37 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         await self.service.dispatch("proxy.start", {"port": port})
         self.assertTrue(self.service.state()["running"])
 
+    async def test_drop_out_of_scope_traffic(self):
+        # Burp-style: with an include scope set and drop enabled, traffic to
+        # hosts outside the scope is proxied but never recorded to history.
+        port = self.free_port()
+        await self.service.dispatch("proxy.start", {"port": port})
+        await self.service.dispatch("scope.save", {
+            "include": ["in-scope.example"],
+            "drop_out_of_scope": True,
+        })
+        self.assertTrue(self.service.state()["scope"]["drop_out_of_scope"])
+        async with httpx.AsyncClient(proxy=f"http://127.0.0.1:{port}", trust_env=False, timeout=10) as client:
+            # The origin runs on 127.0.0.1, which is outside the include scope,
+            # so this request must be forwarded but not logged.
+            response = await client.get(f"http://127.0.0.1:{self.origin_port}/gzip")
+            self.assertEqual(response.status_code, 200)
+            await self.service.queue.join()
+            listing = await self.service.dispatch("history.list", {})
+            self.assertEqual(listing["total"], 0)
+
+            # Turning the drop off records subsequent out-of-scope traffic again.
+            await self.service.dispatch("scope.save", {
+                "include": ["in-scope.example"],
+                "drop_out_of_scope": False,
+            })
+            response = await client.get(f"http://127.0.0.1:{self.origin_port}/gzip")
+            self.assertEqual(response.status_code, 200)
+            await self.service.queue.join()
+            listing = await self.service.dispatch("history.list", {})
+            self.assertEqual(listing["total"], 1)
+        await self.service.dispatch("proxy.stop", {})
+
     async def test_scope_audit_and_payload_run(self):
         await self.service.dispatch("scope.save", {"include": ["127.0.0.1"], "exclude": ["excluded.invalid"]})
         await self.service.dispatch("audit.toggle", {"enabled": True})
@@ -198,6 +229,48 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         await self.service.storage.call(self.service.storage.save, noisy)
         self.assertEqual(await total({"hide_browser_noise": True}), 3)
         self.assertEqual(await total({"hide_browser_noise": False}), 4)
+
+        # Broader third-party noise categories should also be hidden: ad/tracking
+        # domains, telemetry subdomains, first-party beacon paths, and browser
+        # background pings. Real application traffic must stay visible.
+        extra_noise = [
+            ("n-doubleclick", "ad.doubleclick.net", "/ddm/ad"),
+            ("n-telemetry-sub", "telemetry.example", "/report"),
+            ("n-sentry", "o123.ingest.sentry.io", "/api/1/envelope/"),
+            ("n-first-party-beacon", "a.example", "/api/collect"),
+            ("n-gtm", "b.example", "/gtm.js"),
+            ("n-consent", "cdn.cookielaw.org", "/scripttemplates/otSDKStub.js"),
+            ("n-manifest", "a.example", "/site.webmanifest"),
+            # Chrome / Google background chatter (from real capture).
+            ("n-webstore", "www.googleapis.com", "/chromewebstore/v1.1/items/verify"),
+            ("n-c2dm", "android.clients.google.com", "/c2dm/register3"),
+            ("n-play-log", "play.google.com", "/log?format=json&hasfast=true"),
+            ("n-ogads", "ogads-pa.clients6.google.com",
+             "/$rpc/google.internal.onegoogle.asyncdata.v1.AsyncDataService/GetAsyncData"),
+            ("n-gstatic", "www.gstatic.com", "/images/branding/googlelogo/svg/googlelogo.svg"),
+            ("n-newtab", "www.google.com", "/async/newtab_ogb?hl=en-US"),
+            ("n-search-ac", "www.google.com", "/complete/search?client=chrome-omni"),
+            ("n-ddljson", "www.google.com", "/async/ddljson?async=ntp:2"),
+        ]
+        for flow_id, host, path in extra_noise:
+            await self.service.storage.call(self.service.storage.save, FlowRecord(
+                flow_id=flow_id, method="GET", scheme="https", host=host, path=path,
+                status_code=200, content_type="text/plain"))
+        # None of the newly-added records should survive the noise filter.
+        self.assertEqual(await total({"hide_browser_noise": True}), 3)
+
+        # Guard against false positives: paths that merely contain a noisy word
+        # as a substring (``/collections``) and app subdomains that are not
+        # infra prefixes must remain visible.
+        legit = [
+            ("ok-collections", "a.example", "/api/collections"),
+            ("ok-login", "login.example", "/session"),
+        ]
+        for flow_id, host, path in legit:
+            await self.service.storage.call(self.service.storage.save, FlowRecord(
+                flow_id=flow_id, method="GET", scheme="https", host=host, path=path,
+                status_code=200, content_type="text/html"))
+        self.assertEqual(await total({"hide_browser_noise": True}), 5)
 
     async def test_lazy_preview_pagination_validation_and_no_qt(self):
         self.assertFalse(any(key.startswith("PySide6") for key in sys.modules))

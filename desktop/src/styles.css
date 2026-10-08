@@ -2332,6 +2332,30 @@ h1 {
   border-radius: var(--r-md);
   margin-top: 16px;
 }
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+.check-row input[type='checkbox'] {
+  margin-top: 3px;
+}
+.check-row span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.check-row strong {
+  font-size: 14px;
+  color: var(--ink);
+  font-weight: 500;
+}
+.check-row small {
+  font-size: 13px;
+  color: #6b6b6b;
+  line-height: 1.5;
+}
 .setting-row {
   padding: 20px 0;
   display: flex;

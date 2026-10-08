@@ -61,6 +61,7 @@ class ProxyService:
             )
             self.addon.set_intercept_enabled(self.enabled)
             self.addon.set_intercept_responses(self.responses)
+            self.addon.set_drop_out_of_scope(scope.drop_out_of_scope)
             self.master.addons.add(self.addon, Ready())
 
             async def serve():

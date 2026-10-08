@@ -26,6 +26,7 @@ from typing import Callable, Optional
 from mitmproxy import http
 
 from bidoytu.config import host_matches_scope
+from bidoytu.storage.advanced_history import is_browser_noise
 from bidoytu.storage.models import FlowRecord
 
 # (record, is_response) -> None
@@ -70,6 +71,9 @@ class CaptureAddon:
         self._exclude_paths = exclude_paths
         self._include_regex = include_regex
         self._exclude_regex = exclude_regex
+        # Burp-style "drop all out-of-scope traffic": when set, out-of-scope
+        # flows are not recorded and never intercepted (still proxied).
+        self._drop_out_of_scope = False
         # Flow ids the user explicitly asked to intercept the response for
         # (Burp's "Response to this request"), even when the global toggle is
         # off. One-shot: consumed when the response is paused.
@@ -94,6 +98,10 @@ class CaptureAddon:
         self._exclude_paths = exclude_paths
         self._include_regex = include_regex
         self._exclude_regex = exclude_regex
+
+    def set_drop_out_of_scope(self, enabled: bool) -> None:
+        """Toggle Burp-style dropping of out-of-scope traffic from history."""
+        self._drop_out_of_scope = enabled
 
     def _flow_in_scope(self, flow: http.HTTPFlow) -> bool:
         host = getattr(flow.request, "pretty_host", "") or getattr(
@@ -150,11 +158,21 @@ class CaptureAddon:
         # filter can distinguish them. Only in-scope traffic is eligible for
         # interception and editing.
         in_scope = self._flow_in_scope(flow)
+
+        # Burp's "drop all out-of-scope traffic": don't record out-of-scope
+        # flows to history at all. The request is still proxied so the browser
+        # keeps working; it just never reaches the UI or storage.
+        if self._drop_out_of_scope and not in_scope:
+            return
+
         record = self._record_from_request(flow)
         record.scope = in_scope
         self._on_flow(record, False)
 
-        if not in_scope or not self._intercept_enabled:
+        # Never pause background browser chatter (analytics, ads, telemetry,
+        # favicons, source maps, ...). It is still captured to history and
+        # forwarded untouched; it just does not interrupt the browsing session.
+        if not in_scope or not self._intercept_enabled or is_browser_noise(record):
             return
 
         pending = _PendingFlow(flow=flow)
@@ -176,16 +194,25 @@ class CaptureAddon:
         armed = flow.id in self._response_watch
         self._response_watch.discard(flow.id)
         in_scope = self._flow_in_scope(flow)
-        # Decide whether this response should be paused: interception must be on
-        # AND either the global response toggle is set or this flow was armed
-        # via "intercept response to this request".
-        should_pause = in_scope and self._intercept_enabled and (
-            self._intercept_responses or armed
-        )
+
+        # Mirror the request hook: when dropping out-of-scope traffic, the
+        # response is never recorded or paused (the request was already
+        # skipped, so there is nothing to pair it with).
+        if self._drop_out_of_scope and not in_scope:
+            return
 
         record = self._record_from_request(flow)
         record.scope = in_scope
         self._apply_response(record, flow)
+
+        # Decide whether this response should be paused: interception must be on
+        # AND either the global response toggle is set or this flow was armed
+        # via "intercept response to this request". Background browser noise is
+        # never paused by the global toggle, but an explicitly armed flow still
+        # is - the user asked for that specific response.
+        should_pause = in_scope and self._intercept_enabled and (
+            armed or (self._intercept_responses and not is_browser_noise(record))
+        )
 
         if should_pause:
             pending = _PendingFlow(flow=flow)

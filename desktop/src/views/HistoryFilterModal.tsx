@@ -128,7 +128,7 @@ export function HistoryFilterModal({
             <FilterSection title="Request type">
               <CheckRow
                 label="Hide browser noise"
-                hint="Favicons, source maps, HMR, analytics"
+                hint="Analytics, ads, trackers, telemetry, favicons, source maps, HMR"
                 checked={filters.hideBrowserNoise}
                 onChange={(value) => onChange({ hideBrowserNoise: value })}
               />

@@ -160,7 +160,7 @@ const initial: EngineState = {
   queue_depth: 0,
   error: '',
   data_dir: '',
-  scope: { include: [], exclude: [] },
+  scope: { include: [], exclude: [], drop_out_of_scope: false },
   job_state: 'idle',
 }
 export const icons = {
@@ -461,6 +461,7 @@ export function useWorkspace() {
   const [interceptDetail, setInterceptDetail] = useState<Detail | null>(null)
   const [include, setInclude] = useState('')
   const [exclude, setExclude] = useState('')
+  const [dropOutOfScope, setDropOutOfScope] = useState(false)
   const [findings, setFindings] = useState<Finding[]>([])
   const [oastServers, setOastServers] = useState<string[]>([])
   const [oastServer, setOastServer] = useState('')
@@ -503,6 +504,8 @@ export function useWorkspace() {
   // Refs for values accessed by the stable keyboard listener (empty deps array).
   const viewRef = useRef(view)
   viewRef.current = view
+  const stateRef = useRef(state)
+  stateRef.current = state
   const selectedRef = useRef(selected)
   selectedRef.current = selected
   const interceptDetailRef = useRef(interceptDetail)
@@ -543,6 +546,46 @@ export function useWorkspace() {
         setNotice('HTTP history cleared')
       }),
     [run],
+  )
+  // Burp-style "Add to scope" from a captured request: no typing required.
+  // Adds the host to the include list (or exclude list) and saves immediately.
+  const changeScope = useCallback(
+    (host: string, list: 'include' | 'exclude') =>
+      run(async () => {
+        const target = host.trim().toLowerCase()
+        if (!target) return
+        const current = stateRef.current.scope
+        const nextInclude = [...current.include]
+        const nextExclude = [...current.exclude]
+        const bucket = list === 'include' ? nextInclude : nextExclude
+        if (bucket.some((h) => h.toLowerCase() === target)) {
+          setNotice(`${target} is already ${list === 'include' ? 'in' : 'excluded from'} scope`)
+          return
+        }
+        bucket.push(target)
+        const next = await api.request<EngineState>('scope.save', {
+          include: nextInclude,
+          exclude: nextExclude,
+          drop_out_of_scope: current.drop_out_of_scope ?? false,
+        })
+        refresh(next)
+        setInclude(next.scope.include.join('\n'))
+        setExclude(next.scope.exclude.join('\n'))
+        setNotice(
+          list === 'include'
+            ? `Added ${target} to scope. In-scope traffic is now focused here.`
+            : `Excluded ${target} from scope.`,
+        )
+      }),
+    [run, refresh],
+  )
+  const addHostToScope = useCallback(
+    (host: string) => changeScope(host, 'include'),
+    [changeScope],
+  )
+  const excludeHostFromScope = useCallback(
+    (host: string) => changeScope(host, 'exclude'),
+    [changeScope],
   )
   const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters])
 
@@ -719,6 +762,7 @@ export function useWorkspace() {
         setPort(next.port)
         setInclude(next.scope.include.join('\n'))
         setExclude(next.scope.exclude.join('\n'))
+        setDropOutOfScope(Boolean(next.scope.drop_out_of_scope))
       })
       .catch((e) => {
         if (alive) setError(e.message)
@@ -861,6 +905,7 @@ export function useWorkspace() {
             : stillRunning,
         )
       })
+    }
     if (view === 'Collaborator')
       void run(async () => {
         const result = await api.request<{
@@ -871,7 +916,7 @@ export function useWorkspace() {
         setOastInteractions(result.items)
         setOastStatus(result.status)
       })
-  }, [view, online, revision, run, intruderRunningId])
+  }, [view, online, revision, run, intruderRunningIds, intruderTabs])
   useEffect(() => {
     if (!online || view !== 'Collaborator' || oastServers.length) return
     void run(async () => {
@@ -1279,6 +1324,24 @@ export function useWorkspace() {
     setRunDetail(null)
     setShowIntruderRun(true)
   }
+  function openIntruderResults(tabId: number) {
+    setRunTabId(tabId)
+    setRunSelectedIndex(null)
+    setRunDetail(null)
+    setShowIntruderRun(true)
+  }
+  async function cancelIntruder(tabId?: number) {
+    const targetId = tabId ?? runTabId ?? activeIntruderTab
+    const tab = intruderTabs.find((item) => item.id === targetId)
+    if (!tab?.attackId) return
+    try {
+      await api.request('intruder.cancel', { attack_id: tab.attackId })
+      updateIntruderTab({ runState: 'cancelled' }, tab.id)
+      setIntruderRunningIds((current) => current.filter((id) => id !== tab.id))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
   async function registerOast() {
     if (!oastServer) {
       setError('Choose an OAST server before registering.')
@@ -1515,6 +1578,10 @@ export function useWorkspace() {
     setInclude,
     exclude,
     setExclude,
+    dropOutOfScope,
+    setDropOutOfScope,
+    addHostToScope,
+    excludeHostFromScope,
     findings,
     setFindings,
     oastServers,

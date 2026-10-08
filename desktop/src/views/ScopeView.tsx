@@ -6,8 +6,19 @@ import type { EngineState } from '../types'
 import type { WorkspaceController } from '../hooks/useWorkspace'
 
 export function ScopeView({ workspace }: { workspace: WorkspaceController }) {
-  const { online, setNotice, include, setInclude, exclude, setExclude, split, run, refresh } =
-    workspace
+  const {
+    online,
+    setNotice,
+    include,
+    setInclude,
+    exclude,
+    setExclude,
+    dropOutOfScope,
+    setDropOutOfScope,
+    split,
+    run,
+    refresh,
+  } = workspace
   return (
     <div className="settings-workspace">
       <div className="info-card">
@@ -15,8 +26,10 @@ export function ScopeView({ workspace }: { workspace: WorkspaceController }) {
         <div>
           <strong>A focused investigation</strong>
           <p>
-            Scope controls which hosts can be intercepted and passively audited. History still
-            captures all traffic. An empty include list matches all hosts.
+            Scope controls which hosts are intercepted, passively audited, and shown by the default
+            History view. The quickest way to build it: right-click any request in HTTP history and
+            choose <em>Add to scope</em> — no need to type hosts here. An empty include list matches
+            all hosts, and History always captures everything so you can review it later.
           </p>
         </div>
       </div>
@@ -48,6 +61,27 @@ export function ScopeView({ workspace }: { workspace: WorkspaceController }) {
           />
         </section>
       </div>
+      <section className="settings-card">
+        <h2>
+          <span className="dot amber" />
+          Out-of-scope traffic
+        </h2>
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={dropOutOfScope}
+            onChange={(e) => setDropOutOfScope(e.target.checked)}
+          />
+          <span>
+            <strong>Drop all out-of-scope traffic</strong>
+            <small>
+              Out-of-scope requests are still proxied so pages keep loading, but they are never
+              recorded to History or intercepted. Set an include host above first, or everything
+              counts as in scope.
+            </small>
+          </span>
+        </label>
+      </section>
       <div className="inline">
         <Button
           className="primary"
@@ -64,6 +98,7 @@ export function ScopeView({ workspace }: { workspace: WorkspaceController }) {
                     .split('\n')
                     .map((v) => v.trim())
                     .filter(Boolean),
+                  drop_out_of_scope: dropOutOfScope,
                 }),
               )
               setNotice('Target scope saved. New traffic uses these rules.')

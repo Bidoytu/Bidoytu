@@ -240,24 +240,127 @@ def matches(record: FlowRecord, spec: FilterSpec) -> bool:
     return True
 
 
+# Third-party domains that carry no application traffic: analytics, ads,
+# tag managers, tracking/beacons, session replay, error/telemetry reporting,
+# social widgets, consent managers, and browser/OS background chatter. A host
+# matches the entry itself and any of its subdomains.
 _NOISY_HOSTS = (
-    "google-analytics.com", "googletagmanager.com", "doubleclick.net",
-    "analytics.google.com", "connect.facebook.net", "hotjar.com",
-    "fullstory.com", "segment.io", "segment.com",
+    # Analytics / tag managers
+    "google-analytics.com", "googletagmanager.com", "analytics.google.com",
+    "google-analytics.l.google.com", "ssl.google-analytics.com",
+    "segment.io", "segment.com", "amplitude.com", "mixpanel.com",
+    "heap.io", "heapanalytics.com", "plausible.io", "matomo.cloud",
+    "quantserve.com", "scorecardresearch.com", "chartbeat.com",
+    "hotjar.com", "hotjar.io", "fullstory.com", "mouseflow.com",
+    "clarity.ms", "logrocket.com", "logrocket.io", "smartlook.com",
+    "statcounter.com",
+    # Advertising / attribution
+    "doubleclick.net", "googlesyndication.com", "googleadservices.com",
+    "adservice.google.com", "adnxs.com",
+    "adsrvr.org", "criteo.com", "criteo.net", "taboola.com",
+    "outbrain.com", "pubmatic.com", "rubiconproject.com", "openx.net",
+    "casalemedia.com", "moatads.com", "bidswitch.net", "amazon-adsystem.com",
+    "branch.io", "appsflyer.com", "adjust.com", "bugsnag.com",
+    # Social widgets / login SDKs
+    "connect.facebook.net", "platform.twitter.com",
+    "syndication.twitter.com", "platform.linkedin.com", "snap.licdn.com",
+    "px.ads.linkedin.com", "analytics.tiktok.com", "connect.facebook.com",
+    # Error / crash / telemetry reporting
+    "sentry.io", "ingest.sentry.io", "rollbar.com", "raygun.io",
+    "raygun.com", "newrelic.com", "nr-data.net", "datadoghq.com",
+    "browser-intake-datadoghq.com", "trackjs.com", "honeybadger.io",
+    "cronitor.io",
+    # Consent / CMP
+    "cookielaw.org", "onetrust.com", "cookiebot.com", "consensu.org",
+    "trustarc.com", "quantcast.com", "usercentrics.eu",
+    # Browser / OS background chatter and update pings
+    "safebrowsing.googleapis.com", "update.googleapis.com",
+    "clients1.google.com", "clients2.google.com", "clients3.google.com",
+    "clients4.google.com", "clients5.google.com", "clients6.google.com",
+    "clientservices.googleapis.com", "android.clients.google.com",
+    "optimizationguide-pa.googleapis.com", "accounts.google.com",
+    "gstatic.com", "www.gstatic.com", "ssl.gstatic.com", "fonts.gstatic.com",
+    "content-autofill.googleapis.com", "gvt1.com", "gvt2.com", "gvt3.com",
+    "edge.microsoft.com", "config.edge.skype.com", "self.events.data.microsoft.com",
+    "v10.events.data.microsoft.com", "browser.events.data.msn.com",
+    "settings-win.data.microsoft.com", "ctldl.windowsupdate.com",
+    "detectportal.firefox.com", "push.services.mozilla.com",
+    "incoming.telemetry.mozilla.org", "location.services.mozilla.com",
+    "shavar.services.mozilla.com", "content-signature-2.cdn.mozilla.net",
+    "firefox.settings.services.mozilla.com", "spocs.getpocket.com",
+    "ocsp.digicert.com", "ocsp.pki.goog", "r3.o.lencr.org", "o.lencr.org",
 )
+
+# Host-name prefixes that reliably indicate infrastructure/telemetry endpoints
+# rather than the site under test. Matched against the leftmost label.
+_NOISY_HOST_PREFIXES = (
+    "analytics.", "telemetry.", "metrics.", "beacon.", "beacons.",
+    "tracking.", "track.", "stats.", "pixel.", "collect.", "logs.",
+    "log.", "ads.", "adservice.", "sentry.", "rum.",
+)
+
+# Host-name suffixes for Google's private "-pa" (Private API) backends, e.g.
+# ``ogads-pa.clients6.google.com`` and ``play-pa.googleapis.com``. These only
+# ever carry Chrome/Google background RPCs, never the site under test.
+_NOISY_HOST_SUFFIXES = (
+    "-pa.googleapis.com", "-pa.clients6.google.com", "-pa.clients5.google.com",
+)
+
+# Host + path-prefix rules for shared hosts that ALSO serve real content, so we
+# only hide the specific background endpoints (Chrome new-tab, sign-in, web
+# store, search autocomplete, logging) rather than the whole host.
+_NOISY_HOST_PATHS = {
+    "www.google.com": ("/async/", "/complete/search", "/gen_204", "/log"),
+    "google.com": ("/async/", "/complete/search", "/gen_204"),
+    "www.googleapis.com": ("/chromewebstore/", "/chromoting/"),
+    "play.google.com": ("/log",),
+    "www.youtube.com": ("/api/stats/", "/youtubei/v1/log_event", "/generate_204"),
+}
+
 _NOISY_PATHS = (
-    "/favicon.ico", "/favicon.png", "/browserconfig.xml", "/site.webmanifest",
+    "/favicon.ico", "/favicon.png", "/apple-touch-icon.png",
+    "/apple-touch-icon-precomposed.png", "/browserconfig.xml",
+    "/site.webmanifest", "/manifest.json", "/robots.txt", "/ads.txt",
+    "/app-ads.txt", "/security.txt", "/.well-known/security.txt",
     "/__webpack_hmr", "/sockjs-node", "/livereload", "/_next/webpack-hmr",
+    "/generate_204", "/gen_204", "/canonical.html",
 )
+
+# Full path segments that flag beacon/telemetry traffic regardless of host, so
+# a first-party analytics endpoint is still recognised as noise. Matched on
+# segment boundaries so real app paths like ``/collections`` are never hidden.
+_NOISY_PATH_SEGMENTS = frozenset((
+    "collect", "beacon", "pagead", "telemetry", "gtm.js", "analytics.js",
+    "gtag", "ga.js", "fbevents.js", "hotjar.js", "hotjar-c.js",
+))
+
+_NOISY_PATH_SUFFIXES = (".map", ".hot-update.json", ".hot-update.js")
 
 
 def is_browser_noise(record: FlowRecord) -> bool:
-    """Identify common browser/tooling chatter without dropping captured data."""
+    """Identify common browser/tooling chatter without dropping captured data.
+
+    "Noise" here means traffic that is not part of the application under test:
+    analytics, advertising, tracking beacons, error/telemetry reporting, social
+    widgets, consent managers, and browser/OS background requests. The captured
+    data is never dropped; this only hides it from the default History view.
+    """
     host = record.host.casefold().rstrip(".")
     path = record.path.casefold().split("?", 1)[0]
     if any(host == noisy or host.endswith("." + noisy) for noisy in _NOISY_HOSTS):
         return True
-    if path in _NOISY_PATHS or path.endswith((".map", ".hot-update.json")):
+    if host.startswith(_NOISY_HOST_PREFIXES):
+        return True
+    if host.endswith(_NOISY_HOST_SUFFIXES):
+        return True
+    host_paths = _NOISY_HOST_PATHS.get(host)
+    if host_paths and path.startswith(host_paths):
+        return True
+    if path in _NOISY_PATHS:
+        return True
+    if path.endswith(_NOISY_PATH_SUFFIXES):
+        return True
+    if any(segment in _NOISY_PATH_SEGMENTS for segment in path.split("/") if segment):
         return True
     return False
 

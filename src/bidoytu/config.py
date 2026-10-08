@@ -43,6 +43,10 @@ class ProxyConfig:
     include_regex: list[str] = field(default_factory=list)
     exclude_regex: list[str] = field(default_factory=list)
     sitemaps: list[str] = field(default_factory=list)
+    # Burp-style "drop all out-of-scope traffic": when enabled, out-of-scope
+    # flows are neither recorded to history nor eligible for interception. They
+    # are still proxied so the browser keeps working, just not logged.
+    drop_out_of_scope: bool = False
 
 
 def _normalise_scope_entry(value: str) -> str:
@@ -263,6 +267,8 @@ class AppConfig:
                     key,
                     [str(value) for value in values if str(value).strip()],
                 )
+        if isinstance(data.get("drop_out_of_scope"), bool):
+            self.proxy.drop_out_of_scope = data["drop_out_of_scope"]
 
     def save_proxy_scope(self) -> None:
         """Persist the current Target scope inside the active workspace."""
@@ -276,6 +282,7 @@ class AppConfig:
                     "include_regex": self.proxy.include_regex,
                     "exclude_regex": self.proxy.exclude_regex,
                     "sitemaps": self.proxy.sitemaps,
+                    "drop_out_of_scope": self.proxy.drop_out_of_scope,
                 },
                 indent=2,
             ),

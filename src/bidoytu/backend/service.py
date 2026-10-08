@@ -96,7 +96,8 @@ class ApplicationService:
                 "queue_depth": self.queue.qsize(), "error": self.proxy.error or self.error,
                 "data_dir": str(self.config.data_dir),
                 "scope": {"include": self.config.proxy.include_scope,
-                          "exclude": self.config.proxy.exclude_scope},
+                          "exclude": self.config.proxy.exclude_scope,
+                          "drop_out_of_scope": self.config.proxy.drop_out_of_scope},
                 "job_state": self.job_state}
 
     def capture(self, record: FlowRecord, response: bool):
@@ -349,9 +350,12 @@ class ApplicationService:
                 if not isinstance(values, list) or len(values) > 200 or any(not isinstance(v, str) or len(v) > 253 for v in values):
                     raise ValueError("Scope must contain at most 200 host patterns")
                 setattr(self.config.proxy, f"{key}_scope", values)
+            if "drop_out_of_scope" in p:
+                self.config.proxy.drop_out_of_scope = bool(p["drop_out_of_scope"])
             await self.storage.call(self.config.save_proxy_scope)
             if self.proxy.addon:
                 self.proxy.addon.set_scope(self.config.proxy.include_scope, self.config.proxy.exclude_scope)
+                self.proxy.addon.set_drop_out_of_scope(self.config.proxy.drop_out_of_scope)
             self.changed()
             return self.state()
         if method == "repeater.send":
