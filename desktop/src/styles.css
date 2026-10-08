@@ -665,7 +665,7 @@ h1 {
   display: grid;
   flex: 1;
   min-height: 0;
-  margin: 0 24px 20px;
+  margin: 0 8px 8px;
 }
 .traffic-panel {
   border: 1px solid var(--hairline);
@@ -3109,7 +3109,7 @@ body {
 .proxy-tabs {
   display: flex;
   gap: 6px;
-  padding: 6px 24px;
+  padding: 6px 8px;
   flex-shrink: 0;
 }
 .proxy-tabs button {
